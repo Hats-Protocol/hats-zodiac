@@ -1,5 +1,5 @@
 cache/
 out/
 .vscode/
-broadcast/Hats.s.sol/31337
+broadcast/*/31337
 .env
