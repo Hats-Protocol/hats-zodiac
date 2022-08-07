@@ -6,5 +6,15 @@ optimizer_runs = 1000000
 gas_reports = ["*"]
 auto_detect_solc = false
 solc = "0.8.15"
+remappings = [
+  "solmate/=lib/solmate/src/",
+  "forge-std/=lib/forge-std/src/",
+  "ERC1155/=lib/ERC1155/",
+  "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+  "@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/",
+  "@gnosis.pm/safe-contracts/contracts=lib/safe-contracts/contracts/",
+  "utils/=lib/utils/",
+  "zodiac/=lib/zodiac/contracts/"
+]
 
 # See more config options https://github.com/foundry-rs/foundry/tree/master/config

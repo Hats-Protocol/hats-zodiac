@@ -2,6 +2,8 @@
 pragma solidity >=0.8.13;
 
 interface IHats {
+    function hatSupply(uint256 _hatId) external view returns (uint32);
+
     function createHat(
         uint256 admin,
         string memory details, // encode as bytes32 ??
