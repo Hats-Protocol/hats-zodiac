@@ -2,14 +2,13 @@
 pragma solidity >=0.8.13;
 
 import "../IHats.sol";
-import "zodiac/core/Module.sol";
+import "hats-auth/HatsOwned.sol";
 import "zodiac/guard/BaseGuard.sol";
 import "zodiac/interfaces/IAvatar.sol";
-import "safe-contracts/common/SignatureDecoder.sol";
 import "safe-contracts/common/StorageAccessible.sol";
 import "./IGnosisSafe.sol";
 
-contract ZodiacHats is Module, BaseGuard, SignatureDecoder {
+contract ZodiacHats is BaseGuard, HatsOwned {
     // Cannot disable this guard
     error CannotDisableThisGuard(address guard);
 
@@ -28,20 +27,23 @@ contract ZodiacHats is Module, BaseGuard, SignatureDecoder {
     // Can't remove a signer if they're still wearing the signer hat
     error StillWearsSignerHat(address signer);
 
+    // This module will always be a signer on the Safe
+    error NeedAtLeastTwoSigners;
+
     error FailedExecChangeThreshold();
     error FailedExecAddSigner();
     error FailedExecRemoveSigner();
 
-    event AvatarSet(address avatar);
     event TargetThresholdSet(uint256 threshold);
 
+    address public avatar;
     IHats public immutable hats;
-    uint256 public immutable ownerHatId;
     uint256 public signersHatId;
     uint256 public targetThreshold;
+    uint256 public immutable maxSigners;
     uint256 public signerCount;
 
-    string public version;
+    string public immutable version;
 
     address internal constant SENTINEL_OWNERS = address(0x1);
 
@@ -56,20 +58,27 @@ contract ZodiacHats is Module, BaseGuard, SignatureDecoder {
         0xbb8310d486368db6bd6f849402fdd73ad53d316b5a4b2644ad6efe0f941286d8;
 
     constructor(
-        uint256 _ownerHatId,
+        uint256 _ownerHatId, // TODO bring in HatsAuth
         uint256 _signersHatId,
-        address _avatar,
+        address _avatar, // Gnosis Safe that the signers will join
         address _hats,
-        uint8 _targetThreshold,
+        uint256 _targetThreshold,
+        uint256 _maxSigners, // add 1 to the number of signers you really want
         string memory _version
     ) {
         // bytes memory initializeParams = abi.encode(_ownerHatId, _avatar, _hats);
         // setUp(initializeParams);
+
+        if (_maxSigners < 2) {
+            revert NeedAtLeastTwoSigners();
+        }
+
         avatar = _avatar;
         hats = IHats(_hats);
-        ownerHatId = _ownerHatId;
+        ownerHat = _ownerHatId;
         signersHatId = _signersHatId;
         targetThreshold = _targetThreshold;
+        maxSigners = _maxSigners;
         version = _version;
     }
 
@@ -81,7 +90,7 @@ contract ZodiacHats is Module, BaseGuard, SignatureDecoder {
         targetThreshold = _targetThreshold;
 
         // update the threshold in the Safe only if its lower than the current supply of the signer hat
-        if (_targetThreshold < hats.hatSupply(signersHatId)) {
+        if (_targetThreshold <= hats.hatSupply(signersHatId)) {
             bytes memory data = abi.encodeWithSignature(
                 "changeThreshold(uint256)",
                 _targetThreshold
@@ -108,18 +117,35 @@ contract ZodiacHats is Module, BaseGuard, SignatureDecoder {
 
     function addSigner(address _signer) public {
         if (!hats.isWearerOfHat(_signer, signersHatId)) {
-            revert NotSignerHatWearer(msg.sender);
+            revert NotSignerHatWearer(_signer);
         }
+
+        // objective: 6 of 10 multisig
+        // 0. multisig is created as 1 of 1 w/ module as the "signer"
+        // 1. target threshold set at 6
+        //    maxSigners set at 11
+        //    1 of 1 multisig
+        // 2. DAO mints 6 hats
+        // 3. 1 person claims signer
+        //    2 of 2 multisig
+        // 4. 5 more people claim signer
+        //    6 of 7 multisig
+        // 5. DAO decides it doesn't want any more signers
+        //    changes target threshold to 4
+        //    4 of 7 multisig
 
         IGnosisSafe safe = IGnosisSafe(avatar);
 
         uint256 currentThreshold = safe.getThreshold();
         uint256 newThreshold = currentThreshold;
+        uint256 newSignerCount = signerCount + 1;
 
-        // ensure that safe.threshold >= # of signers
-        if (signerCount < targetThreshold) {
-            newThreshold = signerCount + 1;
+        // ensure that txs can't execute if fewer signers than target threshold
+        if (newSignerCount < targetThreshold) {
+            newThreshold = newSignerCount;
         }
+
+        // TODO may need to set threshold to 0 if signerCount < targetThreshold
 
         bytes memory data = abi.encodeWithSignature(
             "addOwnerWithThreshold(address,uint256)",
@@ -139,15 +165,24 @@ contract ZodiacHats is Module, BaseGuard, SignatureDecoder {
         }
 
         // increment signer count
-        ++signerCount;
+        signerCount = newSignerCount;
     }
 
     function removeSigner(address _signer) public {
-        if (hats.isWearerOfHat(msg.sender, signersHatId)) {
-            revert StillWearsSignerHat(msg.sender);
+        if (hats.isWearerOfHat(_signer, signersHatId)) {
+            revert StillWearsSignerHat(_signer);
         }
 
         IGnosisSafe safe = IGnosisSafe(avatar);
+
+        uint256 currentThreshold = safe.getThreshold();
+        uint256 newThreshold = currentThreshold;
+        uint256 newSignerCount = signerCount - 1;
+
+        // ensure that txs can't execute if fewer signers than target threshold
+        if (newSignerCount < targetThreshold) {
+            newThreshold = newSignerCount;
+        }
 
         address[] memory owners = safe.getOwners();
         address prevOwner = SENTINEL_OWNERS;
@@ -179,7 +214,7 @@ contract ZodiacHats is Module, BaseGuard, SignatureDecoder {
         }
 
         // decrement signer count
-        --signerCount;
+        signerCount = newSignerCount;
     }
 
     // solhint-disallow-next-line payable-fallback
@@ -188,55 +223,7 @@ contract ZodiacHats is Module, BaseGuard, SignatureDecoder {
         // E.g. The expected check method might change and then the Safe would be locked.
     }
 
-    /// @notice from https://github.com/safe-global/safe-contracts/blob/c36bcab46578a442862d043e12a83fec41143dec/contracts/GnosisSafe.sol#L353
-    /// @dev Returns the bytes that are hashed to be signed by owners.
-    /// @param to Destination address.
-    /// @param value Ether value.
-    /// @param data Data payload.
-    /// @param operation Operation type.
-    /// @param safeTxGas Gas that should be used for the safe transaction.
-    /// @param baseGas Gas costs for that are independent of the transaction execution(e.g. base transaction fee, signature check, payment of the refund)
-    /// @param gasPrice Maximum gas price that should be used for this transaction.
-    /// @param gasToken Token address (or 0 if ETH) that is used for the payment.
-    /// @param refundReceiver Address of receiver of gas payment (or 0 if tx.origin).
-    /// @param _nonce Transaction nonce.
-    /// @return Transaction hash bytes.
-    function encodeTransactionData(
-        address to,
-        uint256 value,
-        bytes calldata data,
-        Enum.Operation operation,
-        uint256 safeTxGas,
-        uint256 baseGas,
-        uint256 gasPrice,
-        address gasToken,
-        address refundReceiver,
-        uint256 _nonce
-    ) public view returns (bytes memory) {
-        bytes32 safeTxHash = keccak256(
-            abi.encode(
-                SAFE_TX_TYPEHASH,
-                to,
-                value,
-                keccak256(data),
-                operation,
-                safeTxGas,
-                baseGas,
-                gasPrice,
-                gasToken,
-                refundReceiver,
-                _nonce
-            )
-        );
-        return
-            abi.encodePacked(
-                bytes1(0x19),
-                bytes1(0x01),
-                IGnosisSafe(avatar).domainSeparator(),
-                safeTxHash
-            );
-    }
-
+    // pre-flight check
     function checkTransaction(
         address to,
         uint256 value,
@@ -250,10 +237,14 @@ contract ZodiacHats is Module, BaseGuard, SignatureDecoder {
         bytes memory signatures,
         address msgSender
     ) external override {
+        // TODO revert if msg.sender is not a hat wearer
+
+        IGnosisSafe safe = IGnosisSafe(avatar);
+
         // get the tx hash
-        // fixme this is returning 0x for some reason
-        bytes memory txHashData = encodeTransactionData(
-            // Transaction info
+        // fixme this is returning 0x for some reason??
+
+        bytes32 txHash = safe.getTransactionHash( // Transaction info
             to,
             value,
             data,
@@ -266,10 +257,8 @@ contract ZodiacHats is Module, BaseGuard, SignatureDecoder {
             refundReceiver,
             // Signature info
             // We subtract 1 since nonce was just incremented in the parent function call
-            IGnosisSafe(avatar).nonce() - 1
+            safe.nonce() - 1
         );
-
-        bytes32 txHash = keccak256(txHashData);
 
         // signatures have length = 65
         uint256 sigCount = signatures.length / 65;
@@ -283,7 +272,7 @@ contract ZodiacHats is Module, BaseGuard, SignatureDecoder {
         // count up signers that are wearing the signer hat
         for (uint256 i = 0; i < sigCount; ++i) {
             // recover their address
-            (v, r, s) = signatureSplit(signatures, i);
+            (v, r, s) = safe.signatureSplit(signatures, i);
 
             // fixme this is returning address(0) for some reason
             // likely has to do with the txHashData returning as 0x
@@ -296,7 +285,7 @@ contract ZodiacHats is Module, BaseGuard, SignatureDecoder {
         }
 
         // revert if there aren't enough valid signatures
-        if (validSigCount < IGnosisSafe(avatar).getThreshold()) {
+        if (validSigCount < safe.getThreshold()) {
             revert InvalidSigners();
         }
     }
@@ -317,13 +306,7 @@ contract ZodiacHats is Module, BaseGuard, SignatureDecoder {
         }
 
         if (!IAvatar(avatar).isModuleEnabled(address(this))) {
-            revert CannotDisableProtecedModules(address(this));
-        }
-    }
-
-    function _checkOwner() internal view override {
-        if (!hats.isWearerOfHat(msg.sender, ownerHatId)) {
-            revert NotOwnerHatWearer(msg.sender);
+            revert CannotDisableProtectedModules(address(this));
         }
     }
 }
