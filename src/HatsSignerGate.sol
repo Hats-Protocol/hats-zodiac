@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: CC0
 pragma solidity >=0.8.13;
 
-import {IHatsZodiac} from "../IHats.sol";
+// import {IHatsZodiac} from "../IHats.sol";
 import "hats-auth/HatsOwned.sol";
 import "zodiac/guard/BaseGuard.sol";
 import "zodiac/interfaces/IAvatar.sol";
 import "safe-contracts/common/StorageAccessible.sol";
 import "./IGnosisSafe.sol";
 
-contract ZodiacHats is BaseGuard, HatsOwned {
+contract HatsSignerGate is BaseGuard, HatsOwned {
     // Cannot disable this guard
     error CannotDisableThisGuard(address guard);
 
@@ -37,7 +37,6 @@ contract ZodiacHats is BaseGuard, HatsOwned {
     event TargetThresholdSet(uint256 threshold);
 
     address public avatar;
-    IHatsZodiac public immutable hats;
     uint256 public signersHatId;
     uint256 public targetThreshold;
     uint256 public immutable maxSigners;
@@ -88,7 +87,7 @@ contract ZodiacHats is BaseGuard, HatsOwned {
         targetThreshold = _targetThreshold;
 
         // update the threshold in the Safe only if its lower than the current supply of the signer hat
-        if (_targetThreshold <= hats.hatSupply(signersHatId)) {
+        if (_targetThreshold <= HATS.hatSupply(signersHatId)) {
             bytes memory data = abi.encodeWithSignature(
                 "changeThreshold(uint256)",
                 _targetThreshold
@@ -114,7 +113,7 @@ contract ZodiacHats is BaseGuard, HatsOwned {
     }
 
     function addSigner(address _signer) public {
-        if (!hats.isWearerOfHat(_signer, signersHatId)) {
+        if (!HATS.isWearerOfHat(_signer, signersHatId)) {
             revert NotSignerHatWearer(_signer);
         }
 
@@ -167,7 +166,7 @@ contract ZodiacHats is BaseGuard, HatsOwned {
     }
 
     function removeSigner(address _signer) public {
-        if (hats.isWearerOfHat(_signer, signersHatId)) {
+        if (HATS.isWearerOfHat(_signer, signersHatId)) {
             revert StillWearsSignerHat(_signer);
         }
 
@@ -277,7 +276,7 @@ contract ZodiacHats is BaseGuard, HatsOwned {
             signer = ecrecover(txHash, v, r, s);
 
             // check if the signer is still valid, and increment the signature count if so
-            if (hats.isWearerOfHat(signer, signersHatId)) {
+            if (HATS.isWearerOfHat(signer, signersHatId)) {
                 ++validSigCount;
             }
         }
