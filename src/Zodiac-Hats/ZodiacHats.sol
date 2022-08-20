@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: CC0
 pragma solidity >=0.8.13;
 
-import "../IHats.sol";
+import {IHatsZodiac} from "../IHats.sol";
 import "hats-auth/HatsOwned.sol";
 import "zodiac/guard/BaseGuard.sol";
 import "zodiac/interfaces/IAvatar.sol";
@@ -13,7 +13,7 @@ contract ZodiacHats is BaseGuard, HatsOwned {
     error CannotDisableThisGuard(address guard);
 
     // Cannot disable protected modules
-    error CannotDisableProtecedModules(address module);
+    error CannotDisableProtectedModules(address module);
 
     // Must wear the owner hat to make changes to this contract
     error NotOwnerHatWearer(address user);
@@ -28,7 +28,7 @@ contract ZodiacHats is BaseGuard, HatsOwned {
     error StillWearsSignerHat(address signer);
 
     // This module will always be a signer on the Safe
-    error NeedAtLeastTwoSigners;
+    error NeedAtLeastTwoSigners();
 
     error FailedExecChangeThreshold();
     error FailedExecAddSigner();
@@ -37,13 +37,13 @@ contract ZodiacHats is BaseGuard, HatsOwned {
     event TargetThresholdSet(uint256 threshold);
 
     address public avatar;
-    IHats public immutable hats;
+    IHatsZodiac public immutable hats;
     uint256 public signersHatId;
     uint256 public targetThreshold;
     uint256 public immutable maxSigners;
     uint256 public signerCount;
 
-    string public immutable version;
+    string public version;
 
     address internal constant SENTINEL_OWNERS = address(0x1);
 
@@ -65,7 +65,7 @@ contract ZodiacHats is BaseGuard, HatsOwned {
         uint256 _targetThreshold,
         uint256 _maxSigners, // add 1 to the number of signers you really want
         string memory _version
-    ) {
+    ) HatsOwned(_ownerHatId, _hats) {
         // bytes memory initializeParams = abi.encode(_ownerHatId, _avatar, _hats);
         // setUp(initializeParams);
 
@@ -74,17 +74,15 @@ contract ZodiacHats is BaseGuard, HatsOwned {
         }
 
         avatar = _avatar;
-        hats = IHats(_hats);
-        ownerHat = _ownerHatId;
         signersHatId = _signersHatId;
         targetThreshold = _targetThreshold;
         maxSigners = _maxSigners;
         version = _version;
     }
 
-    function setUp(bytes memory initializeParams) public override {
-        // TODO enable factory support by overriding `setup`
-    }
+    // function setUp(bytes memory initializeParams) public override {
+    //     // TODO enable factory support by overriding `setup`
+    // }
 
     function setTargetThreshold(uint256 _targetThreshold) public onlyOwner {
         targetThreshold = _targetThreshold;
