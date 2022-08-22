@@ -5,7 +5,7 @@ pragma solidity >=0.8.13;
 import "hats-auth/HatsOwned.sol";
 import "zodiac/guard/BaseGuard.sol";
 import "zodiac/interfaces/IAvatar.sol";
-import "safe-contracts/common/StorageAccessible.sol";
+import "@gnosis.pm/safe-contracts/contracts/common/StorageAccessible.sol";
 import "./IGnosisSafe.sol";
 
 contract HatsSignerGate is BaseGuard, HatsOwned {

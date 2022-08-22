@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "forge-std/Test.sol";
+import "./HSGTestSetup.t.sol";
 
-contract HatsSignerGateTest is Test {
-    function setUp() public {
-        //
-    }
+contract HatsSignerGateTest is HSGTestSetup {
+    // start tests
 }

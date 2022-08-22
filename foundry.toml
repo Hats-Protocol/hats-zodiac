@@ -12,7 +12,7 @@ remappings = [
   "ERC1155/=lib/ERC1155/",
   "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
   "@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/",
-  "@gnosis.pm/safe-contracts/contracts=lib/safe-contracts/contracts/",
+  "@gnosis.pm/safe-contracts/contracts/=lib/safe-contracts/contracts/",
   "utils/=lib/utils/",
   "zodiac/=lib/zodiac/contracts/"
 ]
