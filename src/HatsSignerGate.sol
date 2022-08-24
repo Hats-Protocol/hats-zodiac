@@ -300,6 +300,7 @@ contract HatsSignerGate is BaseGuard, SignatureDecoder, HatsOwned {
             // fixme this is returning address(0) for some reason
             // likely has to do with the txHashData returning as 0x
             signer = ecrecover(txHash, v, r, s);
+            console2.log("recovered signer", signer);
 
             // check if the signer is still valid, and increment the signature count if so
             if (HATS.isWearerOfHat(signer, signersHatId)) {
