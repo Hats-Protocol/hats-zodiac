@@ -11,6 +11,7 @@ contract DeployHatsSignerGate is Script {
         27065258958819196981364933114703301105956039517941121592357921226752;
     address public avatar = 0x5293A41B9C4DA8966b873A8C032D74D416baA859;
     address public hats = 0xF55228444742e6812535BCda350167cd965121B7;
+    uint256 public minThreshold = 2;
     uint256 public targetThreshold = 3;
     uint256 public maxSigners = 8;
     string public version = "MC Super Scouts Demo #1";
@@ -23,6 +24,7 @@ contract DeployHatsSignerGate is Script {
             signersHatId,
             avatar,
             hats,
+            minThreshold,
             targetThreshold,
             maxSigners,
             version

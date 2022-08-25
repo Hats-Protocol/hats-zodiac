@@ -15,7 +15,11 @@ contract HatsSignerGateTest is HSGTestSetup {
 
         assertEq(safe.getOwners()[0], address(this));
 
-        emit log_address(address(this));
+        assertEq(hatsSignerGate.minThreshold(), minThreshold);
+        assertEq(hatsSignerGate.targetThreshold(), targetThreshold);
+        assertEq(address(hatsSignerGate.safe()), address(safe));
+        assertEq(hatsSignerGate.maxSigners(), maxSigners);
+        assertEq(hatsSignerGate.version(), version);
     }
 
     function testSetTargetThreshold() public {
@@ -38,7 +42,7 @@ contract HatsSignerGateTest is HSGTestSetup {
     }
 
     function testSetTargetThreshold4of4() public {
-        testAddThreeSigners();
+        addSigners(3);
         mockIsWearerCall(address(this), ownerHat, true);
 
         hatsSignerGate.setTargetThreshold(4);
@@ -58,12 +62,33 @@ contract HatsSignerGateTest is HSGTestSetup {
         assertEq(safe.getThreshold(), 1);
     }
 
+    function testSetMinThreshold() public {
+        mockIsWearerCall(address(this), ownerHat, true);
+        hatsSignerGate.setTargetThreshold(3);
+        hatsSignerGate.setMinThreshold(3);
+
+        assertEq(hatsSignerGate.minThreshold(), 3);
+    }
+
+    function testSetInvalidMinThreshold() public {
+        mockIsWearerCall(address(this), ownerHat, true);
+
+        vm.expectRevert(HatsSignerGate.InvalidMinThreshold.selector);
+        hatsSignerGate.setMinThreshold(3);
+    }
+
+    function testNonOwnerCannotSetMinThreshold() public {
+        mockIsWearerCall(address(this), ownerHat, false);
+
+        vm.expectRevert("UNAUTHORIZED");
+
+        hatsSignerGate.setMinThreshold(1);
+
+        assertEq(hatsSignerGate.minThreshold(), 2);
+    }
+
     function testAddSingleSigner() public {
-        // testAddSigners(1);
-
-        mockIsWearerCall(addresses[0], signerHat, true);
-
-        hatsSignerGate.addSigner(addresses[0]);
+        addSigners(1);
 
         assertEq(hatsSignerGate.signerCount(), 2);
 
@@ -73,13 +98,7 @@ contract HatsSignerGateTest is HSGTestSetup {
     }
 
     function testAddThreeSigners() public {
-        for (uint256 i = 0; i < 3; ++i) {
-            // mock mint 3 addresses the signerHat
-            mockIsWearerCall(addresses[i], signerHat, true);
-
-            // add them as signers
-            hatsSignerGate.addSigner(addresses[i]);
-        }
+        addSigners(3);
 
         assertEq(hatsSignerGate.signerCount(), 4);
 
@@ -91,19 +110,14 @@ contract HatsSignerGateTest is HSGTestSetup {
     }
 
     function testAddTooManySigners() public {
-        for (uint256 i = 0; i < 4; ++i) {
-            // mock mint 3 addresses the signerHat
-            mockIsWearerCall(addresses[i], signerHat, true);
-
-            // add them as signers
-            hatsSignerGate.addSigner(addresses[i]);
-        }
+        addSigners(4);
 
         mockIsWearerCall(addresses[4], signerHat, true);
 
         vm.expectRevert(HatsSignerGate.MaxSignersReached.selector);
 
-        hatsSignerGate.addSigner(addresses[4]);
+        vm.prank(addresses[4]);
+        hatsSignerGate.claimSigner();
 
         assertEq(hatsSignerGate.signerCount(), 5);
 
@@ -116,21 +130,11 @@ contract HatsSignerGateTest is HSGTestSetup {
     }
 
     // function testAddSigners(uint256 signerCount) public {
-    //     // vm.assume(signerCount > 0);
-    //     // vm.assume(signerCount < maxSigners);
     //     signerCount = bound(signerCount, 1, maxSigners - 1);
 
-    //     for (uint256 i = 0; i < signerCount; ++i) {
-    //         // mock mint 3 addresses the signerHat
-    //         mockIsWearerCall(addresses[i], signerHat, true);
-
-    //         // add them as signers
-    //         hatsSignerGate.addSigner(addresses[i]);
-    //     }
+    //     addSigners(signerCount);
 
     //     assertEq(hatsSignerGate.signerCount(), signerCount + 1);
-
-    //     assertEq(safe.getOwners()[0], addresses[0]);
     // }
 
     function testClaimSigner() public {
@@ -143,8 +147,22 @@ contract HatsSignerGateTest is HSGTestSetup {
         assertEq(safe.getThreshold(), 2);
     }
 
+    function testNonHatWearerCannotClaimSigner() public {
+        mockIsWearerCall(addresses[3], signerHat, false);
+
+        vm.prank(addresses[3]);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                HatsSignerGate.NotSignerHatWearer.selector,
+                addresses[3]
+            )
+        );
+        hatsSignerGate.claimSigner();
+    }
+
     function testRemoveSigner() public {
-        testAddSingleSigner();
+        addSigners(1);
 
         mockIsWearerCall(addresses[0], signerHat, false);
 
@@ -156,19 +174,42 @@ contract HatsSignerGateTest is HSGTestSetup {
         assertEq(safe.getThreshold(), 1);
     }
 
-    // function testRemoveInitSigner() public {
-    //     testAddSingleSigner();
+    function testRemoveInitNonSigner() public {
+        // first, add a legit signer
+        addSigners(1);
 
-    //     hatsSignerGate.removeSigner(address(this));
+        // second, remove the init non-signer (eg the module address)
+        mockIsWearerCall(address(this), signerHat, false);
+        hatsSignerGate.removeSigner(address(this));
 
-    //     assertEq(safe.getOwners().length, 1);
-    //     assertEq(safe.getOwners()[0], addresses[0]);
+        assertEq(safe.getOwners().length, 1);
+        assertEq(safe.getOwners()[0], addresses[0]);
 
-    //     assertEq(safe.getThreshold(), 1);
-    // }
+        assertEq(safe.getThreshold(), 1);
+    }
 
-    function testExecTransactionByHatWearers() public {
-        testAddThreeSigners();
+    function testRemoveSignerStillWearingHat() public {
+        addSigners(1);
+
+        mockIsWearerCall(addresses[0], signerHat, true);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                HatsSignerGate.StillWearsSignerHat.selector,
+                addresses[0]
+            )
+        );
+
+        hatsSignerGate.removeSigner(addresses[0]);
+
+        assertEq(safe.getOwners().length, 2);
+        assertEq(safe.getOwners()[0], addresses[0]);
+
+        assertEq(safe.getThreshold(), 2);
+    }
+
+    function testExecTxByHatWearers() public {
+        addSigners(3);
 
         uint256 preNonce = safe.nonce();
         uint256 preValue = 1 ether;
@@ -177,38 +218,12 @@ contract HatsSignerGateTest is HSGTestSetup {
         address destAddress = addresses[3];
         // give the safe some eth
         hoax(address(safe), preValue);
-        // create tx to send some eth from safe to wherever
-        bytes32 txHash = getEthTransferSafeTxHash(
-            destAddress,
-            transferValue,
-            safe
-        );
-        // have each signer sign the tx
-        bytes[] memory sigs = new bytes[](3);
-        bytes memory signatures;
-        uint8 v;
-        bytes32 r;
-        bytes32 s;
 
-        for (uint256 i = 0; i < 3; ++i) {
-            // sign txHash
-            (v, r, s) = vm.sign((i + 1) * 100, txHash);
-            // assertEq(vm.addr((i + 1) * 100), addresses[i]);
-            emit log_address(vm.addr((i + 1) * 100));
-            emit log_address(addresses[i]);
-            emit log_address(ecrecover(txHash, v, r, s));
-            // append to signatures
-            // signatures = bytes.concat(signatures, r, s, bytes1(v));
-            sigs[i] = bytes.concat(r, s, bytes1(v));
-        }
+        // create the tx
+        bytes32 txHash = getTxHash(destAddress, transferValue, hex"00", safe);
 
-        // janky manual sorting of signer addresses, but gnosis safe is very needy
-        signatures = bytes.concat(signatures, sigs[2]);
-        signatures = bytes.concat(signatures, sigs[1]);
-        signatures = bytes.concat(signatures, sigs[0]);
-
-        emit log_array(safe.getOwners());
-        emit log_bytes(signatures);
+        // have 3 signers sign it
+        bytes memory signatures = createNSigsForTx(txHash, 3, safe);
 
         // have one of the signers submit/exec the tx
         vm.prank(addresses[0]);
@@ -232,8 +247,8 @@ contract HatsSignerGateTest is HSGTestSetup {
         emit log_uint(address(safe).balance);
     }
 
-    function testExecTransactionByNonHatWearersFails() public {
-        testAddThreeSigners();
+    function testExecTxByNonHatWearersFails() public {
+        addSigners(3);
 
         uint256 preNonce = safe.nonce();
         uint256 preValue = 1 ether;
@@ -243,37 +258,11 @@ contract HatsSignerGateTest is HSGTestSetup {
         // give the safe some eth
         hoax(address(safe), preValue);
         // create tx to send some eth from safe to wherever
-        bytes32 txHash = getEthTransferSafeTxHash(
-            destAddress,
-            transferValue,
-            safe
-        );
-        // have each signer sign the tx
-        bytes[] memory sigs = new bytes[](3);
-        bytes memory signatures;
-        uint8 v;
-        bytes32 r;
-        bytes32 s;
+        // create the tx
+        bytes32 txHash = getTxHash(destAddress, transferValue, hex"00", safe);
 
-        for (uint256 i = 0; i < 3; ++i) {
-            // sign txHash
-            (v, r, s) = vm.sign((i + 1) * 100, txHash);
-            // assertEq(vm.addr((i + 1) * 100), addresses[i]);
-            emit log_address(vm.addr((i + 1) * 100));
-            emit log_address(addresses[i]);
-            emit log_address(ecrecover(txHash, v, r, s));
-            // append to signatures
-            // signatures = bytes.concat(signatures, r, s, bytes1(v));
-            sigs[i] = bytes.concat(r, s, bytes1(v));
-        }
-
-        // janky manual sorting of signer addresses, but gnosis safe is very needy
-        signatures = bytes.concat(signatures, sigs[2]);
-        signatures = bytes.concat(signatures, sigs[1]);
-        signatures = bytes.concat(signatures, sigs[0]);
-
-        emit log_array(safe.getOwners());
-        emit log_bytes(signatures);
+        // have 3 signers sign it
+        bytes memory signatures = createNSigsForTx(txHash, 3, safe);
 
         // removing the hats from 2 signers
         mockIsWearerCall(addresses[0], signerHat, false);
@@ -297,14 +286,154 @@ contract HatsSignerGateTest is HSGTestSetup {
             payable(address(0)),
             signatures
         );
-        // confirm it we executed by checking ETH balance changes
+        // confirm it was not executed by checking ETH balance changes
         assertEq(address(safe).balance, preValue);
         assertEq(destAddress.balance, 0);
         assertEq(safe.nonce(), preNonce);
         emit log_uint(address(safe).balance);
     }
 
-    // TODO
-    // function testCannotDisableModule() public {}
-    // function testCannotDisableGuard() public {}
+    function testExecTxByTooFewOwnersReverts() public {
+        // add a legit signer
+        addSigners(1);
+
+        // remove the init owner
+        mockIsWearerCall(address(this), signerHat, false);
+        hatsSignerGate.removeSigner(address(this));
+
+        // set up test values
+        uint256 preNonce = safe.nonce();
+        uint256 preValue = 1 ether;
+        uint256 transferValue = .2 ether;
+        uint256 postValue = preValue - transferValue;
+        address destAddress = addresses[3];
+        // give the safe some eth
+        hoax(address(safe), preValue);
+
+        // have the remaining signer sign it
+        // create the tx
+        bytes32 txHash = getTxHash(destAddress, transferValue, hex"00", safe);
+
+        // have 3 signers sign it
+        bytes memory signatures = createNSigsForTx(txHash, 1, safe);
+
+        // have the legit signer exec the tx
+        vm.prank(addresses[0]);
+
+        mockIsWearerCall(addresses[0], signerHat, true);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                HatsSignerGate.BelowMinThreshold.selector,
+                hatsSignerGate.minThreshold(),
+                safe.getOwners().length
+            )
+        );
+
+        safe.execTransaction(
+            destAddress,
+            transferValue,
+            hex"00",
+            Enum.Operation.Call,
+            // not using the refunder
+            0,
+            0,
+            0,
+            address(0),
+            payable(address(0)),
+            signatures
+        );
+
+        // confirm it was not executed by checking ETH balance changes
+        assertEq(address(safe).balance, preValue);
+        assertEq(destAddress.balance, 0);
+        assertEq(safe.nonce(), preNonce);
+        emit log_uint(address(safe).balance);
+    }
+
+    function testCannotDisableModule() public {
+        bytes memory disableModuleData = abi.encodeWithSignature(
+            "disableModule(address,address)",
+            SENTINELS,
+            address(hatsSignerGate)
+        );
+
+        addSigners(2);
+
+        bytes32 txHash = getTxHash(address(safe), 0, disableModuleData, safe);
+
+        bytes memory signatures = createNSigsForTx(txHash, 2, safe);
+
+        mockIsWearerCall(address(this), signerHat, false);
+        // hatsSignerGate.setMinThreshold(1);
+        hatsSignerGate.removeSigner(address(this));
+
+        mockIsWearerCall(addresses[0], signerHat, true);
+        mockIsWearerCall(addresses[1], signerHat, true);
+
+        // generate sig
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                HatsSignerGate.CannotDisableProtectedModules.selector,
+                address(hatsSignerGate)
+            )
+        );
+        // execute tx
+
+        safe.execTransaction(
+            address(safe),
+            0,
+            disableModuleData,
+            Enum.Operation.Call,
+            // not using the refunder
+            0,
+            0,
+            0,
+            address(0),
+            payable(address(0)),
+            signatures
+        );
+
+        // executeSafeTxFrom(address(this), disableModuleData, safe);
+    }
+
+    function testCannotDisableGuard() public {
+        bytes memory disableGuardData = abi.encodeWithSignature(
+            "setGuard(address)",
+            address(0x0)
+        );
+
+        addSigners(2);
+
+        bytes32 txHash = getTxHash(address(safe), 0, disableGuardData, safe);
+
+        bytes memory signatures = createNSigsForTx(txHash, 2, safe);
+
+        mockIsWearerCall(address(this), signerHat, false);
+        hatsSignerGate.removeSigner(address(this));
+
+        mockIsWearerCall(addresses[0], signerHat, true);
+        mockIsWearerCall(addresses[1], signerHat, true);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                HatsSignerGate.CannotDisableThisGuard.selector,
+                address(hatsSignerGate)
+            )
+        );
+        safe.execTransaction(
+            address(safe),
+            0,
+            disableGuardData,
+            Enum.Operation.Call,
+            // not using the refunder
+            0,
+            0,
+            0,
+            address(0),
+            payable(address(0)),
+            signatures
+        );
+    }
 }

@@ -5,7 +5,7 @@ import "hats-auth/HatsOwned.sol";
 import "zodiac/guard/BaseGuard.sol";
 import "zodiac/interfaces/IAvatar.sol";
 import "@gnosis.pm/safe-contracts/contracts/common/StorageAccessible.sol";
-import "./IGnosisSafe.sol";
+import "./Interfaces/IGnosisSafe.sol";
 import "forge-std/Test.sol"; // remove after testing
 import "@gnosis.pm/safe-contracts/contracts/common/SignatureDecoder.sol";
 
@@ -33,22 +33,32 @@ contract HatsSignerGate is BaseGuard, SignatureDecoder, HatsOwned {
 
     error MaxSignersReached();
 
-    // Target threshold must be lower than hat.maxSupply and maxSigners
+    // Target threshold must be lower than maxSigners
     error InvalidTargetThreshold();
+
+    // Min threshold cannot be higher than maxSigners or targetThreshold
+    error InvalidMinThreshold();
 
     error FailedExecChangeThreshold();
     error FailedExecAddSigner();
     error FailedExecRemoveSigner();
 
+    // Cannot exec tx if safeOnwerCount < minThreshold
+    error BelowMinThreshold(uint256 minThreshold, uint256 safeOwnerCount);
+
     event TargetThresholdSet(uint256 threshold);
+    event MinThresholdSet(uint256 threshold);
 
     IGnosisSafe public safe;
     uint256 public signersHatId;
+    uint256 public minThreshold;
     uint256 public targetThreshold;
     uint256 public immutable maxSigners;
     uint256 public signerCount;
 
     string public version;
+
+    uint256 guardEntries;
 
     address internal constant SENTINEL_OWNERS = address(0x1);
 
@@ -63,25 +73,26 @@ contract HatsSignerGate is BaseGuard, SignatureDecoder, HatsOwned {
         0xbb8310d486368db6bd6f849402fdd73ad53d316b5a4b2644ad6efe0f941286d8;
 
     constructor(
-        uint256 _ownerHatId, // TODO bring in HatsAuth
+        uint256 _ownerHatId,
         uint256 _signersHatId,
         address _safe, // Gnosis Safe that the signers will join
         address _hats,
+        uint256 _minThreshold,
         uint256 _targetThreshold,
         uint256 _maxSigners, // add 1 to the number of signers you really want
         string memory _version
     ) HatsOwned(_ownerHatId, _hats) {
         // bytes memory initializeParams = abi.encode(_ownerHatId, _avatar, _hats);
         // setUp(initializeParams);
-
         if (_maxSigners < 2) {
             revert NeedAtLeastTwoSigners();
         }
 
+        maxSigners = _maxSigners;
+        _setTargetThreshold(_targetThreshold);
+        _setMinThreshold(_minThreshold);
         safe = IGnosisSafe(_safe);
         signersHatId = _signersHatId;
-        targetThreshold = _targetThreshold;
-        maxSigners = _maxSigners;
         version = _version;
         signerCount = 1; // initialize as 1 since the guard will be set as the first owner
     }
@@ -91,6 +102,14 @@ contract HatsSignerGate is BaseGuard, SignatureDecoder, HatsOwned {
     // }
 
     function setTargetThreshold(uint256 _targetThreshold) public onlyOwner {
+        if (_targetThreshold != targetThreshold) {
+            _setTargetThreshold(_targetThreshold);
+            _setSafeThreshold(_targetThreshold);
+            emit TargetThresholdSet(_targetThreshold);
+        }
+    }
+
+    function _setTargetThreshold(uint256 _targetThreshold) internal {
         // (, uint32 maxSupply, , , , ) = HATS.viewHat(signersHatId);
         if (
             _targetThreshold >= maxSigners
@@ -98,66 +117,58 @@ contract HatsSignerGate is BaseGuard, SignatureDecoder, HatsOwned {
         ) {
             revert InvalidTargetThreshold();
         }
+        targetThreshold = _targetThreshold;
+    }
 
-        if (_targetThreshold != targetThreshold) {
-            targetThreshold = _targetThreshold;
-            console2.log(targetThreshold);
+    function _setSafeThreshold(uint256 _targetThreshold) internal {
+        uint256 newThreshold = _targetThreshold;
+        uint256 signerCount_ = signerCount; // save an SLOAD
 
-            uint256 newThreshold = _targetThreshold;
-            uint256 signerCount_ = signerCount; // save an SLOAD
+        // ensure that txs can't execute if fewer signers than target threshold
+        if (signerCount_ <= _targetThreshold) {
+            newThreshold = signerCount_;
+        }
+        if (newThreshold != safe.getThreshold()) {
+            bytes memory data = abi.encodeWithSelector(
+                IGnosisSafe.changeThreshold.selector,
+                newThreshold
+            );
 
-            // ensure that txs can't execute if fewer signers than target threshold
-            if (signerCount_ <= _targetThreshold) {
-                newThreshold = signerCount_;
+            bool success = safe.execTransactionFromModule(
+                address(safe), // to
+                0, // value
+                data, // data
+                Enum.Operation.Call // operation
+            );
+
+            if (!success) {
+                revert FailedExecChangeThreshold();
             }
-            if (newThreshold != safe.getThreshold()) {
-                console2.log("in threshold if statement");
-                bytes memory data = abi.encodeWithSignature(
-                    "changeThreshold(uint256)",
-                    newThreshold
-                );
-
-                bool success = safe.execTransactionFromModule(
-                    address(safe), // to
-                    0, // value
-                    data, // data
-                    Enum.Operation.Call // operation
-                );
-
-                if (!success) {
-                    revert FailedExecChangeThreshold();
-                }
-            }
-            emit TargetThresholdSet(_targetThreshold);
         }
     }
 
-    function claimSigner() external {
-        addSigner(msg.sender);
+    function setMinThreshold(uint256 _minThreshold) public onlyOwner {
+        _setMinThreshold(_minThreshold);
+        emit MinThresholdSet(_minThreshold);
     }
 
-    function addSigner(address _signer) public {
+    function _setMinThreshold(uint256 _minThreshold) internal {
+        if (_minThreshold > maxSigners || _minThreshold > targetThreshold) {
+            revert InvalidMinThreshold();
+        }
+
+        minThreshold = _minThreshold;
+    }
+
+    function claimSigner() public {
+        address signer = msg.sender;
         if (signerCount == maxSigners) {
             revert MaxSignersReached();
         }
 
-        if (!HATS.isWearerOfHat(_signer, signersHatId)) {
-            revert NotSignerHatWearer(_signer);
+        if (!HATS.isWearerOfHat(signer, signersHatId)) {
+            revert NotSignerHatWearer(signer);
         }
-
-        // objective: 6 of 10 multisig
-        // 0. multisig is created as 1 of 1 w/ module as the "signer"
-        // 1. target threshold set at 6
-        //    maxSigners set at 11
-        //    1 of 1 multisig
-        // 2. DAO mints 6 hats
-        // 3. 1 person claims signer
-        //    2 of 2 multisig
-        // 4. 5 more people claim signer
-        //    6 of 7 multisig
-        // 5. DAO decides it doesn't want any more signers
-        //    changes target threshold to 4
-        //    4 of 7 multisig
 
         uint256 currentThreshold = safe.getThreshold();
         uint256 newThreshold = currentThreshold;
@@ -168,9 +179,9 @@ contract HatsSignerGate is BaseGuard, SignatureDecoder, HatsOwned {
             newThreshold = newSignerCount;
         }
 
-        bytes memory data = abi.encodeWithSignature(
-            "addOwnerWithThreshold(address,uint256)",
-            _signer,
+        bytes memory data = abi.encodeWithSelector(
+            IGnosisSafe.addOwnerWithThreshold.selector,
+            signer,
             newThreshold
         );
 
@@ -214,8 +225,8 @@ contract HatsSignerGate is BaseGuard, SignatureDecoder, HatsOwned {
             }
         }
 
-        bytes memory data = abi.encodeWithSignature(
-            "removeOwner(address,address,uint256)",
+        bytes memory data = abi.encodeWithSelector(
+            IGnosisSafe.removeOwner.selector,
             prevOwner,
             _signer,
             newThreshold
@@ -256,11 +267,14 @@ contract HatsSignerGate is BaseGuard, SignatureDecoder, HatsOwned {
         bytes memory signatures,
         address msgSender
     ) external override {
-        // TODO revert if msg.sender is not a hat wearer
+        uint256 safeOwnerCount = safe.getOwners().length;
+
+        if (safeOwnerCount < minThreshold) {
+            revert BelowMinThreshold(minThreshold, safeOwnerCount);
+        }
 
         // get the tx hash
         // fixme this is returning 0x for some reason??
-        console2.log("before txHash");
         bytes32 txHash = safe.getTransactionHash( // Transaction info
             to,
             value,
@@ -277,8 +291,6 @@ contract HatsSignerGate is BaseGuard, SignatureDecoder, HatsOwned {
             safe.nonce() - 1
         );
 
-        console2.log("before sigCount");
-
         // signatures have length = 65
         uint256 sigCount = signatures.length / 65;
 
@@ -288,43 +300,37 @@ contract HatsSignerGate is BaseGuard, SignatureDecoder, HatsOwned {
         address signer;
         uint256 validSigCount;
 
-        console2.log("before for loop");
-
         // count up signers that are wearing the signer hat
         for (uint256 i = 0; i < sigCount; ++i) {
             // recover their address
-            console2.log("sig split");
             (v, r, s) = signatureSplit(signatures, i);
-            console2.log("before ecrecover");
 
-            // fixme this is returning address(0) for some reason
-            // likely has to do with the txHashData returning as 0x
             signer = ecrecover(txHash, v, r, s);
             console2.log("recovered signer", signer);
 
             // check if the signer is still valid, and increment the signature count if so
             if (HATS.isWearerOfHat(signer, signersHatId)) {
-                console2.log("before validSigCount incrememnt");
                 ++validSigCount;
             }
         }
-
-        console2.log("before threshold check");
 
         // revert if there aren't enough valid signatures
         if (validSigCount < safe.getThreshold()) {
             revert InvalidSigners();
         }
+
+        ++guardEntries;
     }
 
     /// @notice from https://github.com/gnosis/zodiac-guard-mod/blob/988ebc7b71e352f121a0be5f6ae37e79e47a4541/contracts/ModGuard.sol#L86
     /// @dev Prevent avatar owners (eg Safe signers) to remove this contract as a guard or as a module
-    function checkAfterExecution(bytes32, bool) external view override {
+    // TODO check on safety changes to above
+    function checkAfterExecution(bytes32, bool) external override {
         if (
             abi.decode(
                 StorageAccessible(address(safe)).getStorageAt(
                     uint256(GUARD_STORAGE_SLOT),
-                    2
+                    1
                 ),
                 (address)
             ) != address(this)
@@ -335,5 +341,7 @@ contract HatsSignerGate is BaseGuard, SignatureDecoder, HatsOwned {
         if (!IAvatar(address(safe)).isModuleEnabled(address(this))) {
             revert CannotDisableProtectedModules(address(this));
         }
+
+        --guardEntries;
     }
 }
