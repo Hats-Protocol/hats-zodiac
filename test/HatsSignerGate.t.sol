@@ -4,24 +4,6 @@ pragma solidity ^0.8.13;
 import "./HSGTestSetup.t.sol";
 
 contract HatsSignerGateTest is HSGTestSetup {
-    // start tests
-    function testSetup() public {
-        assertEq(
-            address(bytes20(vm.load(address(safe), GUARD_STORAGE_SLOT) << 96)),
-            address(hatsSignerGate)
-        );
-
-        assertTrue(safe.isModuleEnabled(address(hatsSignerGate)));
-
-        assertEq(safe.getOwners()[0], address(this));
-
-        assertEq(hatsSignerGate.minThreshold(), minThreshold);
-        assertEq(hatsSignerGate.targetThreshold(), targetThreshold);
-        assertEq(address(hatsSignerGate.safe()), address(safe));
-        assertEq(hatsSignerGate.maxSigners(), maxSigners);
-        assertEq(hatsSignerGate.version(), version);
-    }
-
     function testSetTargetThreshold() public {
         mockIsWearerCall(address(this), ownerHat, true);
 
@@ -169,7 +151,7 @@ contract HatsSignerGateTest is HSGTestSetup {
         hatsSignerGate.removeSigner(addresses[0]);
 
         assertEq(safe.getOwners().length, 1);
-        assertEq(safe.getOwners()[0], address(this));
+        assertEq(safe.getOwners()[0], address(hatsSignerGate));
 
         assertEq(safe.getThreshold(), 1);
     }
@@ -178,9 +160,9 @@ contract HatsSignerGateTest is HSGTestSetup {
         // first, add a legit signer
         addSigners(1);
 
-        // second, remove the init non-signer (eg the module address)
-        mockIsWearerCall(address(this), signerHat, false);
-        hatsSignerGate.removeSigner(address(this));
+        // second, remove the init non-signer (eg the hatsSignerGate address)
+        mockIsWearerCall(address(hatsSignerGate), signerHat, false);
+        hatsSignerGate.removeSigner(address(hatsSignerGate));
 
         assertEq(safe.getOwners().length, 1);
         assertEq(safe.getOwners()[0], addresses[0]);
@@ -298,8 +280,8 @@ contract HatsSignerGateTest is HSGTestSetup {
         addSigners(1);
 
         // remove the init owner
-        mockIsWearerCall(address(this), signerHat, false);
-        hatsSignerGate.removeSigner(address(this));
+        mockIsWearerCall(address(hatsSignerGate), signerHat, false);
+        hatsSignerGate.removeSigner(address(hatsSignerGate));
 
         // set up test values
         uint256 preNonce = safe.nonce();
@@ -364,14 +346,12 @@ contract HatsSignerGateTest is HSGTestSetup {
 
         bytes memory signatures = createNSigsForTx(txHash, 2, safe);
 
-        mockIsWearerCall(address(this), signerHat, false);
-        // hatsSignerGate.setMinThreshold(1);
-        hatsSignerGate.removeSigner(address(this));
+        // hatsSignerGate is the init signer, so we need to remove them
+        mockIsWearerCall(address(hatsSignerGate), signerHat, false);
+        hatsSignerGate.removeSigner(address(hatsSignerGate));
 
         mockIsWearerCall(addresses[0], signerHat, true);
         mockIsWearerCall(addresses[1], signerHat, true);
-
-        // generate sig
 
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -410,8 +390,9 @@ contract HatsSignerGateTest is HSGTestSetup {
 
         bytes memory signatures = createNSigsForTx(txHash, 2, safe);
 
-        mockIsWearerCall(address(this), signerHat, false);
-        hatsSignerGate.removeSigner(address(this));
+        // hatsSignerGate is the init signer, so we need to remove them
+        mockIsWearerCall(address(hatsSignerGate), signerHat, false);
+        hatsSignerGate.removeSigner(address(hatsSignerGate));
 
         mockIsWearerCall(addresses[0], signerHat, true);
         mockIsWearerCall(addresses[1], signerHat, true);

@@ -1,27 +1,12 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "forge-std/Test.sol";
-import "../src/HatsSignerGate.sol";
-import "@gnosis.pm/safe-contracts/contracts/GnosisSafe.sol";
-import "@gnosis.pm/safe-contracts/contracts/proxies/GnosisSafeProxyFactory.sol";
+import "./HSGFactoryTestSetup.t.sol";
+import "./HatsSignerGateFactory.t.sol";
 import "@gnosis.pm/safe-contracts/contracts/common/Enum.sol";
 
-contract HSGTestSetup is Test {
-    GnosisSafe public singletonSafe = new GnosisSafe();
-    GnosisSafeProxyFactory public safeFactory = new GnosisSafeProxyFactory();
-    GnosisSafe public safe;
-    HatsSignerGate public hatsSignerGate;
-    address public constant HATS = address(0x4a15);
-    bytes32 public constant GUARD_STORAGE_SLOT =
-        0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
+contract HSGTestSetup is HSGFactoryTestSetup {
     address public SENTINELS = address(0x1);
-    uint256 ownerHat;
-    uint256 signerHat;
-    uint256 minThreshold;
-    uint256 targetThreshold;
-    uint256 maxSigners;
-    string public version;
 
     uint256[] public pks;
     address[] public addresses;
@@ -37,42 +22,59 @@ contract HSGTestSetup is Test {
         minThreshold = 2;
         targetThreshold = 2;
         maxSigners = 5;
-        address[] memory initSafeOwners = new address[](1);
-        initSafeOwners[0] = address(this);
-        version = "1.0";
+
+        // initSafeOwners[0] = address(this);
 
         (pks, addresses) = createAddressesFromPks(5);
 
-        // deploy safe
-        safe = deploySafe(initSafeOwners, 1);
+        // // deploy safe
+        // safe = deploySafe(initSafeOwners, 1);
 
-        // deploy hats signer gate
-        hatsSignerGate = new HatsSignerGate(
-            ownerHat,
-            signerHat,
-            address(safe),
+        // // deploy hats signer gate
+        // hatsSignerGate = new HatsSignerGate(
+        //     ownerHat,
+        //     signerHat,
+        //     address(safe),
+        //     HATS,
+        //     minThreshold,
+        //     targetThreshold,
+        //     maxSigners,
+        //     version
+        // );
+
+        // // add hats signer gate as module and guard
+        // // encode txs
+        // bytes memory enableModuleData = abi.encodeWithSignature(
+        //     "enableModule(address)",
+        //     address(hatsSignerGate)
+        // );
+
+        // bytes memory setGuardData = abi.encodeWithSignature(
+        //     "setGuard(address)",
+        //     address(hatsSignerGate)
+        // );
+
+        // // execute txs
+        // executeSafeTxFrom(address(this), enableModuleData, safe);
+        // executeSafeTxFrom(address(this), setGuardData, safe);
+        version = "1.0";
+
+        factory = new HatsSignerGateFactory(
             HATS,
-            minThreshold,
-            targetThreshold,
-            maxSigners,
+            address(singletonSafe),
+            gnosisFallbackLibrary,
+            gnosisMultisendLibrary,
+            address(safeFactory),
             version
         );
 
-        // add hats signer gate as module and guard
-        // encode txs
-        bytes memory enableModuleData = abi.encodeWithSignature(
-            "enableModule(address)",
-            address(hatsSignerGate)
+        (hatsSignerGate, safe) = deployHSGAndSafe(
+            ownerHat,
+            signerHat,
+            minThreshold,
+            targetThreshold,
+            maxSigners
         );
-
-        bytes memory setGuardData = abi.encodeWithSignature(
-            "setGuard(address)",
-            address(hatsSignerGate)
-        );
-
-        // execute txs
-        executeSafeTxFrom(address(this), enableModuleData, safe);
-        executeSafeTxFrom(address(this), setGuardData, safe);
     }
 
     //// HELPER FUNCTIONS ////
@@ -99,36 +101,6 @@ contract HSGTestSetup is Test {
             hat
         );
         vm.mockCall(HATS, data, abi.encode(result));
-    }
-
-    function deploySafe(address[] memory owners, uint256 threshold)
-        public
-        returns (GnosisSafe)
-    {
-        // encode safe setup parameters
-        bytes memory params = abi.encodeWithSignature(
-            "setup(address[],uint256,address,bytes,address,address,uint256,address)",
-            owners,
-            threshold,
-            address(0), // to
-            0x0, // data
-            address(0), // fallback handler
-            address(0), // payment token
-            0, // payment
-            address(0) // payment receiver
-        );
-
-        // deploy proxy of singleton from factory
-        return
-            GnosisSafe(
-                payable(
-                    safeFactory.createProxyWithNonce(
-                        address(singletonSafe),
-                        params,
-                        1
-                    )
-                )
-            );
     }
 
     // borrowed from Orca (https://github.com/orcaprotocol/contracts/blob/main/contracts/utils/SafeTxHelper.sol)

@@ -22,6 +22,8 @@ interface IGnosisSafe {
 
     function getOwners() external view returns (address[] memory);
 
+    function setGuard(address guard) external;
+
     function execTransactionFromModule(
         address to,
         uint256 value,

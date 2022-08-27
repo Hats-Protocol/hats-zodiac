@@ -101,6 +101,21 @@ contract HatsSignerGate is BaseGuard, SignatureDecoder, HatsOwned {
     //     // TODO enable factory support by overriding `setup`
     // }
 
+    function setUp() public {
+        // set HSG as a guard
+        bytes memory setHSGGuard = abi.encodeWithSignature(
+            "setGuard(address)",
+            address(this)
+        );
+
+        bool success = safe.execTransactionFromModule(
+            address(safe), // to
+            0, // value
+            setHSGGuard, // data
+            Enum.Operation.Call
+        );
+    }
+
     function setTargetThreshold(uint256 _targetThreshold) public onlyOwner {
         if (_targetThreshold != targetThreshold) {
             _setTargetThreshold(_targetThreshold);
@@ -112,7 +127,7 @@ contract HatsSignerGate is BaseGuard, SignatureDecoder, HatsOwned {
     function _setTargetThreshold(uint256 _targetThreshold) internal {
         // (, uint32 maxSupply, , , , ) = HATS.viewHat(signersHatId);
         if (
-            _targetThreshold >= maxSigners
+            _targetThreshold > maxSigners
             // || _targetThreshold >= maxSupply
         ) {
             revert InvalidTargetThreshold();
@@ -274,7 +289,6 @@ contract HatsSignerGate is BaseGuard, SignatureDecoder, HatsOwned {
         }
 
         // get the tx hash
-        // fixme this is returning 0x for some reason??
         bytes32 txHash = safe.getTransactionHash( // Transaction info
             to,
             value,
