@@ -79,7 +79,7 @@ contract HatsSignerGate is BaseGuard, SignatureDecoder, HatsOwned {
         address _hats,
         uint256 _minThreshold,
         uint256 _targetThreshold,
-        uint256 _maxSigners, // add 1 to the number of signers you really want
+        uint256 _maxSigners,
         string memory _version
     ) HatsOwned(_ownerHatId, _hats) {
         // bytes memory initializeParams = abi.encode(_ownerHatId, _avatar, _hats);
@@ -94,7 +94,7 @@ contract HatsSignerGate is BaseGuard, SignatureDecoder, HatsOwned {
         safe = IGnosisSafe(_safe);
         signersHatId = _signersHatId;
         version = _version;
-        signerCount = 1; // initialize as 1 since the guard will be set as the first owner
+        signerCount = 0;
     }
 
     // function setUp(bytes memory initializeParams) public override {
@@ -119,7 +119,9 @@ contract HatsSignerGate is BaseGuard, SignatureDecoder, HatsOwned {
     function setTargetThreshold(uint256 _targetThreshold) public onlyOwner {
         if (_targetThreshold != targetThreshold) {
             _setTargetThreshold(_targetThreshold);
-            _setSafeThreshold(_targetThreshold);
+
+            if (signerCount > 1) _setSafeThreshold(_targetThreshold);
+
             emit TargetThresholdSet(_targetThreshold);
         }
     }
@@ -129,9 +131,8 @@ contract HatsSignerGate is BaseGuard, SignatureDecoder, HatsOwned {
         if (
             _targetThreshold > maxSigners
             // || _targetThreshold >= maxSupply
-        ) {
-            revert InvalidTargetThreshold();
-        }
+        ) revert InvalidTargetThreshold();
+
         targetThreshold = _targetThreshold;
     }
 
@@ -142,7 +143,9 @@ contract HatsSignerGate is BaseGuard, SignatureDecoder, HatsOwned {
         // ensure that txs can't execute if fewer signers than target threshold
         if (signerCount_ <= _targetThreshold) {
             newThreshold = signerCount_;
+            console2.log(newThreshold);
         }
+        console2.log(safe.getThreshold());
         if (newThreshold != safe.getThreshold()) {
             bytes memory data = abi.encodeWithSelector(
                 IGnosisSafe.changeThreshold.selector,
@@ -185,32 +188,60 @@ contract HatsSignerGate is BaseGuard, SignatureDecoder, HatsOwned {
             revert NotSignerHatWearer(signer);
         }
 
+        uint256 newSignerCount = signerCount;
+
         uint256 currentThreshold = safe.getThreshold();
         uint256 newThreshold = currentThreshold;
-        uint256 newSignerCount = signerCount + 1;
 
-        // ensure that txs can't execute if fewer signers than target threshold
-        if (newSignerCount <= targetThreshold) {
-            newThreshold = newSignerCount;
+        bytes memory addOwnerData;
+        address[] memory owners = safe.getOwners();
+        address thisAddress = address(this);
+
+        // console2.log("this", address(this));
+        // console2.log("owners[0]", owners[0]);
+        // console2.log("owners.length", owners.length);
+        // console2.log("check", owners.length == 1 && owners[0] == thisAddress);
+
+        if (owners.length == 1 && owners[0] == thisAddress) {
+            // console2.log("if");
+            address prevOwner = findPrevOwner(owners, thisAddress);
+
+            addOwnerData = abi.encodeWithSelector(
+                IGnosisSafe.swapOwner.selector,
+                prevOwner, // prevOwner
+                thisAddress, // oldOwner
+                signer // newOwner
+            );
+            ++newSignerCount;
+        } else {
+            // console2.log("else");
+            ++newSignerCount;
+
+            // ensure that txs can't execute if fewer signers than target threshold
+            if (newSignerCount <= targetThreshold) {
+                newThreshold = newSignerCount;
+
+                // console2.log("else if");
+            }
+
+            addOwnerData = abi.encodeWithSelector(
+                IGnosisSafe.addOwnerWithThreshold.selector,
+                signer,
+                newThreshold
+            );
         }
-
-        bytes memory data = abi.encodeWithSelector(
-            IGnosisSafe.addOwnerWithThreshold.selector,
-            signer,
-            newThreshold
-        );
 
         bool success = safe.execTransactionFromModule(
             address(safe), // to
             0, // value
-            data, // data
+            addOwnerData, // data
             Enum.Operation.Call // operation
         );
-
+        // console2.log("before last if");
         if (!success) {
+            // console2.log("in last if");
             revert FailedExecAddSigner();
         }
-
         // increment signer count
         signerCount = newSignerCount;
     }
@@ -220,46 +251,72 @@ contract HatsSignerGate is BaseGuard, SignatureDecoder, HatsOwned {
             revert StillWearsSignerHat(_signer);
         }
 
+        bytes memory removeOwnerData;
+        address[] memory owners = safe.getOwners();
+        address thisAddress = address(this);
+        address prevOwner;
+
         uint256 currentThreshold = safe.getThreshold();
         uint256 newThreshold = currentThreshold;
-        uint256 newSignerCount = signerCount - 1;
+        uint256 newSignerCount = signerCount;
 
-        // ensure that txs can't execute if fewer signers than target threshold
-        if (newSignerCount <= targetThreshold) {
-            newThreshold = newSignerCount;
-        }
+        if (signerCount == 1) {
+            prevOwner = findPrevOwner(owners, thisAddress);
 
-        address[] memory owners = safe.getOwners();
-        address prevOwner = SENTINEL_OWNERS;
-
-        // find the previous owner, ie the pointer to the owner we want to remove from the safe owners linked list
-        for (uint256 i = 0; i < owners.length; ++i) {
-            if (owners[i] == _signer) {
-                if (i == 0) break;
-                prevOwner = owners[i - 1];
+            // make address(this) the only owner
+            removeOwnerData = abi.encodeWithSelector(
+                IGnosisSafe.swapOwner.selector,
+                prevOwner, // prevOwner
+                _signer, // oldOwner
+                thisAddress // newOwner
+            );
+        } else {
+            --newSignerCount;
+            // ensure that txs can't execute if fewer signers than target threshold
+            if (newSignerCount <= targetThreshold) {
+                newThreshold = newSignerCount;
             }
-        }
 
-        bytes memory data = abi.encodeWithSelector(
-            IGnosisSafe.removeOwner.selector,
-            prevOwner,
-            _signer,
-            newThreshold
-        );
+            prevOwner = findPrevOwner(owners, _signer);
+
+            removeOwnerData = abi.encodeWithSelector(
+                IGnosisSafe.removeOwner.selector,
+                prevOwner,
+                _signer,
+                newThreshold
+            );
+
+            // decrement signerCount
+            signerCount = newSignerCount;
+        }
 
         bool success = safe.execTransactionFromModule(
             address(safe), // to
             0, // value
-            data, // data
+            removeOwnerData, // data
             Enum.Operation.Call // operation
         );
 
         if (!success) {
             revert FailedExecRemoveSigner();
         }
+    }
 
-        // decrement signer count
-        signerCount = newSignerCount;
+    // find the previous owner, ie the pointer to the owner we want to remove from the safe owners linked list
+    function findPrevOwner(address[] memory _owners, address owner)
+        internal
+        returns (address)
+    {
+        address prevOwner = SENTINEL_OWNERS;
+
+        for (uint256 i = 0; i < _owners.length; ++i) {
+            if (_owners[i] == owner) {
+                if (i == 0) break;
+                prevOwner = _owners[i - 1];
+            }
+        }
+
+        return prevOwner;
     }
 
     // solhint-disallow-next-line payable-fallback

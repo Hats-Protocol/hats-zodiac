@@ -6,6 +6,12 @@ import "@gnosis.pm/safe-contracts/contracts/common/Enum.sol";
 interface IGnosisSafe {
     function addOwnerWithThreshold(address owner, uint256 _threshold) external;
 
+    function swapOwner(
+        address prevOwner,
+        address oldOwner,
+        address newOwner
+    ) external;
+
     function removeOwner(
         address prevOwner,
         address owner,
