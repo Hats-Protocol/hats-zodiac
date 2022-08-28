@@ -5,6 +5,7 @@ import "./HSGTestSetup.t.sol";
 
 contract HatsSignerGateTest is HSGTestSetup {
     function testSetTargetThreshold() public {
+        addSigners(1);
         mockIsWearerCall(address(this), ownerHat, true);
 
         hatsSignerGate.setTargetThreshold(3);
@@ -14,7 +15,7 @@ contract HatsSignerGateTest is HSGTestSetup {
     }
 
     function testSetTargetThreshold3of4() public {
-        testAddThreeSigners();
+        addSigners(4);
         mockIsWearerCall(address(this), ownerHat, true);
 
         hatsSignerGate.setTargetThreshold(3);
@@ -24,7 +25,7 @@ contract HatsSignerGateTest is HSGTestSetup {
     }
 
     function testSetTargetThreshold4of4() public {
-        addSigners(3);
+        addSigners(4);
         mockIsWearerCall(address(this), ownerHat, true);
 
         hatsSignerGate.setTargetThreshold(4);
@@ -72,17 +73,19 @@ contract HatsSignerGateTest is HSGTestSetup {
     function testAddSingleSigner() public {
         addSigners(1);
 
-        assertEq(hatsSignerGate.signerCount(), 2);
+        assertEq(safe.getOwners().length, 1);
+
+        assertEq(hatsSignerGate.signerCount(), 1);
 
         assertEq(safe.getOwners()[0], addresses[0]);
 
-        assertEq(safe.getThreshold(), 2);
+        assertEq(safe.getThreshold(), 1);
     }
 
     function testAddThreeSigners() public {
         addSigners(3);
 
-        assertEq(hatsSignerGate.signerCount(), 4);
+        assertEq(hatsSignerGate.signerCount(), 3);
 
         assertEq(safe.getOwners()[0], addresses[2]);
         assertEq(safe.getOwners()[1], addresses[1]);
@@ -92,21 +95,23 @@ contract HatsSignerGateTest is HSGTestSetup {
     }
 
     function testAddTooManySigners() public {
-        addSigners(4);
+        addSigners(5);
 
-        mockIsWearerCall(addresses[4], signerHat, true);
+        mockIsWearerCall(addresses[5], signerHat, true);
 
         vm.expectRevert(HatsSignerGate.MaxSignersReached.selector);
+        vm.prank(addresses[5]);
 
-        vm.prank(addresses[4]);
+        // this call should fail
         hatsSignerGate.claimSigner();
 
         assertEq(hatsSignerGate.signerCount(), 5);
 
-        assertEq(safe.getOwners()[0], addresses[3]);
-        assertEq(safe.getOwners()[1], addresses[2]);
-        assertEq(safe.getOwners()[2], addresses[1]);
-        assertEq(safe.getOwners()[3], addresses[0]);
+        assertEq(safe.getOwners()[0], addresses[4]);
+        assertEq(safe.getOwners()[1], addresses[3]);
+        assertEq(safe.getOwners()[2], addresses[2]);
+        assertEq(safe.getOwners()[3], addresses[1]);
+        assertEq(safe.getOwners()[4], addresses[0]);
 
         assertEq(safe.getThreshold(), 2);
     }
@@ -126,7 +131,8 @@ contract HatsSignerGateTest is HSGTestSetup {
         hatsSignerGate.claimSigner();
 
         assertEq(safe.getOwners()[0], addresses[3]);
-        assertEq(safe.getThreshold(), 2);
+        assertEq(safe.getThreshold(), 1);
+        assertEq(safe.getOwners().length, 1);
     }
 
     function testNonHatWearerCannotClaimSigner() public {
@@ -156,20 +162,6 @@ contract HatsSignerGateTest is HSGTestSetup {
         assertEq(safe.getThreshold(), 1);
     }
 
-    function testRemoveInitNonSigner() public {
-        // first, add a legit signer
-        addSigners(1);
-
-        // second, remove the init non-signer (eg the hatsSignerGate address)
-        mockIsWearerCall(address(hatsSignerGate), signerHat, false);
-        hatsSignerGate.removeSigner(address(hatsSignerGate));
-
-        assertEq(safe.getOwners().length, 1);
-        assertEq(safe.getOwners()[0], addresses[0]);
-
-        assertEq(safe.getThreshold(), 1);
-    }
-
     function testRemoveSignerStillWearingHat() public {
         addSigners(1);
 
@@ -184,10 +176,10 @@ contract HatsSignerGateTest is HSGTestSetup {
 
         hatsSignerGate.removeSigner(addresses[0]);
 
-        assertEq(safe.getOwners().length, 2);
+        assertEq(safe.getOwners().length, 1);
         assertEq(safe.getOwners()[0], addresses[0]);
 
-        assertEq(safe.getThreshold(), 2);
+        assertEq(safe.getThreshold(), 1);
     }
 
     function testExecTxByHatWearers() public {
@@ -279,10 +271,6 @@ contract HatsSignerGateTest is HSGTestSetup {
         // add a legit signer
         addSigners(1);
 
-        // remove the init owner
-        mockIsWearerCall(address(hatsSignerGate), signerHat, false);
-        hatsSignerGate.removeSigner(address(hatsSignerGate));
-
         // set up test values
         uint256 preNonce = safe.nonce();
         uint256 preValue = 1 ether;
@@ -296,7 +284,7 @@ contract HatsSignerGateTest is HSGTestSetup {
         // create the tx
         bytes32 txHash = getTxHash(destAddress, transferValue, hex"00", safe);
 
-        // have 3 signers sign it
+        // have them sign it
         bytes memory signatures = createNSigsForTx(txHash, 1, safe);
 
         // have the legit signer exec the tx
@@ -346,10 +334,6 @@ contract HatsSignerGateTest is HSGTestSetup {
 
         bytes memory signatures = createNSigsForTx(txHash, 2, safe);
 
-        // hatsSignerGate is the init signer, so we need to remove them
-        mockIsWearerCall(address(hatsSignerGate), signerHat, false);
-        hatsSignerGate.removeSigner(address(hatsSignerGate));
-
         mockIsWearerCall(addresses[0], signerHat, true);
         mockIsWearerCall(addresses[1], signerHat, true);
 
@@ -389,10 +373,6 @@ contract HatsSignerGateTest is HSGTestSetup {
         bytes32 txHash = getTxHash(address(safe), 0, disableGuardData, safe);
 
         bytes memory signatures = createNSigsForTx(txHash, 2, safe);
-
-        // hatsSignerGate is the init signer, so we need to remove them
-        mockIsWearerCall(address(hatsSignerGate), signerHat, false);
-        hatsSignerGate.removeSigner(address(hatsSignerGate));
 
         mockIsWearerCall(addresses[0], signerHat, true);
         mockIsWearerCall(addresses[1], signerHat, true);

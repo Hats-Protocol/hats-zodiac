@@ -25,38 +25,8 @@ contract HSGTestSetup is HSGFactoryTestSetup {
 
         // initSafeOwners[0] = address(this);
 
-        (pks, addresses) = createAddressesFromPks(5);
+        (pks, addresses) = createAddressesFromPks(6);
 
-        // // deploy safe
-        // safe = deploySafe(initSafeOwners, 1);
-
-        // // deploy hats signer gate
-        // hatsSignerGate = new HatsSignerGate(
-        //     ownerHat,
-        //     signerHat,
-        //     address(safe),
-        //     HATS,
-        //     minThreshold,
-        //     targetThreshold,
-        //     maxSigners,
-        //     version
-        // );
-
-        // // add hats signer gate as module and guard
-        // // encode txs
-        // bytes memory enableModuleData = abi.encodeWithSignature(
-        //     "enableModule(address)",
-        //     address(hatsSignerGate)
-        // );
-
-        // bytes memory setGuardData = abi.encodeWithSignature(
-        //     "setGuard(address)",
-        //     address(hatsSignerGate)
-        // );
-
-        // // execute txs
-        // executeSafeTxFrom(address(this), enableModuleData, safe);
-        // executeSafeTxFrom(address(this), setGuardData, safe);
         version = "1.0";
 
         factory = new HatsSignerGateFactory(
