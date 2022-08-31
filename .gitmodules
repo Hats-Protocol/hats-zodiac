@@ -4,12 +4,12 @@
 [submodule "lib/zodiac"]
 	path = lib/zodiac
 	url = https://github.com/gnosis/zodiac
-[submodule "lib/safe-contracts"]
-	path = lib/safe-contracts
-	url = https://github.com/safe-global/safe-contracts
 [submodule "lib/openzeppelin-contracts"]
 	path = lib/openzeppelin-contracts
 	url = https://github.com/openzeppelin/openzeppelin-contracts
 [submodule "lib/hats-auth"]
 	path = lib/hats-auth
 	url = https://github.com/hats-protocol/hats-auth
+[submodule "lib/safe-contracts"]
+	path = lib/safe-contracts
+	url = https://github.com/safe-global/safe-contracts
