@@ -160,11 +160,10 @@ contract HSGTestSetup is HSGFactoryTestSetup {
             );
     }
 
-    function createNSigsForTx(
-        bytes32 txHash,
-        uint256 signerCount,
-        GnosisSafe _safe
-    ) public returns (bytes memory signatures) {
+    function createNSigsForTx(bytes32 txHash, uint256 signerCount)
+        public
+        returns (bytes memory signatures)
+    {
         uint8 v;
         bytes32 r;
         bytes32 s;
@@ -184,7 +183,7 @@ contract HSGTestSetup is HSGFactoryTestSetup {
 
         for (uint256 i = 0; i < signerCount; ++i) {
             address addy = address(uint160(signers[i]));
-            emit log_address(addy);
+            // emit log_address(addy);
             signatures = bytes.concat(signatures, walletSigs[addy]);
         }
     }

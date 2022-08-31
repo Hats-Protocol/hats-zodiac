@@ -197,7 +197,7 @@ contract HatsSignerGateTest is HSGTestSetup {
         bytes32 txHash = getTxHash(destAddress, transferValue, hex"00", safe);
 
         // have 3 signers sign it
-        bytes memory signatures = createNSigsForTx(txHash, 3, safe);
+        bytes memory signatures = createNSigsForTx(txHash, 3);
 
         // have one of the signers submit/exec the tx
         vm.prank(addresses[0]);
@@ -221,13 +221,13 @@ contract HatsSignerGateTest is HSGTestSetup {
         emit log_uint(address(safe).balance);
     }
 
-    function testExecTxByNonHatWearersFails() public {
+    function testExecTxByNonHatWearersReverts() public {
         addSigners(3);
 
         uint256 preNonce = safe.nonce();
         uint256 preValue = 1 ether;
         uint256 transferValue = .2 ether;
-        uint256 postValue = preValue - transferValue;
+        // uint256 postValue = preValue - transferValue;
         address destAddress = addresses[3];
         // give the safe some eth
         hoax(address(safe), preValue);
@@ -236,7 +236,7 @@ contract HatsSignerGateTest is HSGTestSetup {
         bytes32 txHash = getTxHash(destAddress, transferValue, hex"00", safe);
 
         // have 3 signers sign it
-        bytes memory signatures = createNSigsForTx(txHash, 3, safe);
+        bytes memory signatures = createNSigsForTx(txHash, 3);
 
         // removing the hats from 2 signers
         mockIsWearerCall(addresses[0], signerHat, false);
@@ -275,7 +275,7 @@ contract HatsSignerGateTest is HSGTestSetup {
         uint256 preNonce = safe.nonce();
         uint256 preValue = 1 ether;
         uint256 transferValue = .2 ether;
-        uint256 postValue = preValue - transferValue;
+        // uint256 postValue = preValue - transferValue;
         address destAddress = addresses[3];
         // give the safe some eth
         hoax(address(safe), preValue);
@@ -285,7 +285,7 @@ contract HatsSignerGateTest is HSGTestSetup {
         bytes32 txHash = getTxHash(destAddress, transferValue, hex"00", safe);
 
         // have them sign it
-        bytes memory signatures = createNSigsForTx(txHash, 1, safe);
+        bytes memory signatures = createNSigsForTx(txHash, 1);
 
         // have the legit signer exec the tx
         vm.prank(addresses[0]);
@@ -332,7 +332,7 @@ contract HatsSignerGateTest is HSGTestSetup {
 
         bytes32 txHash = getTxHash(address(safe), 0, disableModuleData, safe);
 
-        bytes memory signatures = createNSigsForTx(txHash, 2, safe);
+        bytes memory signatures = createNSigsForTx(txHash, 2);
 
         mockIsWearerCall(addresses[0], signerHat, true);
         mockIsWearerCall(addresses[1], signerHat, true);
@@ -372,7 +372,7 @@ contract HatsSignerGateTest is HSGTestSetup {
 
         bytes32 txHash = getTxHash(address(safe), 0, disableGuardData, safe);
 
-        bytes memory signatures = createNSigsForTx(txHash, 2, safe);
+        bytes memory signatures = createNSigsForTx(txHash, 2);
 
         mockIsWearerCall(addresses[0], signerHat, true);
         mockIsWearerCall(addresses[1], signerHat, true);

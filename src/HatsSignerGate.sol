@@ -305,6 +305,7 @@ contract HatsSignerGate is BaseGuard, SignatureDecoder, HatsOwned {
     // find the previous owner, ie the pointer to the owner we want to remove from the safe owners linked list
     function findPrevOwner(address[] memory _owners, address owner)
         internal
+        pure
         returns (address)
     {
         address prevOwner = SENTINEL_OWNERS;

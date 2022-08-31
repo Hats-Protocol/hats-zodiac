@@ -71,11 +71,11 @@ contract HSGFactoryTestSetup is Test {
         address hsg;
         address safe_;
         (hsg, safe_) = factory.deployHatsSignerGateAndSafe(
-            ownerHat,
-            signerHat,
-            minThreshold,
-            targetThreshold,
-            maxSigners,
+            _ownerHat,
+            _signerHat,
+            _minThreshold,
+            _targetThreshold,
+            _maxSigners,
             1 // saltNonce
         );
 

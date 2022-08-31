@@ -7,8 +7,6 @@ import "@gnosis.pm/safe-contracts/contracts/libraries/MultiSend.sol";
 // import "@gnosis.pm/zodiac/contracts/factory/ModuleProxyFactory.sol";
 import "@gnosis.pm/safe-contracts/contracts/proxies/GnosisSafeProxyFactory.sol";
 
-// TODO import interface for gnosis safe factory
-
 contract HatsSignerGateFactory {
     address public hatsAddress;
     // address public immutable hatsSignerGatesingleton;
