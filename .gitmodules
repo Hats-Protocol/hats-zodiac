@@ -12,4 +12,4 @@
 	url = https://github.com/hats-protocol/hats-auth
 [submodule "lib/safe-contracts"]
 	path = lib/safe-contracts
-	url = https://github.com/safe-global/safe-contracts
+	url = https://github.com/Hats-Protocol/safe-contracts
