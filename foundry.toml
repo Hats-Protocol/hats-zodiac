@@ -16,5 +16,11 @@ remappings = [
   "utils/=lib/utils/",
   "zodiac/=lib/zodiac/contracts/"
 ]
+[rpc_endpoints]
+ethereum = "${ETHEREUM_RPC}"
+optimism = "${OPTIMISM_RPC}"
+goerli = "${GOERLI_RPC}"
+rinkeby = "${RINKEBY_RPC}"
+gc = "${GNOSISCHAIN_RPC}"
 
 # See more config options https://github.com/foundry-rs/foundry/tree/master/config
