@@ -3,9 +3,10 @@ pragma solidity ^0.8.13;
 
 import "./HSGFactoryTestSetup.t.sol";
 import "./HatsSignerGateFactory.t.sol";
+import "@gnosis.pm/safe-contracts/contracts/common/SignatureDecoder.sol";
 import "@gnosis.pm/safe-contracts/contracts/common/Enum.sol";
 
-contract HSGTestSetup is HSGFactoryTestSetup {
+contract HSGTestSetup is HSGFactoryTestSetup, SignatureDecoder {
     address public SENTINELS = address(0x1);
 
     uint256[] public pks;

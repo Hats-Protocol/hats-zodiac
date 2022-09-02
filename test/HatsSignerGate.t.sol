@@ -70,6 +70,83 @@ contract HatsSignerGateTest is HSGTestSetup {
         assertEq(hatsSignerGate.minThreshold(), 2);
     }
 
+    function testReconcileSignerCount() public {
+        // add 3 more safe owners the old fashioned way
+        // 1
+        bytes memory addOwnersData1 = abi.encodeWithSignature(
+            "addOwnerWithThreshold(address,uint256)",
+            addresses[1],
+            1
+        );
+
+        // mockIsWearerCall(address(this), signerHat, true);
+        vm.prank(address(hatsSignerGate));
+
+        safe.execTransactionFromModule(
+            address(safe), // to
+            0, // value
+            addOwnersData1, // data
+            Enum.Operation.Call // operation
+        );
+
+        // 2
+        bytes memory addOwnersData2 = abi.encodeWithSignature(
+            "addOwnerWithThreshold(address,uint256)",
+            addresses[2],
+            1
+        );
+
+        // mockIsWearerCall(address(this), signerHat, true);
+        vm.prank(address(hatsSignerGate));
+
+        safe.execTransactionFromModule(
+            address(safe), // to
+            0, // value
+            addOwnersData2, // data
+            Enum.Operation.Call // operation
+        );
+
+        // 3
+        bytes memory addOwnersData3 = abi.encodeWithSignature(
+            "addOwnerWithThreshold(address,uint256)",
+            addresses[3],
+            1
+        );
+
+        // mockIsWearerCall(address(this), signerHat, true);
+        vm.prank(address(hatsSignerGate));
+
+        safe.execTransactionFromModule(
+            address(safe), // to
+            0, // value
+            addOwnersData3, // data
+            Enum.Operation.Call // operation
+        );
+
+        assertEq(hatsSignerGate.signerCount(), 0);
+
+        // set only two of them as valid signers
+        mockIsWearerCall(address(hatsSignerGate), signerHat, true);
+        mockIsWearerCall(addresses[1], signerHat, true);
+        mockIsWearerCall(addresses[2], signerHat, false);
+        mockIsWearerCall(addresses[3], signerHat, false);
+
+        // do the reconcile
+        hatsSignerGate.reconcileSignerCount();
+
+        assertEq(hatsSignerGate.signerCount(), 2);
+        assertEq(safe.getThreshold(), 2);
+
+        // now we can remove both the invalid signers with no changes to hatsSignerCount
+        mockIsWearerCall(addresses[2], signerHat, false);
+        hatsSignerGate.removeSigner(addresses[2]);
+        mockIsWearerCall(addresses[3], signerHat, false);
+        hatsSignerGate.removeSigner(addresses[3]);
+
+        assertEq(hatsSignerGate.signerCount(), 2);
+        assertEq(safe.getThreshold(), 2);
+    }
+
     function testAddSingleSigner() public {
         addSigners(1);
 
@@ -115,14 +192,6 @@ contract HatsSignerGateTest is HSGTestSetup {
 
         assertEq(safe.getThreshold(), 2);
     }
-
-    // function testAddSigners(uint256 signerCount) public {
-    //     signerCount = bound(signerCount, 1, maxSigners - 1);
-
-    //     addSigners(signerCount);
-
-    //     assertEq(hatsSignerGate.signerCount(), signerCount + 1);
-    // }
 
     function testClaimSigner() public {
         mockIsWearerCall(addresses[3], signerHat, true);

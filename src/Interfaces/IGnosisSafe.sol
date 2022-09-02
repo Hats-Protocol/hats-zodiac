@@ -24,6 +24,10 @@ interface IGnosisSafe {
 
     function getThreshold() external returns (uint256);
 
+    function approvedHashes(address approver, bytes32 hash)
+        external
+        returns (uint256);
+
     function domainSeparator() external view returns (bytes32);
 
     function getOwners() external view returns (address[] memory);
@@ -50,12 +54,5 @@ interface IGnosisSafe {
         uint256 _nonce
     ) external view returns (bytes32);
 
-    function signatureSplit(bytes memory signatures, uint256 pos)
-        external
-        pure
-        returns (
-            uint8 v,
-            bytes32 r,
-            bytes32 s
-        );
+    function isOwner(address owner) external returns (bool);
 }

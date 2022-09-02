@@ -143,9 +143,7 @@ contract HatsSignerGate is BaseGuard, SignatureDecoder, HatsOwned {
         // ensure that txs can't execute if fewer signers than target threshold
         if (signerCount_ <= _targetThreshold) {
             newThreshold = signerCount_;
-            console2.log(newThreshold);
         }
-        console2.log(safe.getThreshold());
         if (newThreshold != safe.getThreshold()) {
             bytes memory data = abi.encodeWithSelector(
                 IGnosisSafe.changeThreshold.selector,
@@ -178,70 +176,119 @@ contract HatsSignerGate is BaseGuard, SignatureDecoder, HatsOwned {
         minThreshold = _minThreshold;
     }
 
+    /// @notice tallies the number of existing safe owners that wear the signer hat, sets signerCount to that value, and updates the safe threshold if necessary
+    /// @dev does NOT remove invalid safe owners
+    function reconcileSignerCount() public {
+        address[] memory owners = safe.getOwners();
+        uint256 validSignerCount = _countValidSigners(owners);
+
+        // count the existing safe owners that wear the signer hat
+        // for (uint256 i = 0; i < owners.length; ++i) {
+        //     if (HATS.isWearerOfHat(owners[i], signersHatId)) ++validSignerCount;
+        // }
+
+        // update the signer count accordingly
+        signerCount = validSignerCount;
+
+        if (
+            validSignerCount <= targetThreshold &&
+            validSignerCount != safe.getThreshold()
+        ) {
+            bytes memory data = abi.encodeWithSelector(
+                IGnosisSafe.changeThreshold.selector,
+                validSignerCount
+            );
+
+            bool success = safe.execTransactionFromModule(
+                address(safe), // to
+                0, // value
+                data, // data
+                Enum.Operation.Call // operation
+            );
+
+            if (!success) {
+                revert FailedExecChangeThreshold();
+            }
+        }
+    }
+
+    function _countValidSigners(address[] memory owners)
+        internal
+        returns (uint256 validSignerCount)
+    {
+        // count the existing safe owners that wear the signer hat
+        for (uint256 i = 0; i < owners.length; ++i) {
+            if (HATS.isWearerOfHat(owners[i], signersHatId)) ++validSignerCount;
+        }
+    }
+
     function claimSigner() public {
-        address signer = msg.sender;
         if (signerCount == maxSigners) {
             revert MaxSignersReached();
         }
 
-        if (!HATS.isWearerOfHat(signer, signersHatId)) {
-            revert NotSignerHatWearer(signer);
+        address claimer = msg.sender;
+
+        if (!HATS.isWearerOfHat(claimer, signersHatId)) {
+            revert NotSignerHatWearer(claimer);
         }
 
         uint256 newSignerCount = signerCount;
 
-        uint256 currentThreshold = safe.getThreshold();
-        uint256 newThreshold = currentThreshold;
-
-        bytes memory addOwnerData;
-        address[] memory owners = safe.getOwners();
-        address thisAddress = address(this);
-
-        // console2.log("this", address(this));
-        // console2.log("owners[0]", owners[0]);
-        // console2.log("owners.length", owners.length);
-        // console2.log("check", owners.length == 1 && owners[0] == thisAddress);
-
-        if (owners.length == 1 && owners[0] == thisAddress) {
-            // console2.log("if");
-            address prevOwner = findPrevOwner(owners, thisAddress);
-
-            addOwnerData = abi.encodeWithSelector(
-                IGnosisSafe.swapOwner.selector,
-                prevOwner, // prevOwner
-                thisAddress, // oldOwner
-                signer // newOwner
-            );
+        // if the claimer is already an owner, then we don't add them to the safe but we do incrememnt the signerCount
+        if (safe.isOwner(claimer)) {
             ++newSignerCount;
         } else {
-            // console2.log("else");
-            ++newSignerCount;
+            // otherwise, we add the claimer as a new owner on the safe and update the threshold accordingly
+            uint256 currentThreshold = safe.getThreshold();
+            uint256 newThreshold = currentThreshold;
 
-            // ensure that txs can't execute if fewer signers than target threshold
-            if (newSignerCount <= targetThreshold) {
-                newThreshold = newSignerCount;
+            bytes memory addOwnerData;
+            address[] memory owners = safe.getOwners();
+            address thisAddress = address(this);
 
-                // console2.log("else if");
+            // if the only owner is a non-signer (ie this module set as an owner on initialization), replace it with the claimer
+            if (owners.length == 1 && owners[0] == thisAddress) {
+                // prevOwner will always be the sentinel when owners.length == 1
+
+                // set up the swapOwner call
+                addOwnerData = abi.encodeWithSelector(
+                    IGnosisSafe.swapOwner.selector,
+                    SENTINEL_OWNERS, // prevOwner
+                    thisAddress, // oldOwner
+                    claimer // newOwner
+                );
+                ++newSignerCount;
+            } else {
+                // otherwise, add the claimer as a new owner
+                ++newSignerCount;
+
+                // ensure that txs can't execute if fewer signers than target threshold
+                if (newSignerCount <= targetThreshold) {
+                    newThreshold = newSignerCount;
+                }
+
+                // set up the addOwner call
+                addOwnerData = abi.encodeWithSelector(
+                    IGnosisSafe.addOwnerWithThreshold.selector,
+                    claimer,
+                    newThreshold
+                );
             }
 
-            addOwnerData = abi.encodeWithSelector(
-                IGnosisSafe.addOwnerWithThreshold.selector,
-                signer,
-                newThreshold
+            // execute the call
+            bool success = safe.execTransactionFromModule(
+                address(safe), // to
+                0, // value
+                addOwnerData, // data
+                Enum.Operation.Call // operation
             );
+
+            if (!success) {
+                revert FailedExecAddSigner();
+            }
         }
 
-        bool success = safe.execTransactionFromModule(
-            address(safe), // to
-            0, // value
-            addOwnerData, // data
-            Enum.Operation.Call // operation
-        );
-        // console2.log("before last if");
-        if (!success) {
-            // console2.log("in last if");
-            revert FailedExecAddSigner();
-        }
         // increment signer count
         signerCount = newSignerCount;
     }
@@ -258,7 +305,7 @@ contract HatsSignerGate is BaseGuard, SignatureDecoder, HatsOwned {
 
         uint256 currentThreshold = safe.getThreshold();
         uint256 newThreshold = currentThreshold;
-        uint256 newSignerCount = signerCount;
+        uint256 newSignerCount;
 
         if (signerCount == 1) {
             prevOwner = findPrevOwner(owners, thisAddress);
@@ -271,7 +318,16 @@ contract HatsSignerGate is BaseGuard, SignatureDecoder, HatsOwned {
                 thisAddress // newOwner
             );
         } else {
-            --newSignerCount;
+            uint256 validSignerCount = _countValidSigners(owners);
+
+            uint256 currentSignerCount = signerCount; // save an SLOAD
+
+            if (validSignerCount == currentSignerCount) {
+                newSignerCount = currentSignerCount;
+            } else {
+                --newSignerCount;
+            }
+
             // ensure that txs can't execute if fewer signers than target threshold
             if (newSignerCount <= targetThreshold) {
                 newThreshold = newSignerCount;
@@ -363,28 +419,11 @@ contract HatsSignerGate is BaseGuard, SignatureDecoder, HatsOwned {
             safe.nonce() - 1
         );
 
-        // signatures have length = 65
-        uint256 sigCount = signatures.length / 65;
-
-        uint8 v;
-        bytes32 r;
-        bytes32 s;
-        address signer;
-        uint256 validSigCount;
-
-        // count up signers that are wearing the signer hat
-        for (uint256 i = 0; i < sigCount; ++i) {
-            // recover their address
-            (v, r, s) = signatureSplit(signatures, i);
-
-            signer = ecrecover(txHash, v, r, s);
-            console2.log("recovered signer", signer);
-
-            // check if the signer is still valid, and increment the signature count if so
-            if (HATS.isWearerOfHat(signer, signersHatId)) {
-                ++validSigCount;
-            }
-        }
+        uint256 validSigCount = countValidSignatures(
+            txHash,
+            signatures,
+            signatures.length / 65
+        );
 
         // revert if there aren't enough valid signatures
         if (validSigCount < safe.getThreshold()) {
@@ -415,5 +454,51 @@ contract HatsSignerGate is BaseGuard, SignatureDecoder, HatsOwned {
         }
 
         --guardEntries;
+    }
+
+    // modified from https://github.com/safe-global/safe-contracts/blob/c36bcab46578a442862d043e12a83fec41143dec/contracts/GnosisSafe.sol#L240
+    function countValidSignatures(
+        bytes32 dataHash,
+        bytes memory signatures,
+        uint256 sigCount
+    ) public view returns (uint256 validSigCount) {
+        // There cannot be an owner with address 0.
+        address currentOwner;
+        uint8 v;
+        bytes32 r;
+        bytes32 s;
+        uint256 i;
+
+        for (i = 0; i < sigCount; i++) {
+            (v, r, s) = signatureSplit(signatures, i);
+            if (v == 0) {
+                // If v is 0 then it is a contract signature
+                // When handling contract signatures the address of the contract is encoded into r
+                currentOwner = address(uint160(uint256(r)));
+            } else if (v == 1) {
+                // If v is 1 then it is an approved hash
+                // When handling approved hashes the address of the approver is encoded into r
+                currentOwner = address(uint160(uint256(r)));
+            } else if (v > 30) {
+                // If v > 30 then default va (27,28) has been adjusted for eth_sign flow
+                // To support eth_sign and similar we adjust v and hash the messageHash with the Ethereum message prefix before applying ecrecover
+                currentOwner = ecrecover(
+                    keccak256(
+                        abi.encodePacked(
+                            "\x19Ethereum Signed Message:\n32",
+                            dataHash
+                        )
+                    ),
+                    v - 4,
+                    r,
+                    s
+                );
+            } else {
+                // Default is the ecrecover flow with the provided data hash
+                // Use ecrecover with the messageHash for EOA signatures
+                currentOwner = ecrecover(dataHash, v, r, s);
+            }
+            if (HATS.isWearerOfHat(currentOwner, signersHatId)) ++validSigCount;
+        }
     }
 }
