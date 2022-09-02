@@ -39,6 +39,9 @@ contract HatsSignerGate is BaseGuard, SignatureDecoder, HatsOwned {
     // Min threshold cannot be higher than maxSigners or targetThreshold
     error InvalidMinThreshold();
 
+    // Signers already owners on the safe don't need to claim
+    error SignerAlreadyClaimed(address signer);
+
     error FailedExecChangeThreshold();
     error FailedExecAddSigner();
     error FailedExecRemoveSigner();
@@ -229,64 +232,63 @@ contract HatsSignerGate is BaseGuard, SignatureDecoder, HatsOwned {
 
         address claimer = msg.sender;
 
+        if (safe.isOwner(claimer)) {
+            revert SignerAlreadyClaimed(claimer);
+        }
+
         if (!HATS.isWearerOfHat(claimer, signersHatId)) {
             revert NotSignerHatWearer(claimer);
         }
 
         uint256 newSignerCount = signerCount;
 
-        // if the claimer is already an owner, then we don't add them to the safe but we do incrememnt the signerCount
-        if (safe.isOwner(claimer)) {
+        // otherwise, we add the claimer as a new owner on the safe and update the threshold accordingly
+        uint256 currentThreshold = safe.getThreshold();
+        uint256 newThreshold = currentThreshold;
+
+        bytes memory addOwnerData;
+        address[] memory owners = safe.getOwners();
+        address thisAddress = address(this);
+
+        // if the only owner is a non-signer (ie this module set as an owner on initialization), replace it with the claimer
+        if (owners.length == 1 && owners[0] == thisAddress) {
+            // prevOwner will always be the sentinel when owners.length == 1
+
+            // set up the swapOwner call
+            addOwnerData = abi.encodeWithSelector(
+                IGnosisSafe.swapOwner.selector,
+                SENTINEL_OWNERS, // prevOwner
+                thisAddress, // oldOwner
+                claimer // newOwner
+            );
             ++newSignerCount;
         } else {
-            // otherwise, we add the claimer as a new owner on the safe and update the threshold accordingly
-            uint256 currentThreshold = safe.getThreshold();
-            uint256 newThreshold = currentThreshold;
+            // otherwise, add the claimer as a new owner
+            ++newSignerCount;
 
-            bytes memory addOwnerData;
-            address[] memory owners = safe.getOwners();
-            address thisAddress = address(this);
-
-            // if the only owner is a non-signer (ie this module set as an owner on initialization), replace it with the claimer
-            if (owners.length == 1 && owners[0] == thisAddress) {
-                // prevOwner will always be the sentinel when owners.length == 1
-
-                // set up the swapOwner call
-                addOwnerData = abi.encodeWithSelector(
-                    IGnosisSafe.swapOwner.selector,
-                    SENTINEL_OWNERS, // prevOwner
-                    thisAddress, // oldOwner
-                    claimer // newOwner
-                );
-                ++newSignerCount;
-            } else {
-                // otherwise, add the claimer as a new owner
-                ++newSignerCount;
-
-                // ensure that txs can't execute if fewer signers than target threshold
-                if (newSignerCount <= targetThreshold) {
-                    newThreshold = newSignerCount;
-                }
-
-                // set up the addOwner call
-                addOwnerData = abi.encodeWithSelector(
-                    IGnosisSafe.addOwnerWithThreshold.selector,
-                    claimer,
-                    newThreshold
-                );
+            // ensure that txs can't execute if fewer signers than target threshold
+            if (newSignerCount <= targetThreshold) {
+                newThreshold = newSignerCount;
             }
 
-            // execute the call
-            bool success = safe.execTransactionFromModule(
-                address(safe), // to
-                0, // value
-                addOwnerData, // data
-                Enum.Operation.Call // operation
+            // set up the addOwner call
+            addOwnerData = abi.encodeWithSelector(
+                IGnosisSafe.addOwnerWithThreshold.selector,
+                claimer,
+                newThreshold
             );
+        }
 
-            if (!success) {
-                revert FailedExecAddSigner();
-            }
+        // execute the call
+        bool success = safe.execTransactionFromModule(
+            address(safe), // to
+            0, // value
+            addOwnerData, // data
+            Enum.Operation.Call // operation
+        );
+
+        if (!success) {
+            revert FailedExecAddSigner();
         }
 
         // increment signer count

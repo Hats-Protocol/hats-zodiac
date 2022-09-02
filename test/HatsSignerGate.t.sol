@@ -204,6 +204,23 @@ contract HatsSignerGateTest is HSGTestSetup {
         assertEq(safe.getOwners().length, 1);
     }
 
+    function testOwnerClaimSignerReverts() public {
+        addSigners(2);
+
+        vm.prank(addresses[1]);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                HatsSignerGate.SignerAlreadyClaimed.selector,
+                addresses[1]
+            )
+        );
+
+        hatsSignerGate.claimSigner();
+
+        assertEq(hatsSignerGate.signerCount(), 2);
+    }
+
     function testNonHatWearerCannotClaimSigner() public {
         mockIsWearerCall(addresses[3], signerHat, false);
 
