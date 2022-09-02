@@ -6,15 +6,18 @@ import "../src/HatsSignerGate.sol";
 
 contract DeployHatsSignerGate is Script {
     uint256 public ownerHatId =
-        26959946667150639794667015087019630673637144422540572481103610249216;
+        80879840001451919384001045261058892020911433267621717443310830747648;
     uint256 public signersHatId =
-        27065258958819196981364933114703301105956039517941121592357921226752;
-    address public avatar = 0x5293A41B9C4DA8966b873A8C032D74D416baA859;
-    address public hats = 0xF55228444742e6812535BCda350167cd965121B7;
-    uint256 public minThreshold = 2;
+        80985152293120476570698963288742562453230328363022266554565141725184;
+    address public safe = 0x56c7A84Cf42Cfe70BfdF14140747ffc63b96E51A;
+    address public hats = 0x245e5B56C18B18aC2d72F94C5F7bE1D52497A8aD;
+    uint256 public minThreshold = 3;
     uint256 public targetThreshold = 3;
-    uint256 public maxSigners = 8;
-    string public version = "MC Super Scouts Demo #1";
+    uint256 public maxSigners = 9;
+    // string public version = "MC Super Scouts Demo #1";
+    // string public version = "Rinkeby test #5";
+
+    string public version = "Cub Scouts Beta 02";
 
     function run() external {
         vm.startBroadcast();
@@ -22,7 +25,7 @@ contract DeployHatsSignerGate is Script {
         HatsSignerGate hatsSignerGate = new HatsSignerGate(
             ownerHatId,
             signersHatId,
-            avatar,
+            safe,
             hats,
             minThreshold,
             targetThreshold,
@@ -34,4 +37,6 @@ contract DeployHatsSignerGate is Script {
     }
 
     // forge script script/HatsSignerGate.s.sol:DeployHatsSignerGate --rpc-url $RINKEBY_RPC --private-key $PRIVATE_KEY --verify --etherscan-api-key $ETHERSCAN_KEY --broadcast
+
+    // forge script script/HatsSignerGate.s.sol:DeployHatsSignerGate --rpc-url $GC_RPC --private-key $PRIVATE_KEY --verify --etherscan-api-key $GNOSISSCAN_KEY --broadcast
 }
