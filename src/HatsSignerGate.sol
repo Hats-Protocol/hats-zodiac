@@ -25,6 +25,9 @@ contract HatsSignerGate is BaseGuard, SignatureDecoder, HatsOwned {
     // Valid signers must wear the signer hat at time of execution
     error InvalidSigners();
 
+    // This contract can only be set once as a zodiac guard on `safe`
+    error GuardAlreadySet();
+
     // Can't remove a signer if they're still wearing the signer hat
     error StillWearsSignerHat(address signer);
 
@@ -103,21 +106,6 @@ contract HatsSignerGate is BaseGuard, SignatureDecoder, HatsOwned {
     // function setUp(bytes memory initializeParams) public override {
     //     // TODO enable factory support by overriding `setup`
     // }
-
-    function setUp() public {
-        // set HSG as a guard
-        bytes memory setHSGGuard = abi.encodeWithSignature(
-            "setGuard(address)",
-            address(this)
-        );
-
-        bool success = safe.execTransactionFromModule(
-            address(safe), // to
-            0, // value
-            setHSGGuard, // data
-            Enum.Operation.Call
-        );
-    }
 
     function setTargetThreshold(uint256 _targetThreshold) public onlyOwner {
         if (_targetThreshold != targetThreshold) {

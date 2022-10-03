@@ -75,8 +75,7 @@ contract HSGFactoryTestSetup is Test {
             _signerHat,
             _minThreshold,
             _targetThreshold,
-            _maxSigners,
-            1 // saltNonce
+            _maxSigners // , 1 // saltNonce
         );
 
         _hatsSignerGate = HatsSignerGate(hsg);

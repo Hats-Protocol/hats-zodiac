@@ -66,16 +66,11 @@ contract HatsSignerGateFactory {
         uint256 _signersHatId,
         uint256 _minThreshold,
         uint256 _targetThreshold,
-        uint256 _maxSigners,
-        uint256 _saltNonce
+        uint256 _maxSigners // ,uint256 _saltNonce
     ) public returns (address, address) {
         // Deploy new safe but do not set it up yet
         address payable safe = payable(
-            gnosisSafeProxyFactory.createProxy(
-                safeSingleton,
-                hex"00"
-                // abi.encodePacked(_hatsSignerGate, _saltNonce) // QUESTION what is this for?
-            )
+            gnosisSafeProxyFactory.createProxy(safeSingleton, hex"00")
         );
 
         // Deploy new hats signer gate
@@ -88,29 +83,43 @@ contract HatsSignerGateFactory {
             _maxSigners
         );
 
-        // Generate delegate calls so the safe calls enableModule and setGuard on itself during setup
+        // Generate delegate call so the safe calls enableModule on itself during setup
         bytes memory enableHSGModule = abi.encodeWithSignature(
             "enableModule(address)",
             hsg
         );
-        bytes memory enableHSGModuleMultisend = abi.encodePacked(
+
+        // Generate delegate call so the safe calls setGuard on itself during setup
+        bytes memory setHSGGuard = abi.encodeWithSignature(
+            "setGuard(address)",
+            hsg
+        );
+
+        bytes memory packedCalls = abi.encodePacked(
+            // enableHSGModule
             uint8(0), // 0 for call; 1 for delegatecall
             safe, // to
             uint256(0), // value
             uint256(enableHSGModule.length), // data length
-            bytes(enableHSGModule) // data
+            bytes(enableHSGModule), // data
+            // setHSGGuard
+            uint8(0), // 0 for call; 1 for delegatecall
+            safe, // to
+            uint256(0), // value
+            uint256(setHSGGuard.length), // data length
+            bytes(setHSGGuard) // data
         );
 
         bytes memory multisendAction = abi.encodeWithSignature(
             "multiSend(bytes)",
-            enableHSGModuleMultisend
+            packedCalls
         );
 
         // Workaround for solidity dynamic memory array
         address[] memory owners = new address[](1);
         owners[0] = hsg;
 
-        // Call setup on safe to enable our new module/guard and set it as only owner
+        // Call setup on safe to enable our new module/guard and set it as the sole initial owner
         GnosisSafe(safe).setup(
             owners,
             1,
@@ -121,9 +130,6 @@ contract HatsSignerGateFactory {
             0,
             payable(address(0))
         );
-
-        // set HSG as a guard
-        HatsSignerGate(hsg).setUp();
 
         return (hsg, safe);
     }
