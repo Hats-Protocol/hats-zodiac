@@ -61,6 +61,7 @@ contract HatsSignerGateFactoryTest is HSGFactoryTestSetup {
 
         assertEq(hatsSignerGate.minThreshold(), minThreshold);
         assertEq(hatsSignerGate.ownerHat(), ownerHat);
+        assertEq(hatsSignerGate.getHatsContract(), HATS);
         assertEq(hatsSignerGate.targetThreshold(), targetThreshold);
         assertEq(address(hatsSignerGate.safe()), address(safe));
         assertEq(hatsSignerGate.maxSigners(), maxSigners);
@@ -89,8 +90,6 @@ contract HatsSignerGateFactoryTest is HSGFactoryTestSetup {
         vm.assume(_minThreshold <= targetThreshold);
         minThreshold = _minThreshold;
 
-        // address hsg;
-        // address safe_;
         (hatsSignerGate, safe) = deployHSGAndSafe(
             ownerHat,
             signerHat,
@@ -98,9 +97,6 @@ contract HatsSignerGateFactoryTest is HSGFactoryTestSetup {
             targetThreshold,
             maxSigners
         );
-
-        // hatsSignerGate = HatsSignerGate(hsg);
-        // safe = GnosisSafe(payable(safe_));
 
         assertEq(safe.getOwners()[0], address(hatsSignerGate));
 
@@ -116,5 +112,23 @@ contract HatsSignerGateFactoryTest is HSGFactoryTestSetup {
             address(bytes20(vm.load(address(safe), GUARD_STORAGE_SLOT) << 96)),
             address(hatsSignerGate)
         );
+
+        assertEq(hatsSignerGate.ownerHat(), ownerHat);
+        assertEq(hatsSignerGate.getHatsContract(), HATS);
+    }
+
+    function testCannotReinitializeSingleton() public {
+        bytes memory initializeParams = abi.encode(
+            ownerHat,
+            signerHat,
+            address(safe),
+            HATS,
+            minThreshold,
+            targetThreshold,
+            maxSigners,
+            version
+        );
+        vm.expectRevert("Initializable: contract is already initialized");
+        singletonHatsSignerGate.setUp(initializeParams);
     }
 }
