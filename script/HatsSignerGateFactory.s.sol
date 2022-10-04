@@ -13,6 +13,7 @@ contract DeployHatsSignerGateFactory is Script {
         0xA238CBeb142c10Ef7Ad8442C6D1f9E89e07e7761;
     address public gnosisSafeProxyFactory =
         0xa6B71E26C5e0845f74c812102Ca7114b6a896AB2;
+    address public moduleProxyFactory;
 
     // HatsSignerGateFactory deployment params
     address public hats = 0xF55228444742e6812535BCda350167cd965121B7;
@@ -29,15 +30,21 @@ contract DeployHatsSignerGateFactory is Script {
     // uint256 public maxSigners = 8;
 
     function run() external {
-        vm.startBroadcast();
+        uint256 privKey = vm.envUint("PRIVATE_KEY");
+        address deployer = vm.rememberKey(privKey);
+        vm.startBroadcast(deployer);
+
+        // deploy singleton
+        HatsSignerGate hsg = new HatsSignerGate();
 
         HatsSignerGateFactory factory = new HatsSignerGateFactory(
+            address(hsg),
             hats,
             safeSingleton,
             gnosisFallbackLibrary,
             gnosisMultisendLibrary,
             gnosisSafeProxyFactory,
-            // address _moduleProxyFactory,
+            moduleProxyFactory,
             version
         );
 
