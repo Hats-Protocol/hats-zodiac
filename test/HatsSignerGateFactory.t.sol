@@ -8,17 +8,23 @@ contract HatsSignerGateFactoryTest is HSGFactoryTestSetup {
         version = "1.0";
 
         factory = new HatsSignerGateFactory(
+            address(singletonHatsSignerGate),
             HATS,
             address(singletonSafe),
             gnosisFallbackLibrary,
             gnosisMultisendLibrary,
             address(safeFactory),
+            address(moduleProxyFactory),
             version
         );
     }
 
     function testDeployFactory() public {
         assertEq(factory.version(), version);
+        assertEq(
+            factory.hatsSignerGateSingleton(),
+            address(singletonHatsSignerGate)
+        );
         assertEq(address(factory.safeSingleton()), address(singletonSafe));
         assertEq(factory.gnosisFallbackLibrary(), gnosisFallbackLibrary);
         assertEq(factory.gnosisMultisendLibrary(), gnosisMultisendLibrary);
@@ -46,20 +52,22 @@ contract HatsSignerGateFactoryTest is HSGFactoryTestSetup {
                 address(safe),
                 minThreshold,
                 targetThreshold,
-                maxSigners
+                maxSigners,
+                2 // saltNonce
             )
         );
 
         assertEq(safe.getOwners()[0], address(this));
 
         assertEq(hatsSignerGate.minThreshold(), minThreshold);
+        assertEq(hatsSignerGate.ownerHat(), ownerHat);
         assertEq(hatsSignerGate.targetThreshold(), targetThreshold);
         assertEq(address(hatsSignerGate.safe()), address(safe));
         assertEq(hatsSignerGate.maxSigners(), maxSigners);
         assertEq(hatsSignerGate.version(), version);
     }
 
-    function testDeployHatsSignerGateAndSafe(
+    function testDeployHatsSignersGateAndSafe(
         uint256 _ownerHat,
         uint256 _signerHat,
         uint256 _minThreshold,

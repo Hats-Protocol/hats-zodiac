@@ -7,14 +7,20 @@ import "../src/HatsSignerGateFactory.sol";
 import "@gnosis.pm/safe-contracts/contracts/GnosisSafe.sol";
 import "@gnosis.pm/safe-contracts/contracts/proxies/GnosisSafeProxyFactory.sol";
 import "@gnosis.pm/safe-contracts/contracts/libraries/MultiSend.sol";
+import "@gnosis.pm/zodiac/factory/ModuleProxyFactory.sol";
 
 contract HSGFactoryTestSetup is Test {
     address public gnosisFallbackLibrary = address(bytes20("fallback"));
     address public gnosisMultisendLibrary = address(new MultiSend());
+
     HatsSignerGateFactory public factory;
     GnosisSafe public singletonSafe = new GnosisSafe();
     GnosisSafeProxyFactory public safeFactory = new GnosisSafeProxyFactory();
+    ModuleProxyFactory public moduleProxyFactory = new ModuleProxyFactory();
     GnosisSafe public safe;
+    address FIRST_ADDRESS = address(0x1);
+
+    HatsSignerGate public singletonHatsSignerGate = new HatsSignerGate();
     HatsSignerGate public hatsSignerGate;
 
     address public constant HATS = address(0x4a15);
@@ -75,7 +81,8 @@ contract HSGFactoryTestSetup is Test {
             _signerHat,
             _minThreshold,
             _targetThreshold,
-            _maxSigners // , 1 // saltNonce
+            _maxSigners,
+            1 // saltNonce
         );
 
         _hatsSignerGate = HatsSignerGate(hsg);

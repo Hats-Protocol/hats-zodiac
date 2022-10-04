@@ -31,11 +31,13 @@ contract HSGTestSetup is HSGFactoryTestSetup, SignatureDecoder {
         version = "1.0";
 
         factory = new HatsSignerGateFactory(
+            address(singletonHatsSignerGate),
             HATS,
             address(singletonSafe),
             gnosisFallbackLibrary,
             gnosisMultisendLibrary,
             address(safeFactory),
+            address(moduleProxyFactory),
             version
         );
 

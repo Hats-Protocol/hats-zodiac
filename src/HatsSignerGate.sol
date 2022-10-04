@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: CC0
 pragma solidity >=0.8.13;
 
-import "hats-auth/HatsOwned.sol";
+import "hats-auth/HatsOwnedInitializable.sol";
 import "zodiac/guard/BaseGuard.sol";
 import "zodiac/interfaces/IAvatar.sol";
 import "@gnosis.pm/safe-contracts/contracts/common/StorageAccessible.sol";
@@ -9,7 +9,7 @@ import "./Interfaces/IGnosisSafe.sol";
 import "forge-std/Test.sol"; // remove after testing
 import "@gnosis.pm/safe-contracts/contracts/common/SignatureDecoder.sol";
 
-contract HatsSignerGate is BaseGuard, SignatureDecoder, HatsOwned {
+contract HatsSignerGate is BaseGuard, SignatureDecoder, HatsOwnedInitializable {
     // Cannot disable this guard
     error CannotDisableThisGuard(address guard);
 
@@ -59,7 +59,7 @@ contract HatsSignerGate is BaseGuard, SignatureDecoder, HatsOwned {
     uint256 public signersHatId;
     uint256 public minThreshold;
     uint256 public targetThreshold;
-    uint256 public immutable maxSigners;
+    uint256 public maxSigners;
     uint256 public signerCount;
 
     string public version;
@@ -78,34 +78,52 @@ contract HatsSignerGate is BaseGuard, SignatureDecoder, HatsOwned {
     bytes32 private constant SAFE_TX_TYPEHASH =
         0xbb8310d486368db6bd6f849402fdd73ad53d316b5a4b2644ad6efe0f941286d8;
 
-    constructor(
-        uint256 _ownerHatId,
-        uint256 _signersHatId,
-        address _safe, // Gnosis Safe that the signers will join
-        address _hats,
-        uint256 _minThreshold,
-        uint256 _targetThreshold,
-        uint256 _maxSigners,
-        string memory _version
-    ) HatsOwned(_ownerHatId, _hats) {
-        // bytes memory initializeParams = abi.encode(_ownerHatId, _avatar, _hats);
-        // setUp(initializeParams);
-        if (_maxSigners < 2) {
-            revert NeedAtLeastTwoSigners();
-        }
-
-        maxSigners = _maxSigners;
-        _setTargetThreshold(_targetThreshold);
-        _setMinThreshold(_minThreshold);
-        safe = IGnosisSafe(_safe);
-        signersHatId = _signersHatId;
-        version = _version;
-        signerCount = 0;
+    constructor() initializer {
+        _HatsOwned_init(1, address(0x1));
     }
 
-    // function setUp(bytes memory initializeParams) public override {
-    //     // TODO enable factory support by overriding `setup`
-    // }
+    function setUp(bytes memory initializeParams) public initializer {
+        console2.log("about to initialize this contract", address(this));
+
+        (
+            uint256 _ownerHatId,
+            uint256 _signersHatId,
+            address _safe,
+            address _hats,
+            uint256 _minThreshold,
+            uint256 _targetThreshold,
+            uint256 _maxSigners,
+            string memory _version
+        ) = abi.decode(
+                initializeParams,
+                (
+                    uint256,
+                    uint256,
+                    address,
+                    address,
+                    uint256,
+                    uint256,
+                    uint256,
+                    string
+                )
+            );
+
+        console2.log("initializing");
+
+        _HatsOwned_init(_ownerHatId, _hats);
+        signersHatId = _signersHatId;
+        maxSigners = _maxSigners;
+        safe = IGnosisSafe(_safe);
+
+        _setTargetThreshold(_targetThreshold);
+        _setMinThreshold(_minThreshold);
+        version = _version;
+
+        signerCount = 0;
+
+        console2.log("_minThreshold", _minThreshold);
+        console2.log("minThreshold", minThreshold);
+    }
 
     function setTargetThreshold(uint256 _targetThreshold) public onlyOwner {
         if (_targetThreshold != targetThreshold) {
