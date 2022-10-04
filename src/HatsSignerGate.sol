@@ -6,7 +6,7 @@ import "zodiac/guard/BaseGuard.sol";
 import "zodiac/interfaces/IAvatar.sol";
 import "@gnosis.pm/safe-contracts/contracts/common/StorageAccessible.sol";
 import "./Interfaces/IGnosisSafe.sol";
-import "forge-std/Test.sol"; // remove after testing
+// import "forge-std/Test.sol"; // remove after testing
 import "@gnosis.pm/safe-contracts/contracts/common/SignatureDecoder.sol";
 
 contract HatsSignerGate is BaseGuard, SignatureDecoder, HatsOwnedInitializable {
@@ -83,8 +83,6 @@ contract HatsSignerGate is BaseGuard, SignatureDecoder, HatsOwnedInitializable {
     }
 
     function setUp(bytes memory initializeParams) public initializer {
-        console2.log("about to initialize this contract", address(this));
-
         (
             uint256 _ownerHatId,
             uint256 _signersHatId,
@@ -108,8 +106,6 @@ contract HatsSignerGate is BaseGuard, SignatureDecoder, HatsOwnedInitializable {
                 )
             );
 
-        console2.log("initializing");
-
         _HatsOwned_init(_ownerHatId, _hats);
         signersHatId = _signersHatId;
         maxSigners = _maxSigners;
@@ -120,9 +116,6 @@ contract HatsSignerGate is BaseGuard, SignatureDecoder, HatsOwnedInitializable {
         version = _version;
 
         signerCount = 0;
-
-        console2.log("_minThreshold", _minThreshold);
-        console2.log("minThreshold", minThreshold);
     }
 
     function setTargetThreshold(uint256 _targetThreshold) public onlyOwner {

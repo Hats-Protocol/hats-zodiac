@@ -7,6 +7,8 @@ import "@gnosis.pm/safe-contracts/contracts/libraries/MultiSend.sol";
 import "@gnosis.pm/safe-contracts/contracts/proxies/GnosisSafeProxyFactory.sol";
 import "@gnosis.pm/zodiac/factory/ModuleProxyFactory.sol";
 
+// import "forge-std/Test.sol"; // remove after testing
+
 contract HatsSignerGateFactory {
     address public hatsAddress;
 
@@ -65,11 +67,6 @@ contract HatsSignerGateFactory {
     }
 
     // option 1: deploy a new Safe and signer gate, all wired up
-    //
-    // deploy new HatsSignerGate with given ownerHat, signerHat, and other params
-    // call gnosis safe proxy factory to deploy a safe
-    // sets HatsSignerGate as module and guard on the safe
-
     function deployHatsSignerGateAndSafe(
         uint256 _ownerHatId,
         uint256 _signersHatId,
@@ -77,14 +74,14 @@ contract HatsSignerGateFactory {
         uint256 _targetThreshold,
         uint256 _maxSigners,
         uint256 _saltNonce
-    ) public returns (address, address) {
+    ) public returns (address hsg, address payable safe) {
         // Deploy new safe but do not set it up yet
-        address payable safe = payable(
+        safe = payable(
             gnosisSafeProxyFactory.createProxy(safeSingleton, hex"00")
         );
 
         // Deploy new hats signer gate
-        address hsg = deployHatsSignerGate(
+        hsg = deployHatsSignerGate(
             _ownerHatId,
             _signersHatId,
             safe,
@@ -126,14 +123,11 @@ contract HatsSignerGateFactory {
         return (hsg, safe);
     }
 
-    //
     // option 2: deploy a new signer gate and attach it to an existing Safe
-    // deploy new HatsSignerGate with given ownerHat, signerHat, and other params
-
     function deployHatsSignerGate(
         uint256 _ownerHatId,
         uint256 _signersHatId,
-        address _safe, // Gnosis Safe that the signers will join
+        address _safe, // existing Gnosis Safe that the signers will join
         uint256 _minThreshold,
         uint256 _targetThreshold,
         uint256 _maxSigners,
