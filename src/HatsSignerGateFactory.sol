@@ -165,7 +165,7 @@ contract HatsSignerGateFactory {
 
     function _generateMultisendAction(address _hatsSignerGate, address _safe)
         internal
-        view
+        pure
         returns (bytes memory _action)
     {
         bytes memory enableHSGModule = abi.encodeWithSignature(
