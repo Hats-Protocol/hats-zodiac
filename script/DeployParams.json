@@ -3,7 +3,7 @@
         "gnosisFallbackLibrary": "0xf48f2B2d2a534e402487b3ee7C18c33Aec0Fe5e4",
         "gnosisMultisendLibrary": "0xA238CBeb142c10Ef7Ad8442C6D1f9E89e07e7761",
         "gnosisSafeProxyFactory": "0xa6B71E26C5e0845f74c812102Ca7114b6a896AB2",
-        "hatsProtocol": "0x245e5B56C18B18aC2d72F94C5F7bE1D52497A8aD",
+        "hatsProtocol": "0x72c89eb08444bc16396dd9432b3e82d956c412ec",
         "moduleProxyFactory": "0x00000000000DC7F163742Eb4aBEf650037b1f588",
         "safeSingleton": "0xd9Db270c1B5E3Bd161E8c8503c55cEABeE709552"
     },
@@ -14,7 +14,7 @@
         "gnosisFallbackLibrary": "0xf48f2B2d2a534e402487b3ee7C18c33Aec0Fe5e4",
         "gnosisMultisendLibrary": "0xA238CBeb142c10Ef7Ad8442C6D1f9E89e07e7761",
         "gnosisSafeProxyFactory": "0xa6B71E26C5e0845f74c812102Ca7114b6a896AB2",
-        "hatsProtocol": "0x0000000000000000000000000000000000000002",
+        "hatsProtocol": "0xe81597289a249ae725c2d80e7848dbfa9708c22d",
         "moduleProxyFactory": "0x00000000000DC7F163742Eb4aBEf650037b1f588",
         "safeSingleton": "0xd9Db270c1B5E3Bd161E8c8503c55cEABeE709552"
     },
