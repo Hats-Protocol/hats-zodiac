@@ -83,10 +83,10 @@ contract DeployHatsSignerGateFactory is Script {
     }
 
     // // simulation
-    // forge script script/HatsSignerGateFactory.s.sol -f polygon
+    // forge script script/HatsSignerGateFactory.s.sol -f goerli
 
     // // actual deploy
-    // forge script script/HatsSignerGateFactory.s.sol -f gnosis --broadcast --verify
+    // forge script script/HatsSignerGateFactory.s.sol -f goerli --broadcast --verify
 
     // forge verify-contract --chain-id 100 --num-of-optimizations 1000000 --watch --constructor-args $(cast abi-encode "constructor(address,address,address,address,address,address,address,string)" 0xEb1acAa1aDE15657C55633ecB43aa98AfD23bfe7 0x72c89eb08444bc16396dd9432b3e82d956c412ec 0xd9Db270c1B5E3Bd161E8c8503c55cEABeE709552 0xf48f2B2d2a534e402487b3ee7C18c33Aec0Fe5e4 0xA238CBeb142c10Ef7Ad8442C6D1f9E89e07e7761 0xa6B71E26C5e0845f74c812102Ca7114b6a896AB2 0x00000000000DC7F163742Eb4aBEf650037b1f588 "HSG Beta 4") --compiler-version v0.8.16+commit.07a7930e 0xC4b6005f48417D67b2a81c3E31672f4042D36361 src/HatsSignerGateFactory.sol:HatsSignerGateFactory $ETHERSCAN_KEY
 

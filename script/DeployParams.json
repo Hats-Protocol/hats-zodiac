@@ -8,7 +8,14 @@
         "safeSingleton": "0xd9Db270c1B5E3Bd161E8c8503c55cEABeE709552"
     },
     "1": {},
-    "5": {},
+    "5": {
+        "gnosisFallbackLibrary": "0xf48f2B2d2a534e402487b3ee7C18c33Aec0Fe5e4",
+        "gnosisMultisendLibrary": "0xA238CBeb142c10Ef7Ad8442C6D1f9E89e07e7761",
+        "gnosisSafeProxyFactory": "0xa6B71E26C5e0845f74c812102Ca7114b6a896AB2",
+        "hatsProtocol": "0x2923469a33bd2fa2ab33c877db81d35a9d8d60c6",
+        "moduleProxyFactory": "0x00000000000DC7F163742Eb4aBEf650037b1f588",
+        "safeSingleton": "0xd9Db270c1B5E3Bd161E8c8503c55cEABeE709552"
+    },
     "10": {},
     "137": {
         "gnosisFallbackLibrary": "0xf48f2B2d2a534e402487b3ee7C18c33Aec0Fe5e4",
