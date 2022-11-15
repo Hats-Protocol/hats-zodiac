@@ -184,11 +184,6 @@ contract HatsSignerGate is BaseGuard, SignatureDecoder, HatsOwnedInitializable {
         address[] memory owners = safe.getOwners();
         uint256 validSignerCount = _countValidSigners(owners);
 
-        // count the existing safe owners that wear the signer hat
-        // for (uint256 i = 0; i < owners.length; ++i) {
-        //     if (HATS.isWearerOfHat(owners[i], signersHatId)) ++validSignerCount;
-        // }
-
         // update the signer count accordingly
         signerCount = validSignerCount;
 
@@ -302,31 +297,41 @@ contract HatsSignerGate is BaseGuard, SignatureDecoder, HatsOwnedInitializable {
         bytes memory removeOwnerData;
         address[] memory owners = safe.getOwners();
         address thisAddress = address(this);
-        address prevOwner;
 
         uint256 currentThreshold = safe.getThreshold();
         uint256 newThreshold = currentThreshold;
         uint256 newSignerCount;
 
-        if (signerCount == 1) {
-            prevOwner = findPrevOwner(owners, thisAddress);
+        if (signerCount < 2) { // signerCount could be 0 after reconcileSignerCount()
+            if (owners.length == 1) {
+                // make address(this) the only owner
+                removeOwnerData = abi.encodeWithSelector(
+                    IGnosisSafe.swapOwner.selector,
+                    SENTINEL_OWNERS, // prevOwner
+                    _signer, // oldOwner
+                    thisAddress // newOwner
+                );
+            } else {
+                removeOwnerData = abi.encodeWithSelector(
+                    IGnosisSafe.removeOwner.selector,
+                    findPrevOwner(owners, _signer),
+                    _signer,
+                    newThreshold
+                );
+            }
+            // signerCount will always be 0 in this case
+            signerCount = 0;
 
-            // make address(this) the only owner
-            removeOwnerData = abi.encodeWithSelector(
-                IGnosisSafe.swapOwner.selector,
-                prevOwner, // prevOwner
-                _signer, // oldOwner
-                thisAddress // newOwner
-            );
         } else {
             uint256 validSignerCount = _countValidSigners(owners);
+
 
             uint256 currentSignerCount = signerCount; // save an SLOAD
 
             if (validSignerCount == currentSignerCount) {
                 newSignerCount = currentSignerCount;
             } else {
-                --newSignerCount;
+                newSignerCount = currentSignerCount - 1;
             }
 
             // ensure that txs can't execute if fewer signers than target threshold
@@ -334,16 +339,14 @@ contract HatsSignerGate is BaseGuard, SignatureDecoder, HatsOwnedInitializable {
                 newThreshold = newSignerCount;
             }
 
-            prevOwner = findPrevOwner(owners, _signer);
-
             removeOwnerData = abi.encodeWithSelector(
                 IGnosisSafe.removeOwner.selector,
-                prevOwner,
+                findPrevOwner(owners, _signer),
                 _signer,
                 newThreshold
             );
 
-            // decrement signerCount
+            // update signerCount
             signerCount = newSignerCount;
         }
 

@@ -76,7 +76,7 @@ contract HSGTestSetup is HSGFactoryTestSetup, SignatureDecoder {
         vm.mockCall(HATS, data, abi.encode(result));
     }
 
-    // borrowed from Orca (https://github.com/orcaprotocol/contracts/blob/main/contracts/utils/SafeTxHelper.sol)
+    // modified from Orca (https://github.com/orcaprotocol/contracts/blob/main/contracts/utils/SafeTxHelper.sol)
     function executeSafeTxFrom(
         address from,
         bytes memory data,
