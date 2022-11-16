@@ -12,7 +12,15 @@ HatsSignerGate.sol is both a Zodiac module and a guard for the same Safe.
 
 See [deployment parameters here](./script/DeployParams.json).
 
+#### Beta 5
+
+- Gnosis Chain (chain id #100)
+  - singleton &mdash; `0xbD7090427331Cae6fC8b7f0C78d5f0fd3F2B3AFa`
+  - factory &mdash; `0x805a6567eED224fBB62512085F9a106C8cD211f3`
+
 #### Beta 4
+
+> ⚠️ known bug in `removeSigner`
 
 - Gnosis Chain (chain id #100)
   - singleton &mdash; `0x9b50AB91b3ffBcdd5d5Ed49eD70bf299434C955C`
