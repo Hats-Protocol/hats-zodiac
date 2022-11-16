@@ -6,7 +6,7 @@ import "zodiac/guard/BaseGuard.sol";
 import "zodiac/interfaces/IAvatar.sol";
 import "@gnosis.pm/safe-contracts/contracts/common/StorageAccessible.sol";
 import "./Interfaces/IGnosisSafe.sol";
-// import "forge-std/Test.sol"; // remove after testing
+import "forge-std/Test.sol"; // remove after testing
 import "@gnosis.pm/safe-contracts/contracts/common/SignatureDecoder.sol";
 
 contract HatsSignerGate is BaseGuard, SignatureDecoder, HatsOwnedInitializable {
@@ -297,36 +297,24 @@ contract HatsSignerGate is BaseGuard, SignatureDecoder, HatsOwnedInitializable {
         bytes memory removeOwnerData;
         address[] memory owners = safe.getOwners();
         address thisAddress = address(this);
-
-        uint256 currentThreshold = safe.getThreshold();
-        uint256 newThreshold = currentThreshold;
+        uint256 currentSignerCount = signerCount; // save an SLOAD
         uint256 newSignerCount;
 
-        if (signerCount < 2) { // signerCount could be 0 after reconcileSignerCount()
-            if (owners.length == 1) {
-                // make address(this) the only owner
-                removeOwnerData = abi.encodeWithSelector(
-                    IGnosisSafe.swapOwner.selector,
-                    SENTINEL_OWNERS, // prevOwner
-                    _signer, // oldOwner
-                    thisAddress // newOwner
-                );
-            } else {
-                removeOwnerData = abi.encodeWithSelector(
-                    IGnosisSafe.removeOwner.selector,
-                    findPrevOwner(owners, _signer),
-                    _signer,
-                    newThreshold
-                );
-            }
-            // signerCount will always be 0 in this case
-            signerCount = 0;
+        if (currentSignerCount < 2 && owners.length == 1) { // signerCount could be 0 after reconcileSignerCount
+            // make address(this) the only owner
+            removeOwnerData = abi.encodeWithSelector(
+                IGnosisSafe.swapOwner.selector,
+                SENTINEL_OWNERS, // prevOwner
+                _signer, // oldOwner
+                thisAddress // newOwner
+            );
 
+            // newSignerCount is already 0
+        
         } else {
+            uint256 currentThreshold = safe.getThreshold();
+            uint256 newThreshold = currentThreshold;
             uint256 validSignerCount = _countValidSigners(owners);
-
-
-            uint256 currentSignerCount = signerCount; // save an SLOAD
 
             if (validSignerCount == currentSignerCount) {
                 newSignerCount = currentSignerCount;
@@ -345,9 +333,6 @@ contract HatsSignerGate is BaseGuard, SignatureDecoder, HatsOwnedInitializable {
                 _signer,
                 newThreshold
             );
-
-            // update signerCount
-            signerCount = newSignerCount;
         }
 
         bool success = safe.execTransactionFromModule(
@@ -356,6 +341,9 @@ contract HatsSignerGate is BaseGuard, SignatureDecoder, HatsOwnedInitializable {
             removeOwnerData, // data
             Enum.Operation.Call // operation
         );
+        
+        // update signerCount
+        signerCount = newSignerCount;
 
         if (!success) {
             revert FailedExecRemoveSigner();

@@ -244,6 +244,7 @@ contract HatsSignerGateTest is HSGTestSetup {
 
         assertEq(safe.getOwners().length, 1);
         assertEq(safe.getOwners()[0], address(hatsSignerGate));
+        assertEq(hatsSignerGate.signerCount(), 0);
 
         assertEq(safe.getThreshold(), 1);
     }
@@ -253,14 +254,13 @@ contract HatsSignerGateTest is HSGTestSetup {
 
         mockIsWearerCall(addresses[0], signerHat, false);
 
-        // hatsSignerGate.reconcileSignerCount();
-
         emit log_uint(hatsSignerGate.signerCount());
 
         hatsSignerGate.removeSigner(addresses[0]);
 
         assertEq(safe.getOwners().length, 1);
         assertEq(safe.getOwners()[0], addresses[1]);
+        assertEq(hatsSignerGate.signerCount(), 1);
 
         assertEq(safe.getThreshold(), 1);
     }
@@ -275,8 +275,9 @@ contract HatsSignerGateTest is HSGTestSetup {
 
         hatsSignerGate.removeSigner(addresses[0]);
 
-        // assertEq(safe.getOwners().length, 1);
+        assertEq(safe.getOwners().length, 1);
         assertEq(safe.getOwners()[0], addresses[1]);
+        assertEq(hatsSignerGate.signerCount(), 1);
 
         assertEq(safe.getThreshold(), 1);
     }
@@ -294,6 +295,7 @@ contract HatsSignerGateTest is HSGTestSetup {
         assertEq(safe.getOwners().length, 2);
         assertEq(safe.getOwners()[0], addresses[2]);
         assertEq(safe.getOwners()[1], addresses[1]);
+        assertEq(hatsSignerGate.signerCount(), 2);
 
         assertEq(safe.getThreshold(), 2);
     }
@@ -314,6 +316,7 @@ contract HatsSignerGateTest is HSGTestSetup {
 
         assertEq(safe.getOwners().length, 1);
         assertEq(safe.getOwners()[0], addresses[0]);
+        assertEq(hatsSignerGate.signerCount(), 1);
 
         assertEq(safe.getThreshold(), 1);
     }
