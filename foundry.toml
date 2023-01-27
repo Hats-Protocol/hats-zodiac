@@ -2,7 +2,7 @@
 src = 'src'
 out = 'out'
 libs = ['lib']
-optimizer_runs = 1000000
+optimizer_runs = 1_000_000
 gas_reports = ["*"]
 auto_detect_solc = false
 solc = "0.8.17"
@@ -15,9 +15,10 @@ remappings = [
   "@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts",
   "@gnosis.pm/safe-contracts/contracts/=lib/safe-contracts/contracts/",
   "@gnosis.pm/zodiac/=lib/zodiac/contracts/",
-  "utils/=lib/utils/",
+  "solbase/=lib/solbase/src/",
   "zodiac/=lib/zodiac/contracts/"
 ]
+
 [rpc_endpoints]
 ethereum = "${ETHEREUM_RPC}"
 optimism = "${OPTIMISM_RPC}"
