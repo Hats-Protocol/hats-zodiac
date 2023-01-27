@@ -56,7 +56,7 @@ contract HatsSignerGateTest is HSGTestSetup {
     function testSetInvalidMinThreshold() public {
         mockIsWearerCall(address(this), ownerHat, true);
 
-        vm.expectRevert(HatsSignerGate.InvalidMinThreshold.selector);
+        vm.expectRevert(InvalidMinThreshold.selector);
         hatsSignerGate.setMinThreshold(3);
     }
 
@@ -176,7 +176,7 @@ contract HatsSignerGateTest is HSGTestSetup {
 
         mockIsWearerCall(addresses[5], signerHat, true);
 
-        vm.expectRevert(HatsSignerGate.MaxSignersReached.selector);
+        vm.expectRevert(MaxSignersReached.selector);
         vm.prank(addresses[5]);
 
         // this call should fail
@@ -211,7 +211,7 @@ contract HatsSignerGateTest is HSGTestSetup {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                HatsSignerGate.SignerAlreadyClaimed.selector,
+                SignerAlreadyClaimed.selector,
                 addresses[1]
             )
         );
@@ -228,7 +228,7 @@ contract HatsSignerGateTest is HSGTestSetup {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                HatsSignerGate.NotSignerHatWearer.selector,
+                NotSignerHatWearer.selector,
                 addresses[3]
             )
         );
@@ -307,7 +307,7 @@ contract HatsSignerGateTest is HSGTestSetup {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                HatsSignerGate.StillWearsSignerHat.selector,
+                StillWearsSignerHat.selector,
                 addresses[0]
             )
         );
@@ -386,7 +386,7 @@ contract HatsSignerGateTest is HSGTestSetup {
         // have one of the signers submit/exec the tx
         vm.prank(addresses[0]);
 
-        vm.expectRevert(HatsSignerGate.InvalidSigners.selector);
+        vm.expectRevert(InvalidSigners.selector);
 
         safe.execTransaction(
             destAddress,
@@ -436,7 +436,7 @@ contract HatsSignerGateTest is HSGTestSetup {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                HatsSignerGate.BelowMinThreshold.selector,
+                BelowMinThreshold.selector,
                 hatsSignerGate.minThreshold(),
                 safe.getOwners().length
             )
@@ -481,7 +481,7 @@ contract HatsSignerGateTest is HSGTestSetup {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                HatsSignerGate.CannotDisableProtectedModules.selector,
+                CannotDisableProtectedModules.selector,
                 address(hatsSignerGate)
             )
         );
@@ -521,7 +521,7 @@ contract HatsSignerGateTest is HSGTestSetup {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                HatsSignerGate.CannotDisableThisGuard.selector,
+                CannotDisableThisGuard.selector,
                 address(hatsSignerGate)
             )
         );

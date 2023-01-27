@@ -2,6 +2,7 @@
 pragma solidity >=0.8.13;
 
 import "./HatsSignerGate.sol";
+import "./MultiHatsSignerGate.sol";
 import "@gnosis.pm/safe-contracts/contracts/GnosisSafe.sol";
 import "@gnosis.pm/safe-contracts/contracts/libraries/MultiSend.sol";
 import "@gnosis.pm/safe-contracts/contracts/proxies/GnosisSafeProxyFactory.sol";
@@ -10,9 +11,10 @@ import "@gnosis.pm/zodiac/factory/ModuleProxyFactory.sol";
 // import "forge-std/Test.sol"; // remove after testing
 
 contract HatsSignerGateFactory {
-    address public hatsAddress;
+    address public immutable hatsAddress;
 
-    address public hatsSignerGateSingleton;
+    address public immutable hatsSignerGateSingleton;
+    address public immutable multiHatsSignerGateSingleton;
 
     // address public immutable hatsSignerGatesingleton;
     address public immutable safeSingleton;
@@ -23,9 +25,9 @@ contract HatsSignerGateFactory {
     // Library to use for all safe transaction executions
     address public immutable gnosisMultisendLibrary;
 
-    GnosisSafeProxyFactory public gnosisSafeProxyFactory;
+    GnosisSafeProxyFactory public immutable gnosisSafeProxyFactory;
 
-    ModuleProxyFactory public moduleProxyFactory;
+    ModuleProxyFactory public immutable moduleProxyFactory;
 
     string public version;
 
@@ -44,8 +46,19 @@ contract HatsSignerGateFactory {
         uint256 _maxSigners
     );
 
+    event MultiHatsSignerGateSetup(
+        address _hatsSignerGate,
+        uint256 _ownerHatId,
+        uint256[] _signersHatIds,
+        address _safe,
+        uint256 _minThreshold,
+        uint256 _targetThreshold,
+        uint256 _maxSigners
+    );
+
     constructor(
         address _hatsSignerGateSingleton,
+        address _multiHatsSignerGateSingleton,
         address _hatsAddress,
         address _safeSingleton,
         address _gnosisFallbackLibrary,
@@ -55,13 +68,12 @@ contract HatsSignerGateFactory {
         string memory _version
     ) {
         hatsSignerGateSingleton = _hatsSignerGateSingleton;
+        multiHatsSignerGateSingleton = _multiHatsSignerGateSingleton;
         hatsAddress = _hatsAddress;
         safeSingleton = _safeSingleton;
         gnosisFallbackLibrary = _gnosisFallbackLibrary;
         gnosisMultisendLibrary = _gnosisMultisendLibrary;
-        gnosisSafeProxyFactory = GnosisSafeProxyFactory(
-            _gnosisSafeProxyFactory
-        );
+        gnosisSafeProxyFactory = GnosisSafeProxyFactory(_gnosisSafeProxyFactory);
         moduleProxyFactory = ModuleProxyFactory(_moduleProxyFactory);
         version = _version;
     }
@@ -76,19 +88,11 @@ contract HatsSignerGateFactory {
         uint256 _saltNonce
     ) public returns (address hsg, address payable safe) {
         // Deploy new safe but do not set it up yet
-        safe = payable(
-            gnosisSafeProxyFactory.createProxy(safeSingleton, hex"00")
-        );
+        safe = payable(gnosisSafeProxyFactory.createProxy(safeSingleton, hex"00"));
 
         // Deploy new hats signer gate
         hsg = deployHatsSignerGate(
-            _ownerHatId,
-            _signersHatId,
-            safe,
-            _minThreshold,
-            _targetThreshold,
-            _maxSigners,
-            _saltNonce
+            _ownerHatId, _signersHatId, safe, _minThreshold, _targetThreshold, _maxSigners, _saltNonce
         );
 
         // Generate delegate call so the safe calls enableModule on itself during setup
@@ -97,6 +101,9 @@ contract HatsSignerGateFactory {
         // Workaround for solidity dynamic memory array
         address[] memory owners = new address[](1);
         owners[0] = hsg;
+        console2.log(address(hsg));
+        console2.log(hsg);
+        console2.log(owners[0]);
 
         // Call setup on safe to enable our new module/guard and set it as the sole initial owner
         GnosisSafe(safe).setup(
@@ -110,15 +117,7 @@ contract HatsSignerGateFactory {
             payable(address(0))
         );
 
-        emit HatsSignerGateSetup(
-            hsg,
-            _ownerHatId,
-            _signersHatId,
-            safe,
-            _minThreshold,
-            _targetThreshold,
-            _maxSigners
-        );
+        emit HatsSignerGateSetup(hsg, _ownerHatId, _signersHatId, safe, _minThreshold, _targetThreshold, _maxSigners);
 
         return (hsg, safe);
     }
@@ -132,35 +131,16 @@ contract HatsSignerGateFactory {
         uint256 _targetThreshold,
         uint256 _maxSigners,
         uint256 _saltNonce
-    ) public returns (address) {
+    ) public returns (address hsg) {
         bytes memory initializeParams = abi.encode(
-            _ownerHatId,
-            _signersHatId,
-            _safe,
-            hatsAddress,
-            _minThreshold,
-            _targetThreshold,
-            _maxSigners,
-            version
+            _ownerHatId, _signersHatId, _safe, hatsAddress, _minThreshold, _targetThreshold, _maxSigners, version
         );
 
-        address hsg = moduleProxyFactory.deployModule(
-            hatsSignerGateSingleton,
-            abi.encodeWithSignature("setUp(bytes)", initializeParams),
-            _saltNonce
+        hsg = moduleProxyFactory.deployModule(
+            hatsSignerGateSingleton, abi.encodeWithSignature("setUp(bytes)", initializeParams), _saltNonce
         );
 
-        emit HatsSignerGateSetup(
-            hsg,
-            _ownerHatId,
-            _signersHatId,
-            _safe,
-            _minThreshold,
-            _targetThreshold,
-            _maxSigners
-        );
-
-        return hsg;
+        emit HatsSignerGateSetup(hsg, _ownerHatId, _signersHatId, _safe, _minThreshold, _targetThreshold, _maxSigners);
     }
 
     function _generateMultisendAction(address _hatsSignerGate, address _safe)
@@ -168,16 +148,10 @@ contract HatsSignerGateFactory {
         pure
         returns (bytes memory _action)
     {
-        bytes memory enableHSGModule = abi.encodeWithSignature(
-            "enableModule(address)",
-            _hatsSignerGate
-        );
+        bytes memory enableHSGModule = abi.encodeWithSignature("enableModule(address)", _hatsSignerGate);
 
         // Generate delegate call so the safe calls setGuard on itself during setup
-        bytes memory setHSGGuard = abi.encodeWithSignature(
-            "setGuard(address)",
-            _hatsSignerGate
-        );
+        bytes memory setHSGGuard = abi.encodeWithSignature("setGuard(address)", _hatsSignerGate);
 
         bytes memory packedCalls = abi.encodePacked(
             // enableHSGModule
@@ -195,5 +169,71 @@ contract HatsSignerGateFactory {
         );
 
         _action = abi.encodeWithSignature("multiSend(bytes)", packedCalls);
+    }
+
+    // option 3: deploy a new Safe and signer gate, all wired up
+    function deployMultiHatsSignerGateAndSafe(
+        uint256 _ownerHatId,
+        uint256[] calldata _signersHatIds,
+        uint256 _minThreshold,
+        uint256 _targetThreshold,
+        uint256 _maxSigners,
+        uint256 _saltNonce
+    ) public returns (address mhsg, address payable safe) {
+        // Deploy new safe but do not set it up yet
+        safe = payable(gnosisSafeProxyFactory.createProxy(safeSingleton, hex"00"));
+
+        // Deploy new hats signer gate
+        mhsg = deployMultiHatsSignerGate(
+            _ownerHatId, _signersHatIds, safe, _minThreshold, _targetThreshold, _maxSigners, _saltNonce
+        );
+
+        // Generate delegate call so the safe calls enableModule on itself during setup
+        bytes memory multisendAction = _generateMultisendAction(mhsg, safe);
+
+        // Workaround for solidity dynamic memory array
+        address[] memory owners = new address[](1);
+        owners[0] = mhsg;
+
+        // Call setup on safe to enable our new module/guard and set it as the sole initial owner
+        GnosisSafe(safe).setup(
+            owners,
+            1,
+            gnosisMultisendLibrary,
+            multisendAction, // set hsg as module and guard
+            gnosisFallbackLibrary,
+            address(0),
+            0,
+            payable(address(0))
+        );
+
+        emit MultiHatsSignerGateSetup(
+            mhsg, _ownerHatId, _signersHatIds, safe, _minThreshold, _targetThreshold, _maxSigners
+            );
+
+        return (mhsg, safe);
+    }
+
+    // option 2: deploy a new signer gate and attach it to an existing Safe
+    function deployMultiHatsSignerGate(
+        uint256 _ownerHatId,
+        uint256[] calldata _signersHatIds,
+        address _safe, // existing Gnosis Safe that the signers will join
+        uint256 _minThreshold,
+        uint256 _targetThreshold,
+        uint256 _maxSigners,
+        uint256 _saltNonce
+    ) public returns (address mhsg) {
+        bytes memory initializeParams = abi.encode(
+            _ownerHatId, _signersHatIds, _safe, hatsAddress, _minThreshold, _targetThreshold, _maxSigners, version
+        );
+
+        mhsg = moduleProxyFactory.deployModule(
+            multiHatsSignerGateSingleton, abi.encodeWithSignature("setUp(bytes)", initializeParams), _saltNonce
+        );
+
+        emit MultiHatsSignerGateSetup(
+            mhsg, _ownerHatId, _signersHatIds, _safe, _minThreshold, _targetThreshold, _maxSigners
+            );
     }
 }

@@ -3,6 +3,7 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 import "../src/HatsSignerGate.sol";
+import "../src/MultiHatsSignerGate.sol";
 import "../src/HatsSignerGateFactory.sol";
 import "@gnosis.pm/safe-contracts/contracts/GnosisSafe.sol";
 import "@gnosis.pm/safe-contracts/contracts/proxies/GnosisSafeProxyFactory.sol";
@@ -22,11 +23,12 @@ contract HSGFactoryTestSetup is Test {
 
     HatsSignerGate public singletonHatsSignerGate = new HatsSignerGate();
     HatsSignerGate public hatsSignerGate;
+    MultiHatsSignerGate public singletonMultiHatsSignerGate = new MultiHatsSignerGate();
+    MultiHatsSignerGate public multiHatsSignerGate;
 
     address public constant HATS = address(0x4a15);
 
-    bytes32 public constant GUARD_STORAGE_SLOT =
-        0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
+    bytes32 public constant GUARD_STORAGE_SLOT = 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
 
     uint256 public ownerHat;
     uint256 public signerHat;
@@ -37,10 +39,7 @@ contract HSGFactoryTestSetup is Test {
 
     address[] initSafeOwners = new address[](1);
 
-    function deploySafe(address[] memory owners, uint256 threshold)
-        public
-        returns (GnosisSafe)
-    {
+    function deploySafe(address[] memory owners, uint256 threshold) public returns (GnosisSafe) {
         // encode safe setup parameters
         bytes memory params = abi.encodeWithSignature(
             "setup(address[],uint256,address,bytes,address,address,uint256,address)",
@@ -55,16 +54,7 @@ contract HSGFactoryTestSetup is Test {
         );
 
         // deploy proxy of singleton from factory
-        return
-            GnosisSafe(
-                payable(
-                    safeFactory.createProxyWithNonce(
-                        address(singletonSafe),
-                        params,
-                        1
-                    )
-                )
-            );
+        return GnosisSafe(payable(safeFactory.createProxyWithNonce(address(singletonSafe), params, 1)));
     }
 
     function deployHSGAndSafe(
@@ -86,6 +76,28 @@ contract HSGFactoryTestSetup is Test {
         );
 
         _hatsSignerGate = HatsSignerGate(hsg);
+        _safe = GnosisSafe(payable(safe_));
+    }
+
+    function deployMHSGAndSafe(
+        uint256 _ownerHat,
+        uint256[] memory _signerHats,
+        uint256 _minThreshold,
+        uint256 _targetThreshold,
+        uint256 _maxSigners
+    ) public returns (MultiHatsSignerGate _multiHatsSignerGate, GnosisSafe _safe) {
+        address mhsg;
+        address safe_;
+        (mhsg, safe_) = factory.deployMultiHatsSignerGateAndSafe(
+            _ownerHat,
+            _signerHats,
+            _minThreshold,
+            _targetThreshold,
+            _maxSigners,
+            1 // saltNonce
+        );
+
+        _multiHatsSignerGate = MultiHatsSignerGate(mhsg);
         _safe = GnosisSafe(payable(safe_));
     }
 }

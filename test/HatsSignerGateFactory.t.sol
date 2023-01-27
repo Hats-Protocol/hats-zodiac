@@ -9,6 +9,7 @@ contract HatsSignerGateFactoryTest is HSGFactoryTestSetup {
 
         factory = new HatsSignerGateFactory(
             address(singletonHatsSignerGate),
+            address(singletonMultiHatsSignerGate),
             HATS,
             address(singletonSafe),
             gnosisFallbackLibrary,
@@ -21,17 +22,12 @@ contract HatsSignerGateFactoryTest is HSGFactoryTestSetup {
 
     function testDeployFactory() public {
         assertEq(factory.version(), version);
-        assertEq(
-            factory.hatsSignerGateSingleton(),
-            address(singletonHatsSignerGate)
-        );
+        assertEq(factory.hatsSignerGateSingleton(), address(singletonHatsSignerGate));
+        assertEq(factory.multiHatsSignerGateSingleton(), address(singletonMultiHatsSignerGate));
         assertEq(address(factory.safeSingleton()), address(singletonSafe));
         assertEq(factory.gnosisFallbackLibrary(), gnosisFallbackLibrary);
         assertEq(factory.gnosisMultisendLibrary(), gnosisMultisendLibrary);
-        assertEq(
-            address(factory.gnosisSafeProxyFactory()),
-            address(safeFactory)
-        );
+        assertEq(address(factory.gnosisSafeProxyFactory()), address(safeFactory));
     }
 
     function testDeployHatsSignerGate() public {
@@ -90,13 +86,7 @@ contract HatsSignerGateFactoryTest is HSGFactoryTestSetup {
         vm.assume(_minThreshold <= targetThreshold);
         minThreshold = _minThreshold;
 
-        (hatsSignerGate, safe) = deployHSGAndSafe(
-            ownerHat,
-            signerHat,
-            minThreshold,
-            targetThreshold,
-            maxSigners
-        );
+        (hatsSignerGate, safe) = deployHSGAndSafe(ownerHat, signerHat, minThreshold, targetThreshold, maxSigners);
 
         assertEq(safe.getOwners()[0], address(hatsSignerGate));
 
@@ -108,27 +98,91 @@ contract HatsSignerGateFactoryTest is HSGFactoryTestSetup {
 
         assertTrue(safe.isModuleEnabled(address(hatsSignerGate)));
 
-        assertEq(
-            address(bytes20(vm.load(address(safe), GUARD_STORAGE_SLOT) << 96)),
-            address(hatsSignerGate)
-        );
+        assertEq(address(bytes20(vm.load(address(safe), GUARD_STORAGE_SLOT) << 96)), address(hatsSignerGate));
 
         assertEq(hatsSignerGate.ownerHat(), ownerHat);
         assertEq(hatsSignerGate.getHatsContract(), HATS);
     }
 
-    function testCannotReinitializeSingleton() public {
-        bytes memory initializeParams = abi.encode(
-            ownerHat,
-            signerHat,
-            address(safe),
-            HATS,
-            minThreshold,
-            targetThreshold,
-            maxSigners,
-            version
-        );
+    function testCannotReinitializeHSGSingleton() public {
+        bytes memory initializeParams =
+            abi.encode(ownerHat, signerHat, address(safe), HATS, minThreshold, targetThreshold, maxSigners, version);
         vm.expectRevert("Initializable: contract is already initialized");
         singletonHatsSignerGate.setUp(initializeParams);
+    }
+
+    function testDeployMultiHatsSignerGate() public {
+        ownerHat = 1;
+        uint256[] memory signerHats = new uint256[](1);
+        signerHats[0] = 2;
+        minThreshold = 2;
+        targetThreshold = 2;
+        maxSigners = 5;
+
+        // deploy a safe
+        initSafeOwners[0] = address(this);
+        safe = deploySafe(initSafeOwners, 1);
+
+        multiHatsSignerGate = MultiHatsSignerGate(
+            factory.deployMultiHatsSignerGate(
+                ownerHat,
+                signerHats,
+                address(safe),
+                minThreshold,
+                targetThreshold,
+                maxSigners,
+                2 // saltNonce
+            )
+        );
+
+        assertEq(safe.getOwners()[0], address(this));
+
+        assertEq(multiHatsSignerGate.minThreshold(), minThreshold);
+        assertEq(multiHatsSignerGate.ownerHat(), ownerHat);
+        assertEq(multiHatsSignerGate.getHatsContract(), HATS);
+        assertEq(multiHatsSignerGate.targetThreshold(), targetThreshold);
+        assertEq(address(multiHatsSignerGate.safe()), address(safe));
+        assertEq(multiHatsSignerGate.maxSigners(), maxSigners);
+        assertEq(multiHatsSignerGate.version(), version);
+        assertTrue(multiHatsSignerGate.isValidSignerHat(2));
+        assertFalse(multiHatsSignerGate.isValidSignerHat(3));
+    }
+
+    function testDeployHatsSignersGateAndSafe() public {
+        ownerHat = 1;
+        uint256[] memory signerHats = new uint256[](1);
+        signerHats[0] = 2;
+        minThreshold = 2;
+        targetThreshold = 2;
+        maxSigners = 5;
+
+        (multiHatsSignerGate, safe) = deployMHSGAndSafe(ownerHat, signerHats, minThreshold, targetThreshold, maxSigners);
+
+        assertEq(safe.getOwners()[0], address(multiHatsSignerGate));
+
+        assertEq(multiHatsSignerGate.minThreshold(), minThreshold);
+        assertEq(multiHatsSignerGate.targetThreshold(), targetThreshold);
+        assertEq(address(multiHatsSignerGate.safe()), address(safe));
+        assertEq(multiHatsSignerGate.maxSigners(), maxSigners);
+        assertEq(multiHatsSignerGate.version(), version);
+        assertTrue(multiHatsSignerGate.isValidSignerHat(2));
+        assertFalse(multiHatsSignerGate.isValidSignerHat(3));
+
+        assertTrue(safe.isModuleEnabled(address(multiHatsSignerGate)));
+
+        assertEq(address(bytes20(vm.load(address(safe), GUARD_STORAGE_SLOT) << 96)), address(multiHatsSignerGate));
+
+        assertEq(multiHatsSignerGate.ownerHat(), ownerHat);
+        assertEq(multiHatsSignerGate.getHatsContract(), HATS);
+    }
+
+    function testCannotReinitializeMHSGSingleton() public {
+        uint256[] memory signerHats = new uint256[](1);
+        signerHats[0] = signerHat;
+
+        bytes memory initializeParams =
+            abi.encode(ownerHat, signerHats, address(safe), HATS, minThreshold, targetThreshold, maxSigners, version);
+        vm.expectRevert("Initializable: contract is already initialized");
+        singletonMultiHatsSignerGate.setUp(initializeParams);
     }
 }
