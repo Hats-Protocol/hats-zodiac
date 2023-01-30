@@ -5,11 +5,11 @@ import "forge-std/Script.sol";
 import "forge-std/Test.sol";
 import "../src/HatsSignerGateFactory.sol";
 import "../src/HatsSignerGate.sol";
-import "hats-protocol/Hats.sol";
+import "hats-protocol/Interfaces/IHats.sol";
 import "@gnosis.pm/safe-contracts/contracts/GnosisSafe.sol";
 
 contract Demo is Script {
-    Hats public hats = Hats(0x2923469A33bd2FA2Ab33c877DB81d35A9D8d60C6);
+    IHats public hats = IHats(0x2923469A33bd2FA2Ab33c877DB81d35A9D8d60C6);
     HatsSignerGateFactory public hsgFactory = HatsSignerGateFactory(0x397DFF38c6911216fd6A806e2840De93AD10c623);
     HatsSignerGate public hsg;
 
@@ -23,14 +23,15 @@ contract Demo is Script {
     string[] images;
     uint256[] ids;
     address[] tos;
+    bool[] mutables;
 
-    function run() external {       
+    function run() external {
         uint256 privKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.rememberKey(privKey);
         vm.startBroadcast(deployer);
 
         // 1. create top hat
-        uint256 tophat = hats.mintTopHat(deployer, "");
+        uint256 tophat = hats.mintTopHat(deployer, "", "");
 
         // 2. find Core Unit hat id
         uint256 coreUnit = hats.getNextId(tophat);
@@ -47,18 +48,33 @@ contract Demo is Script {
             3, // target threshold
             5, // max signers
             block.number // saltNonce
-        ); 
+        );
         hsg = HatsSignerGate(hsg_);
 
         // 6. create Core Unit hat, with multisig as eligibility and toggle
         // 7. create Facilitator hat, with multisig as eligibility and toggle
         // 8. create Member hat, with multisig as eligibility and toggle
-        admins[0] = tophat; admins[1] = coreUnit; admins[2] = facilitator;
-        details[0] = "Demo Core Unit"; details[1] = "Demo Core Unit Facilitator"; details[2] = "Demo Core Unit Member";
-        maxSupplies[0] = 1; maxSupplies[1] = 1; maxSupplies[2] = 5;
-        eligibilities[0]= safe; eligibilities[1]= safe; eligibilities[2]= safe; 
-        toggles[0] = safe; toggles[1] = safe; toggles[2] = safe; 
-        images[0] = ""; images[1] = ""; images[2] = ""; 
+        admins[0] = tophat;
+        admins[1] = coreUnit;
+        admins[2] = facilitator;
+        details[0] = "Demo Core Unit";
+        details[1] = "Demo Core Unit Facilitator";
+        details[2] = "Demo Core Unit Member";
+        maxSupplies[0] = 1;
+        maxSupplies[1] = 1;
+        maxSupplies[2] = 5;
+        eligibilities[0] = safe;
+        eligibilities[1] = safe;
+        eligibilities[2] = safe;
+        toggles[0] = safe;
+        toggles[1] = safe;
+        toggles[2] = safe;
+        images[0] = "";
+        images[1] = "";
+        images[2] = "";
+        mutables[0] = true;
+        mutables[1] = true;
+        mutables[2] = true;
 
         hats.batchCreateHats(
             admins, // admins
@@ -66,15 +82,18 @@ contract Demo is Script {
             maxSupplies, // max supplies
             eligibilities, // eligibility
             toggles, // toggles
+            mutables,
             images // imageURIs
         );
 
         // 9. mint Core Unit hat to multisig
         // 10. mint Facilitator hat to demo lead
-        ids[0] = coreUnit; ids[1] = facilitator;
-        tos[0] = safe; tos[1] = demoLeader;
+        ids[0] = coreUnit;
+        ids[1] = facilitator;
+        tos[0] = safe;
+        tos[1] = demoLeader;
 
-        hats.batchMintHats(ids,tos);
+        hats.batchMintHats(ids, tos);
 
         vm.stopBroadcast();
     }

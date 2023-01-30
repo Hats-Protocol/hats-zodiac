@@ -73,11 +73,7 @@ contract HatsSignerGateTest is HSGTestSetup {
     function testReconcileSignerCount() public {
         // add 3 more safe owners the old fashioned way
         // 1
-        bytes memory addOwnersData1 = abi.encodeWithSignature(
-            "addOwnerWithThreshold(address,uint256)",
-            addresses[1],
-            1
-        );
+        bytes memory addOwnersData1 = abi.encodeWithSignature("addOwnerWithThreshold(address,uint256)", addresses[1], 1);
 
         // mockIsWearerCall(address(this), signerHat, true);
         vm.prank(address(hatsSignerGate));
@@ -90,11 +86,7 @@ contract HatsSignerGateTest is HSGTestSetup {
         );
 
         // 2
-        bytes memory addOwnersData2 = abi.encodeWithSignature(
-            "addOwnerWithThreshold(address,uint256)",
-            addresses[2],
-            1
-        );
+        bytes memory addOwnersData2 = abi.encodeWithSignature("addOwnerWithThreshold(address,uint256)", addresses[2], 1);
 
         // mockIsWearerCall(address(this), signerHat, true);
         vm.prank(address(hatsSignerGate));
@@ -107,11 +99,7 @@ contract HatsSignerGateTest is HSGTestSetup {
         );
 
         // 3
-        bytes memory addOwnersData3 = abi.encodeWithSignature(
-            "addOwnerWithThreshold(address,uint256)",
-            addresses[3],
-            1
-        );
+        bytes memory addOwnersData3 = abi.encodeWithSignature("addOwnerWithThreshold(address,uint256)", addresses[3], 1);
 
         // mockIsWearerCall(address(this), signerHat, true);
         vm.prank(address(hatsSignerGate));
@@ -209,12 +197,7 @@ contract HatsSignerGateTest is HSGTestSetup {
 
         vm.prank(addresses[1]);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                SignerAlreadyClaimed.selector,
-                addresses[1]
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(SignerAlreadyClaimed.selector, addresses[1]));
 
         hatsSignerGate.claimSigner();
 
@@ -226,12 +209,7 @@ contract HatsSignerGateTest is HSGTestSetup {
 
         vm.prank(addresses[3]);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                NotSignerHatWearer.selector,
-                addresses[3]
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(NotSignerHatWearer.selector, addresses[3]));
         hatsSignerGate.claimSigner();
     }
 
@@ -305,12 +283,7 @@ contract HatsSignerGateTest is HSGTestSetup {
 
         mockIsWearerCall(addresses[0], signerHat, true);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                StillWearsSignerHat.selector,
-                addresses[0]
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(StillWearsSignerHat.selector, addresses[0]));
 
         hatsSignerGate.removeSigner(addresses[0]);
 
@@ -326,7 +299,7 @@ contract HatsSignerGateTest is HSGTestSetup {
 
         uint256 preNonce = safe.nonce();
         uint256 preValue = 1 ether;
-        uint256 transferValue = .2 ether;
+        uint256 transferValue = 0.2 ether;
         uint256 postValue = preValue - transferValue;
         address destAddress = addresses[3];
         // give the safe some eth
@@ -365,7 +338,7 @@ contract HatsSignerGateTest is HSGTestSetup {
 
         uint256 preNonce = safe.nonce();
         uint256 preValue = 1 ether;
-        uint256 transferValue = .2 ether;
+        uint256 transferValue = 0.2 ether;
         // uint256 postValue = preValue - transferValue;
         address destAddress = addresses[3];
         // give the safe some eth
@@ -406,7 +379,6 @@ contract HatsSignerGateTest is HSGTestSetup {
         // assertEq(address(safe).balance, preValue); // FIXME something weird is going on with vm.hoax();
         assertEq(destAddress.balance, 0);
         assertEq(safe.nonce(), preNonce);
-
     }
 
     function testExecTxByTooFewOwnersReverts() public {
@@ -416,7 +388,7 @@ contract HatsSignerGateTest is HSGTestSetup {
         // set up test values
         uint256 preNonce = safe.nonce();
         uint256 preValue = 1 ether;
-        uint256 transferValue = .2 ether;
+        uint256 transferValue = 0.2 ether;
         // uint256 postValue = preValue - transferValue;
         address destAddress = addresses[3];
         // give the safe some eth
@@ -435,11 +407,7 @@ contract HatsSignerGateTest is HSGTestSetup {
         mockIsWearerCall(addresses[0], signerHat, true);
 
         vm.expectRevert(
-            abi.encodeWithSelector(
-                BelowMinThreshold.selector,
-                hatsSignerGate.minThreshold(),
-                safe.getOwners().length
-            )
+            abi.encodeWithSelector(BelowMinThreshold.selector, hatsSignerGate.minThreshold(), safe.getOwners().length)
         );
 
         safe.execTransaction(
@@ -464,11 +432,8 @@ contract HatsSignerGateTest is HSGTestSetup {
     }
 
     function testCannotDisableModule() public {
-        bytes memory disableModuleData = abi.encodeWithSignature(
-            "disableModule(address,address)",
-            SENTINELS,
-            address(hatsSignerGate)
-        );
+        bytes memory disableModuleData =
+            abi.encodeWithSignature("disableModule(address,address)", SENTINELS, address(hatsSignerGate));
 
         addSigners(2);
 
@@ -479,12 +444,7 @@ contract HatsSignerGateTest is HSGTestSetup {
         mockIsWearerCall(addresses[0], signerHat, true);
         mockIsWearerCall(addresses[1], signerHat, true);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                CannotDisableProtectedModules.selector,
-                address(hatsSignerGate)
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(CannotDisableProtectedModules.selector, address(hatsSignerGate)));
         // execute tx
 
         safe.execTransaction(
@@ -505,10 +465,7 @@ contract HatsSignerGateTest is HSGTestSetup {
     }
 
     function testCannotDisableGuard() public {
-        bytes memory disableGuardData = abi.encodeWithSignature(
-            "setGuard(address)",
-            address(0x0)
-        );
+        bytes memory disableGuardData = abi.encodeWithSignature("setGuard(address)", address(0x0));
 
         addSigners(2);
 
@@ -519,12 +476,7 @@ contract HatsSignerGateTest is HSGTestSetup {
         mockIsWearerCall(addresses[0], signerHat, true);
         mockIsWearerCall(addresses[1], signerHat, true);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                CannotDisableThisGuard.selector,
-                address(hatsSignerGate)
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(CannotDisableThisGuard.selector, address(hatsSignerGate)));
         safe.execTransaction(
             address(safe),
             0,

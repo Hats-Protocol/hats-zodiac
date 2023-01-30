@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: CC0
 pragma solidity >=0.8.13;
 
-import {Test, console2} from "forge-std/Test.sol"; // remove after testing
+import { Test, console2 } from "forge-std/Test.sol"; // remove after testing
 import "./HSGErrors.sol";
-import {HatsOwnedInitializable} from "hats-auth/HatsOwnedInitializable.sol";
-import {BaseGuard} from "zodiac/guard/BaseGuard.sol";
-import {IAvatar} from "zodiac/interfaces/IAvatar.sol";
-import {StorageAccessible} from "@gnosis.pm/safe-contracts/contracts/common/StorageAccessible.sol";
-import {IGnosisSafe, Enum} from "./Interfaces/IGnosisSafe.sol";
-import {SignatureDecoder} from "@gnosis.pm/safe-contracts/contracts/common/SignatureDecoder.sol";
+import { HatsOwnedInitializable } from "hats-auth/HatsOwnedInitializable.sol";
+import { BaseGuard } from "zodiac/guard/BaseGuard.sol";
+import { IAvatar } from "zodiac/interfaces/IAvatar.sol";
+import { StorageAccessible } from "@gnosis.pm/safe-contracts/contracts/common/StorageAccessible.sol";
+import { IGnosisSafe, Enum } from "./Interfaces/IGnosisSafe.sol";
+import { SignatureDecoder } from "@gnosis.pm/safe-contracts/contracts/common/SignatureDecoder.sol";
 
 abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedInitializable {
     event TargetThresholdSet(uint256 threshold);
@@ -40,7 +40,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         _HatsOwned_init(1, address(0x1));
     }
 
-    function setUp(bytes memory initializeParams) public virtual initializer {}
+    function setUp(bytes memory initializeParams) public virtual initializer { }
 
     function _setUp(
         uint256 _ownerHatId,
@@ -61,7 +61,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
     }
 
     /// @notice Checks if `_account` is a valid signer, ie is currently wearing the correct hat
-    function isValidSigner(address _account) public view virtual returns (bool valid) {}
+    function isValidSigner(address _account) public view virtual returns (bool valid) { }
 
     function setTargetThreshold(uint256 _targetThreshold) public onlyOwner {
         if (_targetThreshold != targetThreshold) {

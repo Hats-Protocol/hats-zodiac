@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: CC0
 pragma solidity >=0.8.13;
 
-import {Test, console2} from "forge-std/Test.sol"; // remove after testing
-import {HatsSignerGateBase} from "./HatsSignerGateBase.sol";
+import { Test, console2 } from "forge-std/Test.sol"; // remove after testing
+import { HatsSignerGateBase } from "./HatsSignerGateBase.sol";
 import "./HSGErrors.sol";
 
 contract MultiHatsSignerGate is HatsSignerGateBase {
