@@ -77,6 +77,9 @@ contract MultiHatsSignerGate is HatsSignerGateBase {
             revert NotSignerHatWearer(msg.sender);
         }
 
+        // register the hat used to claim. This will be the hat checked in `checkTransaction() for this signer`
+        claimedSignerHats[msg.sender] = _hatId;
+
         _claimSigner(msg.sender);
     }
 }

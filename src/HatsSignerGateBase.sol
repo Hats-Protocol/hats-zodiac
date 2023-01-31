@@ -178,12 +178,11 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
     function _claimSigner(address claimer) internal {
         uint256 newSignerCount = signerCount;
 
-        // otherwise, we add the claimer as a new owner on the safe and update the threshold accordingly
-        uint256 currentThreshold = safe.getThreshold();
+        uint256 currentThreshold = safe.getThreshold(); // view function
         uint256 newThreshold = currentThreshold;
 
         bytes memory addOwnerData;
-        address[] memory owners = safe.getOwners();
+        address[] memory owners = safe.getOwners(); // view function
         address thisAddress = address(this);
 
         // if the only owner is a non-signer (ie this module set as an owner on initialization), replace it with the claimer
@@ -191,13 +190,17 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
             // prevOwner will always be the sentinel when owners.length == 1
 
             // set up the swapOwner call
+            // TODO replace with encodeWithSignature, which is slightly cheaper
             addOwnerData = abi.encodeWithSelector(
                 IGnosisSafe.swapOwner.selector,
                 SENTINEL_OWNERS, // prevOwner
                 thisAddress, // oldOwner
                 claimer // newOwner
             );
-            ++newSignerCount;
+            unchecked {
+                // shouldn't overflow given MaxSignersReached check higher in call stack
+                ++newSignerCount;
+            }
         } else {
             // otherwise, add the claimer as a new owner
 
@@ -212,8 +215,12 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
             }
 
             // set up the addOwner call
+            // TODO replace with encodeWithSignature, which is slightly cheaper
             addOwnerData = abi.encodeWithSelector(IGnosisSafe.addOwnerWithThreshold.selector, claimer, newThreshold);
         }
+
+        // increment signer count
+        signerCount = newSignerCount;
 
         // execute the call
         bool success = safe.execTransactionFromModule(
@@ -226,9 +233,6 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         if (!success) {
             revert FailedExecAddSigner();
         }
-
-        // increment signer count
-        signerCount = newSignerCount;
     }
 
     function removeSigner(address _signer) public virtual {
@@ -278,15 +282,15 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
             );
         }
 
+        // update signerCount
+        signerCount = newSignerCount;
+
         bool success = safe.execTransactionFromModule(
             address(safe), // to
             0, // value
             removeOwnerData, // data
             Enum.Operation.Call // operation
         );
-
-        // update signerCount
-        signerCount = newSignerCount;
 
         if (!success) {
             revert FailedExecRemoveSigner();
@@ -337,8 +341,9 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
             revert BelowMinThreshold(minThreshold, safeOwnerCount);
         }
 
-        // get the tx hash
-        bytes32 txHash = safe.getTransactionHash( // Transaction info
+        // get the tx hash; view function
+        bytes32 txHash = safe.getTransactionHash(
+            // Transaction info
             to,
             value,
             data,
@@ -351,7 +356,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
             refundReceiver,
             // Signature info
             // We subtract 1 since nonce was just incremented in the parent function call
-            safe.nonce() - 1
+            safe.nonce() - 1 // view function
         );
 
         uint256 validSigCount = countValidSignatures(txHash, signatures, signatures.length / 65);
