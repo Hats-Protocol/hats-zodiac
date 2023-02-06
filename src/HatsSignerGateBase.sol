@@ -129,7 +129,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
             newThreshold = signerCount_;
         }
         if (newThreshold != safe.getThreshold()) {
-            bytes memory data = abi.encodeWithSelector(IGnosisSafe.changeThreshold.selector, newThreshold);
+            bytes memory data = abi.encodeWithSignature("changeThreshold(uint256)", newThreshold);
 
             bool success = safe.execTransactionFromModule(
                 address(safe), // to
@@ -173,7 +173,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         signerCount = validSignerCount;
 
         if (validSignerCount <= targetThreshold && validSignerCount != safe.getThreshold()) {
-            bytes memory data = abi.encodeWithSelector(IGnosisSafe.changeThreshold.selector, validSignerCount);
+            bytes memory data = abi.encodeWithSignature("changeThreshold(uint256)", validSignerCount);
 
             bool success = safe.execTransactionFromModule(
                 address(safe), // to
@@ -218,18 +218,16 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
 
         bytes memory addOwnerData;
         address[] memory owners = safe.getOwners(); // view function
-        address thisAddress = address(this);
 
         // if the only owner is a non-signer (ie this module set as an owner on initialization), replace it with _signer
-        if (owners.length == 1 && owners[0] == thisAddress) {
+        if (owners.length == 1 && owners[0] == address(this)) {
             // prevOwner will always be the sentinel when owners.length == 1
 
             // set up the swapOwner call
-            // TODO replace with encodeWithSignature, which is slightly cheaper
-            addOwnerData = abi.encodeWithSelector(
-                IGnosisSafe.swapOwner.selector,
+            addOwnerData = abi.encodeWithSignature(
+                "swapOwner(address,address,address)",
                 SENTINEL_OWNERS, // prevOwner
-                thisAddress, // oldOwner
+                address(this), // oldOwner
                 _signer // newOwner
             );
             unchecked {
@@ -250,8 +248,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
             }
 
             // set up the addOwner call
-            // TODO replace with encodeWithSignature, which is slightly cheaper
-            addOwnerData = abi.encodeWithSelector(IGnosisSafe.addOwnerWithThreshold.selector, _signer, newThreshold);
+            addOwnerData = abi.encodeWithSignature("addOwnerWithThreshold(address,uint256)", _signer, newThreshold);
         }
 
         // increment signer count
@@ -286,18 +283,17 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
     function _removeSigner(address _signer) internal {
         bytes memory removeOwnerData;
         address[] memory owners = safe.getOwners();
-        address thisAddress = address(this);
         uint256 currentSignerCount = signerCount; // save an SLOAD
         uint256 newSignerCount;
 
         if (currentSignerCount < 2 && owners.length == 1) {
             // signerCount could be 0 after reconcileSignerCount
             // make address(this) the only owner
-            removeOwnerData = abi.encodeWithSelector(
-                IGnosisSafe.swapOwner.selector,
+            removeOwnerData = abi.encodeWithSignature(
+                "swapOwner(address,address,address)",
                 SENTINEL_OWNERS, // prevOwner
                 _signer, // oldOwner
-                thisAddress // newOwner
+                address(this) // newOwner
             );
 
             // newSignerCount is already 0
@@ -317,8 +313,8 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
                 newThreshold = newSignerCount;
             }
 
-            removeOwnerData = abi.encodeWithSelector(
-                IGnosisSafe.removeOwner.selector, _findPrevOwner(owners, _signer), _signer, newThreshold
+            removeOwnerData = abi.encodeWithSignature(
+                "removeOwner(address,address,uint256)", _findPrevOwner(owners, _signer), _signer, newThreshold
             );
         }
 
