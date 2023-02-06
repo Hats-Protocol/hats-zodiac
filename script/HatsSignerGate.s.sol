@@ -25,7 +25,8 @@ contract DeployHatsSignerGate is Script {
         address deployer = vm.rememberKey(privKey);
         vm.startBroadcast(deployer);
 
-        address hatsSignerGate = hsgFactory.deployHatsSignerGate(
+        /* ddress hatsSignerGate = */
+        hsgFactory.deployHatsSignerGate(
             ownerHatId, signersHatId, safe, minThreshold, targetThreshold, maxSigners, saltNonce
         );
 

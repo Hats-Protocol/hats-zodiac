@@ -8,24 +8,16 @@ import "./HSGErrors.sol";
 contract MultiHatsSignerGate is HatsSignerGateBase {
     event AddSignerHats(uint256[] newSignerHats);
 
-    /// @notice Tracks approved signer hats
-    /// @dev append only
+    /// @notice Append-only tracker of approved signer hats
     mapping(uint256 => bool) public validSignerHats;
 
     /// @notice Tracks the hat ids worn by users who have "claimed signer"
     mapping(address => uint256) public claimedSignerHats;
 
-    /// @notice A `_hatId` is valid if it is included in the `validSignerHats` mapping
-    function isValidSignerHat(uint256 _hatId) public view returns (bool valid) {
-        valid = validSignerHats[_hatId];
-    }
-
-    function isValidSigner(address _account) public view override returns (bool valid) {
-        /// @dev existing `claimedSignerHats` are always valid, since `validSignerHats` is append-only
-        valid = HATS.isWearerOfHat(_account, claimedSignerHats[_account]);
-    }
-
-    function setUp(bytes memory initializeParams) public override initializer {
+    /// @notice Initializes a new instance of MultiHatsSignerGate
+    /// @dev Can only be called once
+    /// @param initializeParams ABI-encoded bytes with initialization parameters
+    function setUp(bytes calldata initializeParams) public payable override initializer {
         (
             uint256 _ownerHatId,
             uint256[] memory _signerHats,
@@ -40,22 +32,6 @@ contract MultiHatsSignerGate is HatsSignerGateBase {
         _setUp(_ownerHatId, _safe, _hats, _minThreshold, _targetThreshold, _maxSigners, _version);
 
         _addSignerHats(_signerHats);
-    }
-
-    function _addSignerHats(uint256[] memory _newSignerHats) internal {
-        for (uint256 i = 0; i < _newSignerHats.length;) {
-            validSignerHats[_newSignerHats[i]] = true;
-
-            // should not overflow with feasible array length
-            unchecked {
-                ++i;
-            }
-        }
-    }
-
-    function addSignerHats(uint256[] memory _newSignerHats) external onlyOwner {
-        _addSignerHats(_newSignerHats);
-        emit AddSignerHats(_newSignerHats);
     }
 
     /// @notice Function to become an owner on the safe if you are wearing `_hatId` and `_hatId` is a valid signer hat
@@ -80,6 +56,42 @@ contract MultiHatsSignerGate is HatsSignerGateBase {
         // register the hat used to claim. This will be the hat checked in `checkTransaction() for this signer`
         claimedSignerHats[msg.sender] = _hatId;
 
-        _claimSigner(msg.sender);
+        _grantSigner(msg.sender);
+    }
+
+    /// @notice Checks if `_account` is a valid signer, ie is wearing the signer hat
+    /// @dev Must be implemented by all flavors of HatsSignerGate
+    /// @param _account The address to check
+    /// @return valid Whether `_account` is a valid signer
+    function isValidSigner(address _account) public view override returns (bool valid) {
+        /// @dev existing `claimedSignerHats` are always valid, since `validSignerHats` is append-only
+        valid = HATS.isWearerOfHat(_account, claimedSignerHats[_account]);
+    }
+
+    // TODO switch to calldata
+    /// @notice Adds new approved signer hats
+    /// @param _newSignerHats Array of hat ids to add as approved signer hats
+    function addSignerHats(uint256[] memory _newSignerHats) external onlyOwner {
+        _addSignerHats(_newSignerHats);
+        emit AddSignerHats(_newSignerHats);
+    }
+
+    // TODO switch to calldata
+    /// @notice Internal function to approve new signer hats
+    /// @param _newSignerHats Array of hat ids to add as approved signer hats
+    function _addSignerHats(uint256[] memory _newSignerHats) internal {
+        for (uint256 i = 0; i < _newSignerHats.length;) {
+            validSignerHats[_newSignerHats[i]] = true;
+
+            // should not overflow with feasible array length
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
+    /// @notice A `_hatId` is valid if it is included in the `validSignerHats` mapping
+    function isValidSignerHat(uint256 _hatId) public view returns (bool valid) {
+        valid = validSignerHats[_hatId];
     }
 }

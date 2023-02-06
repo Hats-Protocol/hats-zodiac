@@ -8,7 +8,10 @@ import "./HSGErrors.sol";
 contract HatsSignerGate is HatsSignerGateBase {
     uint256 public signersHatId;
 
-    function setUp(bytes memory initializeParams) public override initializer {
+    /// @notice Initializes a new instance of HatsSignerGate
+    /// @dev Can only be called once
+    /// @param initializeParams ABI-encoded bytes with initialization parameters
+    function setUp(bytes calldata initializeParams) public payable override initializer {
         (
             uint256 _ownerHatId,
             uint256 _signersHatId,
@@ -25,6 +28,28 @@ contract HatsSignerGate is HatsSignerGateBase {
         signersHatId = _signersHatId;
     }
 
+    /// @notice Claims signer rights for `msg.sender` if `msg.sender` is a valid & new signer, updating the threshold if appropriate
+    /// @dev Reverts if `maxSigners` has been reached
+    function claimSigner() public virtual {
+        if (signerCount == maxSigners) {
+            revert MaxSignersReached();
+        }
+
+        if (safe.isOwner(msg.sender)) {
+            revert SignerAlreadyClaimed(msg.sender);
+        }
+
+        if (!isValidSigner(msg.sender)) {
+            revert NotSignerHatWearer(msg.sender);
+        }
+
+        _grantSigner(msg.sender);
+    }
+
+    /// @notice Checks if `_account` is a valid signer, ie is wearing the signer hat
+    /// @dev Must be implemented by all flavors of HatsSignerGate
+    /// @param _account The address to check
+    /// @return valid Whether `_account` is a valid signer
     function isValidSigner(address _account) public view override returns (bool valid) {
         valid = HATS.isWearerOfHat(_account, signersHatId);
     }

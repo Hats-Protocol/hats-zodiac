@@ -11,37 +11,64 @@ import { IGnosisSafe, Enum } from "./Interfaces/IGnosisSafe.sol";
 import { SignatureDecoder } from "@gnosis.pm/safe-contracts/contracts/common/SignatureDecoder.sol";
 
 abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedInitializable {
+    /// @notice Emitted when a new target signature threshold for the `safe` is set
     event TargetThresholdSet(uint256 threshold);
+
+    /// @notice Emitted when a new minimum signature threshold for the `safe` is set
     event MinThresholdSet(uint256 threshold);
 
+    /// @notice The multisig to which this contract is attached
     IGnosisSafe public safe;
 
+    /// @notice The minimum signature threshold for the `safe`
     uint256 public minThreshold;
+
+    /// @notice The highest level signature threshold for the `safe`
     uint256 public targetThreshold;
+
+    /// @notice The maximum number of signers allowed for the `safe`
     uint256 public maxSigners;
+
+    /// @notice The current number of signers on the `safe`
     uint256 public signerCount;
 
+    /// @notice The version of HatsSignerGate uses in this contract
     string public version;
 
+    /// @dev A simple re-entrency guard
     uint256 internal guardEntries;
 
+    /// @dev The head pointer used in the GnosisSafe owners linked list
     address internal constant SENTINEL_OWNERS = address(0x1);
 
-    // keccak256("guard_manager.guard.address")
+    /// @dev The storage slot used by GnosisSafe to store the guard address
+    ///      keccak256("guard_manager.guard.address")
     bytes32 internal constant GUARD_STORAGE_SLOT = 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
 
-    // keccak256(
-    //     "SafeTx(address to,uint256 value,bytes data,uint8 operation,uint256 safeTxGas,uint256 baseGas,uint256 gasPrice,address gasToken,address refundReceiver,uint256 nonce)"
-    // );
+    /// @dev The Safe transaction EIP712 typehash
+    /// keccak256(
+    ///     "SafeTx(address to,uint256 value,bytes data,uint8 operation,uint256 safeTxGas,uint256 baseGas,uint256 gasPrice,address gasToken,address refundReceiver,uint256 nonce)"
+    /// );
     bytes32 private constant SAFE_TX_TYPEHASH = 0xbb8310d486368db6bd6f849402fdd73ad53d316b5a4b2644ad6efe0f941286d8;
 
-    /// @dev sets singleton owner to the 1 address, making it unusable
-    constructor() initializer {
+    /// @dev Makes the singleton unusable by setting its owner to the 1-address
+    constructor() payable initializer {
         _HatsOwned_init(1, address(0x1));
     }
 
-    function setUp(bytes memory initializeParams) public virtual initializer { }
+    /// @notice Initializes a new instance
+    /// @dev Can only be called once
+    /// @param initializeParams ABI-encoded bytes with initialization parameters
+    function setUp(bytes calldata initializeParams) public payable virtual initializer { }
 
+    /// @notice Internal function to initialize a new instance
+    /// @param _ownerHatId The hat id of the hat that owns this instance of HatsSignerGate
+    /// @param _safe The multisig to which this instance of HatsSignerGate is attached
+    /// @param _hats The Hats Protocol address
+    /// @param _minThreshold The minimum threshold for the `_safe`
+    /// @param _targetThreshold The maxium threshold for the `_safe`
+    /// @param _maxSigners The maximum number of signers allowed on the `_safe`
+    /// @param _version The current version of HatsSignerGate
     function _setUp(
         uint256 _ownerHatId,
         address _safe,
@@ -60,9 +87,15 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         version = _version;
     }
 
-    /// @notice Checks if `_account` is a valid signer, ie is currently wearing the correct hat
+    /// @notice Checks if `_account` is a valid signer
+    /// @dev Must be implemented by all flavors of HatsSignerGate
+    /// @param _account The address to check
+    /// @return valid Whether `_account` is a valid signer
     function isValidSigner(address _account) public view virtual returns (bool valid) { }
 
+    /// @notice Sets a new target threshold, and changes `safe`'s threshold if appropriate
+    /// @dev Only callable by a wearer of the owner hat. Reverts if `_targetThreshold` is greater than `maxSigners`.
+    /// @param _targetThreshold The new target threshold to set
     function setTargetThreshold(uint256 _targetThreshold) public onlyOwner {
         if (_targetThreshold != targetThreshold) {
             _setTargetThreshold(_targetThreshold);
@@ -73,6 +106,9 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         }
     }
 
+    /// @notice Internal function to set the target threshold
+    /// @dev Reverts if `_targetThreshold` is greater than `maxSigners`
+    /// @param _targetThreshold The new target threshold to set
     function _setTargetThreshold(uint256 _targetThreshold) internal {
         if (_targetThreshold > maxSigners) {
             revert InvalidTargetThreshold();
@@ -81,12 +117,15 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         targetThreshold = _targetThreshold;
     }
 
-    function _setSafeThreshold(uint256 _targetThreshold) internal {
-        uint256 newThreshold = _targetThreshold;
+    /// @notice Internal function to set the threshold for the `safe`
+    /// @dev Forwards the threshold-setting call to `safe.ExecTransactionFromModule`
+    /// @param _threshold The threshold to set on the `safe`
+    function _setSafeThreshold(uint256 _threshold) internal {
+        uint256 newThreshold = _threshold;
         uint256 signerCount_ = signerCount; // save an SLOAD
 
         // ensure that txs can't execute if fewer signers than target threshold
-        if (signerCount_ <= _targetThreshold) {
+        if (signerCount_ <= _threshold) {
             newThreshold = signerCount_;
         }
         if (newThreshold != safe.getThreshold()) {
@@ -105,11 +144,17 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         }
     }
 
+    /// @notice Sets a new minimum threshold
+    /// @dev Only callable by a wearer of the owner hat. Reverts if `_minThreshold` is greater than `maxSigners` or `targetThreshold`
+    /// @param _minThreshold The new minimum threshold
     function setMinThreshold(uint256 _minThreshold) public onlyOwner {
         _setMinThreshold(_minThreshold);
         emit MinThresholdSet(_minThreshold);
     }
 
+    /// @notice Internal function to set a new minimum threshold
+    /// @dev Only callable by a wearer of the owner hat. Reverts if `_minThreshold` is greater than `maxSigners` or `targetThreshold`
+    /// @param _minThreshold The new minimum threshold
     function _setMinThreshold(uint256 _minThreshold) internal {
         if (_minThreshold > maxSigners || _minThreshold > targetThreshold) {
             revert InvalidMinThreshold();
@@ -118,8 +163,8 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         minThreshold = _minThreshold;
     }
 
-    /// @notice tallies the number of existing safe owners that wear the signer hat, sets signerCount to that value, and updates the safe threshold if necessary
-    /// @dev does NOT remove invalid safe owners
+    /// @notice Tallies the number of existing `safe` owners that wear a signer hat, sets `signerCount` to that value, and updates the `safe` threshold if necessary
+    /// @dev Does NOT remove invalid `safe` owners
     function reconcileSignerCount() public {
         address[] memory owners = safe.getOwners();
         uint256 validSignerCount = _countValidSigners(owners);
@@ -143,9 +188,12 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         }
     }
 
+    /// @notice Internal function to count the number of valid signers in an array of addresses
+    /// @param owners The addresses to check for validity
     function _countValidSigners(address[] memory owners) internal view returns (uint256 validSignerCount) {
+        uint256 length = owners.length;
         // count the existing safe owners that wear the signer hat
-        for (uint256 i = 0; i < owners.length;) {
+        for (uint256 i; i < length;) {
             if (isValidSigner(owners[i])) {
                 // shouldn't overflow given reasonable owners array length
                 unchecked {
@@ -159,23 +207,10 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         }
     }
 
-    function claimSigner() public virtual {
-        if (signerCount == maxSigners) {
-            revert MaxSignersReached();
-        }
-
-        if (safe.isOwner(msg.sender)) {
-            revert SignerAlreadyClaimed(msg.sender);
-        }
-
-        if (!isValidSigner(msg.sender)) {
-            revert NotSignerHatWearer(msg.sender);
-        }
-
-        _claimSigner(msg.sender);
-    }
-
-    function _claimSigner(address claimer) internal {
+    /// @notice Internal function that adds `_signer` as an owner on `safe`, updating the threshold if appropriate
+    /// @dev Unsafe. Does not check if `_signer` is a valid signer
+    /// @param _signer The address to add as a new `safe` owner
+    function _grantSigner(address _signer) internal {
         uint256 newSignerCount = signerCount;
 
         uint256 currentThreshold = safe.getThreshold(); // view function
@@ -185,7 +220,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         address[] memory owners = safe.getOwners(); // view function
         address thisAddress = address(this);
 
-        // if the only owner is a non-signer (ie this module set as an owner on initialization), replace it with the claimer
+        // if the only owner is a non-signer (ie this module set as an owner on initialization), replace it with _signer
         if (owners.length == 1 && owners[0] == thisAddress) {
             // prevOwner will always be the sentinel when owners.length == 1
 
@@ -195,7 +230,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
                 IGnosisSafe.swapOwner.selector,
                 SENTINEL_OWNERS, // prevOwner
                 thisAddress, // oldOwner
-                claimer // newOwner
+                _signer // newOwner
             );
             unchecked {
                 // shouldn't overflow given MaxSignersReached check higher in call stack
@@ -216,7 +251,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
 
             // set up the addOwner call
             // TODO replace with encodeWithSignature, which is slightly cheaper
-            addOwnerData = abi.encodeWithSelector(IGnosisSafe.addOwnerWithThreshold.selector, claimer, newThreshold);
+            addOwnerData = abi.encodeWithSelector(IGnosisSafe.addOwnerWithThreshold.selector, _signer, newThreshold);
         }
 
         // increment signer count
@@ -235,6 +270,8 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         }
     }
 
+    /// @notice Removes an invalid signer from the `safe`, updating the threshold if appropriate
+    /// @param _signer The address to remove if not a valid signer
     function removeSigner(address _signer) public virtual {
         if (isValidSigner(_signer)) {
             revert StillWearsSignerHat(_signer);
@@ -243,6 +280,9 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         _removeSigner(_signer);
     }
 
+    /// @notice Internal function to remove a signer from the `safe`, updating the threshold if appropriate
+    /// @dev Unsafe. Does not check for signer validity before removal
+    /// @param _signer The address to remove
     function _removeSigner(address _signer) internal {
         bytes memory removeOwnerData;
         address[] memory owners = safe.getOwners();
@@ -278,7 +318,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
             }
 
             removeOwnerData = abi.encodeWithSelector(
-                IGnosisSafe.removeOwner.selector, findPrevOwner(owners, _signer), _signer, newThreshold
+                IGnosisSafe.removeOwner.selector, _findPrevOwner(owners, _signer), _signer, newThreshold
             );
         }
 
@@ -297,12 +337,15 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         }
     }
 
-    // find the previous owner, ie the pointer to the owner we want to remove from the safe owners linked list
-    function findPrevOwner(address[] memory _owners, address owner) internal pure returns (address) {
-        address prevOwner = SENTINEL_OWNERS;
+    /// @notice Internal function to find the previous owner of an `_owner` in an array of `_owners`, ie the pointer to the owner to remove from the `safe` owners linked list
+    /// @param _owners An array of addresses
+    /// @param _owner The address after the one to find
+    /// @return prevOwner The owner previous to `_owner` in the `safe` linked list
+    function _findPrevOwner(address[] memory _owners, address _owner) internal pure returns (address prevOwner) {
+        prevOwner = SENTINEL_OWNERS;
 
-        for (uint256 i = 0; i < _owners.length;) {
-            if (_owners[i] == owner) {
+        for (uint256 i; i < _owners.length;) {
+            if (_owners[i] == _owner) {
                 if (i == 0) break;
                 prevOwner = _owners[i - 1];
             }
@@ -311,8 +354,6 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
                 ++i;
             }
         }
-
-        return prevOwner;
     }
 
     // solhint-disallow-next-line payable-fallback
@@ -321,7 +362,8 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         // E.g. The expected check method might change and then the Safe would be locked.
     }
 
-    // pre-flight check
+    /// @notice Pre-flight check on a `safe` transaction to ensure that it s signers are valid, called from within `safe.execTransactionFromModule()`
+    /// @dev Overrides All params mirror params for `safe.execTransactionFromModule()`
     function checkTransaction(
         address to,
         uint256 value,
@@ -366,11 +408,13 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
             revert InvalidSigners();
         }
 
-        ++guardEntries;
+        unchecked {
+            ++guardEntries;
+        }
     }
 
-    /// @notice from https://github.com/gnosis/zodiac-guard-mod/blob/988ebc7b71e352f121a0be5f6ae37e79e47a4541/contracts/ModGuard.sol#L86
-    /// @dev Prevent avatar owners (eg Safe signers) to remove this contract as a guard or as a module
+    /// @notice Post-flight check to prevent `safe` signers from removing this contract as a guard or as a module, and from changing the threshold
+    /// @dev Modified from https://github.com/gnosis/zodiac-guard-mod/blob/988ebc7b71e352f121a0be5f6ae37e79e47a4541/contracts/ModGuard.sol#L86
     // TODO check on safety changes to above
     function checkAfterExecution(bytes32, bool) external override {
         if (
@@ -384,10 +428,17 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
             revert CannotDisableProtectedModules(address(this));
         }
 
-        --guardEntries;
+        // TODO prevent signers from changing the threshold
+        unchecked {
+            --guardEntries;
+        }
     }
 
-    // modified from https://github.com/safe-global/safe-contracts/blob/c36bcab46578a442862d043e12a83fec41143dec/contracts/GnosisSafe.sol#L240
+    /// @notice Counts the number of hats-valid signatures within a set of `signatures`
+    /// @dev modified from https://github.com/safe-global/safe-contracts/blob/c36bcab46578a442862d043e12a83fec41143dec/contracts/GnosisSafe.sol#L240
+    /// @param dataHash The signed data
+    /// @param signatures The set of signatures to check
+    /// @return validSigCount The number of hats-valid signatures
     function countValidSignatures(bytes32 dataHash, bytes memory signatures, uint256 sigCount)
         public
         view
@@ -400,7 +451,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         bytes32 s;
         uint256 i;
 
-        for (i = 0; i < sigCount;) {
+        for (i; i < sigCount;) {
             (v, r, s) = signatureSplit(signatures, i);
             if (v == 0) {
                 // If v is 0 then it is a contract signature

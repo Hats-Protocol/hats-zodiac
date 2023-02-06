@@ -21,7 +21,7 @@ contract DeployHatsSignerGateFactory is Script {
     // deployment params to be set manually
     string public version = "HSG Beta 5";
 
-    function getChainKey() public returns (string memory) {
+    function getChainKey() public view returns (string memory) {
         return string.concat(".", vm.toString(block.chainid));
     }
 
@@ -48,7 +48,8 @@ contract DeployHatsSignerGateFactory is Script {
         HatsSignerGate hsgSingleton = new HatsSignerGate();
         MultiHatsSignerGate mhsgSingleton = new MultiHatsSignerGate();
 
-        HatsSignerGateFactory factory = new HatsSignerGateFactory(
+        /* HatsSignerGateFactory factory = */
+        new HatsSignerGateFactory(
             address(hsgSingleton),
             address(mhsgSingleton),
             hats,
