@@ -101,9 +101,9 @@ contract HatsSignerGateFactory {
         // Workaround for solidity dynamic memory array
         address[] memory owners = new address[](1);
         owners[0] = hsg;
-        console2.log(address(hsg));
-        console2.log(hsg);
-        console2.log(owners[0]);
+        // console2.log(address(hsg));
+        // console2.log(hsg);
+        // console2.log(owners[0]);
 
         // Call setup on safe to enable our new module/guard and set it as the sole initial owner
         GnosisSafe(safe).setup(

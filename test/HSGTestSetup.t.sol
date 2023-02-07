@@ -191,7 +191,7 @@ contract HSGTestSetup is HSGFactoryTestSetup, SignatureDecoder {
 
         for (uint256 i = 0; i < signerCount; ++i) {
             address addy = address(uint160(signers[i]));
-            emit log_address(addy);
+            // emit log_address(addy);
             signatures = bytes.concat(signatures, walletSigs[addy]);
         }
     }

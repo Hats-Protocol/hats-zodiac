@@ -45,3 +45,6 @@ error BelowMinThreshold(uint256 minThreshold, uint256 safeOwnerCount);
 
 // Can only claim signer with a valid signer hat
 error InvalidSignerHat(uint256 hatId);
+
+/// @notice Signers are not allowed to change the threshold
+error SignersCannotChangeThreshold();

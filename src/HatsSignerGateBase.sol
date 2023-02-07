@@ -32,7 +32,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
     /// @notice The current number of signers on the `safe`
     uint256 public signerCount;
 
-    /// @notice The version of HatsSignerGate uses in this contract
+    /// @notice The version of HatsSignerGate used in this contract
     string public version;
 
     /// @dev A simple re-entrency guard
@@ -424,10 +424,23 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
             revert CannotDisableProtectedModules(address(this));
         }
 
-        // TODO prevent signers from changing the threshold
-        unchecked {
-            --guardEntries;
+        if (safe.getThreshold() != _correctThreshold()) {
+            revert SignersCannotChangeThreshold();
         }
+
+        // leave checked to catch underflows triggered by re-erntry attempts
+        --guardEntries;
+    }
+
+    /// @notice Internal function to calculate the threshold that `safe` should have, given the current `signerCount`, `minThreshold`, and `targetThreshold`
+    /// @return _threshold The correct threshold
+    function _correctThreshold() internal view returns (uint256 _threshold) {
+        uint256 count = signerCount; // save an SLOAD
+        uint256 min = minThreshold;
+        uint256 max = targetThreshold;
+        if (count < min) _threshold = min;
+        else if (count > max) _threshold = max;
+        else _threshold = count;
     }
 
     /// @notice Counts the number of hats-valid signatures within a set of `signatures`

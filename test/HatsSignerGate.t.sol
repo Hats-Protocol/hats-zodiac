@@ -491,4 +491,68 @@ contract HatsSignerGateTest is HSGTestSetup {
             signatures
         );
     }
+
+    function testCannotIncreaseThreshold() public {
+        addSigners(3);
+
+        uint256 oldThreshold = safe.getThreshold();
+        assertEq(oldThreshold, 2);
+
+        // data to increase the threshold data by 1
+        bytes memory changeThresholdData = abi.encodeWithSignature("changeThreshold(uint256)", oldThreshold + 1);
+
+        bytes32 txHash = getTxHash(address(safe), 0, changeThresholdData, safe);
+
+        bytes memory signatures = createNSigsForTx(txHash, 2);
+
+        mockIsWearerCall(addresses[0], signerHat, true);
+        mockIsWearerCall(addresses[1], signerHat, true);
+
+        vm.expectRevert(abi.encodeWithSelector(SignersCannotChangeThreshold.selector));
+        safe.execTransaction(
+            address(safe),
+            0,
+            changeThresholdData,
+            Enum.Operation.Call,
+            // not using the refunder
+            0,
+            0,
+            0,
+            address(0),
+            payable(address(0)),
+            signatures
+        );
+    }
+
+    function testCannotDecreaseThreshold() public {
+        addSigners(3);
+
+        uint256 oldThreshold = safe.getThreshold();
+        assertEq(oldThreshold, 2);
+
+        // data to decrease the threshold data by 1
+        bytes memory changeThresholdData = abi.encodeWithSignature("changeThreshold(uint256)", oldThreshold - 1);
+
+        bytes32 txHash = getTxHash(address(safe), 0, changeThresholdData, safe);
+
+        bytes memory signatures = createNSigsForTx(txHash, 2);
+
+        mockIsWearerCall(addresses[0], signerHat, true);
+        mockIsWearerCall(addresses[1], signerHat, true);
+
+        vm.expectRevert(abi.encodeWithSelector(SignersCannotChangeThreshold.selector));
+        safe.execTransaction(
+            address(safe),
+            0,
+            changeThresholdData,
+            Enum.Operation.Call,
+            // not using the refunder
+            0,
+            0,
+            0,
+            address(0),
+            payable(address(0)),
+            signatures
+        );
+    }
 }
