@@ -1,12 +1,26 @@
 # hats-zodiac
 
-Hats Protocol-enabled Zodiac contracts
+Hats Protocol-enabled [Zodiac](https://github.com/gnosis/zodiac) contracts
 
 ## Hats Signer Gate
 
 A contract that grants multisig signing rights to addresses wearing a given Hat.
 
-HatsSignerGate.sol is both a Zodiac module and a guard for the same Safe.
+[HatsSignerGate.sol](./contracts/HatsSignerGate.sol) is a Zodiac module that grants multisig signing rights to addresses based on whether they are wearing the appropriate Hat(s).
+
+It also serves as a Zodiac guard that ensures A) that only valid signers can execute transations, i.e. only signatures addresses currently wearing a valid signer hat count, and B) signers cannot execute transactions that...
+
+1. remove the module from the multisig, 
+2. disconnect the guard from the multisig, or
+3. change the multisig threshold
+
+### MultiHats Signer Gate
+
+[MultiHatsSignerGate.sol](./contracts/MultiHatsSignerGate.sol) is a modification of Hats Signer Gate that supports setting multiple Hats as a valid signer Hat.
+
+### Hats Signer Gate Factory
+
+[HatsSignerGateFactory](./contracts/HatsSignerGateFactory.sol) is a factory contract that deploys proxy instances of HatsSignerGate and MultiHatsSignerGate, either for an existing Safe or wired up to a new Safe deployed at the same time. It uses the [Zodiac module proxy factory](https://github.com/gnosis/zodiac/blob/master/contracts/factory/ModuleProxyFactory.sol) so that the deployments are tracked in the Zodiac subgraph.
 
 ### Recent Deployments
 
