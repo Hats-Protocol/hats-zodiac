@@ -69,8 +69,9 @@ contract MultiHatsSignerGate is HatsSignerGateBase {
     // TODO switch to calldata
     /// @notice Adds new approved signer hats
     /// @param _newSignerHats Array of hat ids to add as approved signer hats
-    function addSignerHats(uint256[] memory _newSignerHats) external onlyOwner {
+    function addSignerHats(uint256[] calldata _newSignerHats) external onlyOwner {
         _addSignerHats(_newSignerHats);
+
         emit HSGLib.SignerHatsAdded(_newSignerHats);
     }
 
