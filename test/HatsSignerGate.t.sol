@@ -8,6 +8,8 @@ contract HatsSignerGateTest is HSGTestSetup {
         addSigners(1);
         mockIsWearerCall(address(this), ownerHat, true);
 
+        vm.expectEmit(false, false, false, true);
+        emit HSGLib.TargetThresholdSet(3);
         hatsSignerGate.setTargetThreshold(3);
 
         assertEq(hatsSignerGate.targetThreshold(), 3);
@@ -18,6 +20,9 @@ contract HatsSignerGateTest is HSGTestSetup {
         addSigners(4);
         mockIsWearerCall(address(this), ownerHat, true);
 
+        vm.expectEmit(false, false, false, true);
+        emit HSGLib.TargetThresholdSet(3);
+
         hatsSignerGate.setTargetThreshold(3);
 
         assertEq(hatsSignerGate.targetThreshold(), 3);
@@ -27,6 +32,9 @@ contract HatsSignerGateTest is HSGTestSetup {
     function testSetTargetThreshold4of4() public {
         addSigners(4);
         mockIsWearerCall(address(this), ownerHat, true);
+
+        vm.expectEmit(false, false, false, true);
+        emit HSGLib.TargetThresholdSet(4);
 
         hatsSignerGate.setTargetThreshold(4);
 
@@ -48,6 +56,10 @@ contract HatsSignerGateTest is HSGTestSetup {
     function testSetMinThreshold() public {
         mockIsWearerCall(address(this), ownerHat, true);
         hatsSignerGate.setTargetThreshold(3);
+
+        vm.expectEmit(false, false, false, true);
+        emit HSGLib.MinThresholdSet(3);
+
         hatsSignerGate.setMinThreshold(3);
 
         assertEq(hatsSignerGate.minThreshold(), 3);
@@ -232,7 +244,7 @@ contract HatsSignerGateTest is HSGTestSetup {
 
         mockIsWearerCall(addresses[0], signerHat, false);
 
-        emit log_uint(hatsSignerGate.signerCount());
+        // emit log_uint(hatsSignerGate.signerCount());
 
         hatsSignerGate.removeSigner(addresses[0]);
 
@@ -330,7 +342,7 @@ contract HatsSignerGateTest is HSGTestSetup {
         assertEq(address(safe).balance, postValue);
         assertEq(destAddress.balance, transferValue);
         assertEq(safe.nonce(), preNonce + 1);
-        emit log_uint(address(safe).balance);
+        // emit log_uint(address(safe).balance);
     }
 
     function testExecTxByNonHatWearersReverts() public {

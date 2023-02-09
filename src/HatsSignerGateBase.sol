@@ -2,7 +2,7 @@
 pragma solidity >=0.8.13;
 
 import { Test, console2 } from "forge-std/Test.sol"; // remove after testing
-import "./HSGErrors.sol";
+import "./HSGLib.sol";
 import { HatsOwnedInitializable } from "hats-auth/HatsOwnedInitializable.sol";
 import { BaseGuard } from "zodiac/guard/BaseGuard.sol";
 import { IAvatar } from "zodiac/interfaces/IAvatar.sol";
@@ -11,12 +11,6 @@ import { IGnosisSafe, Enum } from "./Interfaces/IGnosisSafe.sol";
 import { SignatureDecoder } from "@gnosis.pm/safe-contracts/contracts/common/SignatureDecoder.sol";
 
 abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedInitializable {
-    /// @notice Emitted when a new target signature threshold for the `safe` is set
-    event TargetThresholdSet(uint256 threshold);
-
-    /// @notice Emitted when a new minimum signature threshold for the `safe` is set
-    event MinThresholdSet(uint256 threshold);
-
     /// @notice The multisig to which this contract is attached
     IGnosisSafe public safe;
 
@@ -102,7 +96,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
 
             if (signerCount > 1) _setSafeThreshold(_targetThreshold);
 
-            emit TargetThresholdSet(_targetThreshold);
+            emit HSGLib.TargetThresholdSet(_targetThreshold);
         }
     }
 
@@ -149,7 +143,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
     /// @param _minThreshold The new minimum threshold
     function setMinThreshold(uint256 _minThreshold) public onlyOwner {
         _setMinThreshold(_minThreshold);
-        emit MinThresholdSet(_minThreshold);
+        emit HSGLib.MinThresholdSet(_minThreshold);
     }
 
     /// @notice Internal function to set a new minimum threshold

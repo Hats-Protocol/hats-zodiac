@@ -2,9 +2,9 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "../src/HatsSignerGate.sol";
-import "../src/MultiHatsSignerGate.sol";
-import "../src/HatsSignerGateFactory.sol";
+import { HatsSignerGate, HatsSignerGateBase } from "../src/HatsSignerGate.sol";
+import { MultiHatsSignerGate } from "../src/MultiHatsSignerGate.sol";
+import { HatsSignerGateFactory } from "../src/HatsSignerGateFactory.sol";
 import "@gnosis.pm/safe-contracts/contracts/GnosisSafe.sol";
 import "@gnosis.pm/safe-contracts/contracts/proxies/GnosisSafeProxyFactory.sol";
 import "@gnosis.pm/safe-contracts/contracts/libraries/MultiSend.sol";

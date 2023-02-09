@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import "./HSGFactoryTestSetup.t.sol";
 import "./HatsSignerGateFactory.t.sol";
-import "../src/HSGErrors.sol";
+import "../src/HSGLib.sol";
 import "@gnosis.pm/safe-contracts/contracts/common/SignatureDecoder.sol";
 import "@gnosis.pm/safe-contracts/contracts/common/Enum.sol";
 

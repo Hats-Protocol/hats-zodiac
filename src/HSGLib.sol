@@ -1,6 +1,17 @@
 // SPDX-License-Identifier: CC0
 pragma solidity >=0.8.13;
 
+library HSGLib {
+    /// @notice Emitted when a new target signature threshold for the `safe` is set
+    event TargetThresholdSet(uint256 threshold);
+
+    /// @notice Emitted when a new minimum signature threshold for the `safe` is set
+    event MinThresholdSet(uint256 threshold);
+
+    /// @notice Emitted when new approved signer hats are added
+    event SignerHatsAdded(uint256[] newSignerHats);
+}
+
 /// @notice Signers are not allowed to disable the HatsSignerGate guard
 error CannotDisableThisGuard(address guard);
 

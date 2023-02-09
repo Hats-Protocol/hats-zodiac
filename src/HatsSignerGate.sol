@@ -3,7 +3,7 @@ pragma solidity >=0.8.13;
 
 import { Test, console2 } from "forge-std/Test.sol"; // remove after testing
 import { HatsSignerGateBase } from "./HatsSignerGateBase.sol";
-import "./HSGErrors.sol";
+import "./HSGLib.sol";
 
 contract HatsSignerGate is HatsSignerGateBase {
     uint256 public signersHatId;

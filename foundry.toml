@@ -16,7 +16,8 @@ remappings = [
   "@gnosis.pm/safe-contracts/contracts/=lib/safe-contracts/contracts/",
   "@gnosis.pm/zodiac/=lib/zodiac/contracts/",
   "solbase/=lib/solbase/src/",
-  "zodiac/=lib/zodiac/contracts/"
+  "zodiac/=lib/zodiac/contracts/",
+  "hats-protocol/=lib/hats-protocol/src/"
 ]
 
 [fmt]

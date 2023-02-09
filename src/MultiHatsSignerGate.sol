@@ -3,11 +3,9 @@ pragma solidity >=0.8.13;
 
 import { Test, console2 } from "forge-std/Test.sol"; // remove after testing
 import { HatsSignerGateBase } from "./HatsSignerGateBase.sol";
-import "./HSGErrors.sol";
+import "./HSGLib.sol";
 
 contract MultiHatsSignerGate is HatsSignerGateBase {
-    event AddSignerHats(uint256[] newSignerHats);
-
     /// @notice Append-only tracker of approved signer hats
     mapping(uint256 => bool) public validSignerHats;
 
@@ -73,7 +71,7 @@ contract MultiHatsSignerGate is HatsSignerGateBase {
     /// @param _newSignerHats Array of hat ids to add as approved signer hats
     function addSignerHats(uint256[] memory _newSignerHats) external onlyOwner {
         _addSignerHats(_newSignerHats);
-        emit AddSignerHats(_newSignerHats);
+        emit HSGLib.SignerHatsAdded(_newSignerHats);
     }
 
     // TODO switch to calldata
