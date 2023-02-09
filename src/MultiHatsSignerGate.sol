@@ -66,7 +66,6 @@ contract MultiHatsSignerGate is HatsSignerGateBase {
         valid = HATS.isWearerOfHat(_account, claimedSignerHats[_account]);
     }
 
-    // TODO switch to calldata
     /// @notice Adds new approved signer hats
     /// @param _newSignerHats Array of hat ids to add as approved signer hats
     function addSignerHats(uint256[] calldata _newSignerHats) external onlyOwner {
@@ -75,7 +74,6 @@ contract MultiHatsSignerGate is HatsSignerGateBase {
         emit HSGLib.SignerHatsAdded(_newSignerHats);
     }
 
-    // TODO switch to calldata
     /// @notice Internal function to approve new signer hats
     /// @param _newSignerHats Array of hat ids to add as approved signer hats
     function _addSignerHats(uint256[] memory _newSignerHats) internal {
