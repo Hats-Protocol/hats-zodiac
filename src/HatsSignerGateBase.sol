@@ -21,7 +21,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
     uint256 public targetThreshold;
 
     /// @notice The maximum number of signers allowed for the `safe`
-    uint256 public maxSigners;
+    uint256 public maxSigners; // TODO Trust - make immutable (and other variables too?)
 
     /// @notice The current number of signers on the `safe`
     uint256 public signerCount;
@@ -39,6 +39,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
     ///      keccak256("guard_manager.guard.address")
     bytes32 internal constant GUARD_STORAGE_SLOT = 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
 
+    // TODO Trust - remove this
     /// @dev The Safe transaction EIP712 typehash
     /// keccak256(
     ///     "SafeTx(address to,uint256 value,bytes data,uint8 operation,uint256 safeTxGas,uint256 baseGas,uint256 gasPrice,address gasToken,address refundReceiver,uint256 nonce)"
@@ -166,6 +167,8 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         // update the signer count accordingly
         signerCount = validSignerCount;
 
+        // TODO TRST-L-6 ensure that the safe's threshold cannot be set below minThreshold
+
         if (validSignerCount <= targetThreshold && validSignerCount != safe.getThreshold()) {
             bytes memory data = abi.encodeWithSignature("changeThreshold(uint256)", validSignerCount);
 
@@ -179,7 +182,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
             if (!success) {
                 revert FailedExecChangeThreshold();
             }
-        }
+        } // TODO TRST-H-5 - Add an else clause, stating that if the new validSignerCount > targetThreshold and safe.getThreshold() < targetThreshold, the threshold changes to targetThreshold.
     }
 
     /// @notice Internal function to count the number of valid signers in an array of addresses
@@ -367,6 +370,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         bytes memory signatures,
         address // msgSender
     ) external override {
+        // TODO TRST-L-7 check that msg.sender is the safe
         uint256 safeOwnerCount = safe.getOwners().length;
 
         if (safeOwnerCount < minThreshold) {
@@ -391,12 +395,16 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
             safe.nonce() - 1 // view function
         );
 
+        // TODO TRST-H-3 call reconcileSignerCount to ensure that threshold and wearer status is up to date
+
         uint256 validSigCount = countValidSignatures(txHash, signatures, signatures.length / 65);
 
         // revert if there aren't enough valid signatures
         if (validSigCount < safe.getThreshold()) {
             revert InvalidSigners();
         }
+
+        // TODO TRST-H-2 add a check for validSigCount >= minThreshold
 
         unchecked {
             ++guardEntries;
@@ -407,6 +415,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
     /// @dev Modified from https://github.com/gnosis/zodiac-guard-mod/blob/988ebc7b71e352f121a0be5f6ae37e79e47a4541/contracts/ModGuard.sol#L86
     // TODO check on safety changes to above
     function checkAfterExecution(bytes32, bool) external override {
+        // TODO TRST-L-7 check that msg.sender is the safe
         if (
             abi.decode(StorageAccessible(address(safe)).getStorageAt(uint256(GUARD_STORAGE_SLOT), 1), (address))
                 != address(this)
@@ -421,6 +430,8 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         if (safe.getThreshold() != _correctThreshold()) {
             revert SignersCannotChangeThreshold();
         }
+
+        // TODO TRST-M-6 - check that no new modules have been added, via getModulesPaginated()
 
         // leave checked to catch underflows triggered by re-erntry attempts
         --guardEntries;

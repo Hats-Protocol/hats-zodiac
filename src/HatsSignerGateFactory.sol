@@ -31,6 +31,8 @@ contract HatsSignerGateFactory {
 
     string public version;
 
+    // TODO TRST-M-5 - add an internal nonce counter
+
     // Track list and count of deployed Hats signer gates
     // address[] public hatsSignerGateList;
 

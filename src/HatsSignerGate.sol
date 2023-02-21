@@ -31,6 +31,7 @@ contract HatsSignerGate is HatsSignerGateBase {
     /// @notice Claims signer rights for `msg.sender` if `msg.sender` is a valid & new signer, updating the threshold if appropriate
     /// @dev Reverts if `maxSigners` has been reached
     function claimSigner() public virtual {
+        // TODO TRST-H-4 - also remove invalid signers from the safe
         if (signerCount == maxSigners) {
             revert MaxSignersReached();
         }
