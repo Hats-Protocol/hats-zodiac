@@ -66,13 +66,8 @@ contract HSGFactoryTestSetup is Test {
     ) public returns (HatsSignerGate _hatsSignerGate, GnosisSafe _safe) {
         address hsg;
         address safe_;
-        (hsg, safe_) = factory.deployHatsSignerGateAndSafe(
-            _ownerHat,
-            _signerHat,
-            _minThreshold,
-            _targetThreshold,
-            _maxSigners
-        );
+        (hsg, safe_) =
+            factory.deployHatsSignerGateAndSafe(_ownerHat, _signerHat, _minThreshold, _targetThreshold, _maxSigners);
 
         _hatsSignerGate = HatsSignerGate(hsg);
         _safe = GnosisSafe(payable(safe_));
@@ -88,11 +83,7 @@ contract HSGFactoryTestSetup is Test {
         address mhsg;
         address safe_;
         (mhsg, safe_) = factory.deployMultiHatsSignerGateAndSafe(
-            _ownerHat,
-            _signerHats,
-            _minThreshold,
-            _targetThreshold,
-            _maxSigners
+            _ownerHat, _signerHats, _minThreshold, _targetThreshold, _maxSigners
         );
 
         _multiHatsSignerGate = MultiHatsSignerGate(mhsg);

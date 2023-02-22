@@ -188,7 +188,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
             if (!success) {
                 revert FailedExecChangeThreshold();
             }
-        } 
+        }
     }
 
     /// @notice Internal function to count the number of valid signers in an array of addresses
@@ -422,7 +422,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
     /// @dev Modified from https://github.com/gnosis/zodiac-guard-mod/blob/988ebc7b71e352f121a0be5f6ae37e79e47a4541/contracts/ModGuard.sol#L86
     function checkAfterExecution(bytes32, bool) external override {
         if (msg.sender != address(safe)) revert NotCalledFromSafe();
-        
+
         if (
             abi.decode(StorageAccessible(address(safe)).getStorageAt(uint256(GUARD_STORAGE_SLOT), 1), (address))
                 != address(this)
@@ -437,9 +437,9 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         if (safe.getThreshold() != _correctThreshold()) {
             revert SignersCannotChangeThreshold();
         }
-        
+
         // SENTINEL_OWNERS and SENTINEL_MODULES are both 0x1
-        (address[] memory modules, ) = safe.getModulesPaginated(SENTINEL_OWNERS, 2);
+        (address[] memory modules,) = safe.getModulesPaginated(SENTINEL_OWNERS, 2);
         if (modules.length > 1) {
             revert SignersCannotAddModules();
         }

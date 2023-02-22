@@ -90,9 +90,7 @@ contract HatsSignerGateFactory {
         safe = payable(gnosisSafeProxyFactory.createProxy(safeSingleton, hex"00"));
 
         // Deploy new hats signer gate
-        hsg = deployHatsSignerGate(
-            _ownerHatId, _signersHatId, safe, _minThreshold, _targetThreshold, _maxSigners
-        );
+        hsg = deployHatsSignerGate(_ownerHatId, _signersHatId, safe, _minThreshold, _targetThreshold, _maxSigners);
 
         // Generate delegate call so the safe calls enableModule on itself during setup
         bytes memory multisendAction = _generateMultisendAction(hsg, safe);
@@ -186,9 +184,8 @@ contract HatsSignerGateFactory {
         safe = payable(gnosisSafeProxyFactory.createProxy(safeSingleton, hex"00"));
 
         // Deploy new hats signer gate
-        mhsg = deployMultiHatsSignerGate(
-            _ownerHatId, _signersHatIds, safe, _minThreshold, _targetThreshold, _maxSigners
-        );
+        mhsg =
+            deployMultiHatsSignerGate(_ownerHatId, _signersHatIds, safe, _minThreshold, _targetThreshold, _maxSigners);
 
         // Generate delegate call so the safe calls enableModule on itself during setup
         bytes memory multisendAction = _generateMultisendAction(mhsg, safe);

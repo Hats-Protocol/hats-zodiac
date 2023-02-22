@@ -25,9 +25,7 @@ contract DeployHatsSignerGate is Script {
         vm.startBroadcast(deployer);
 
         /* ddress hatsSignerGate = */
-        hsgFactory.deployHatsSignerGate(
-            ownerHatId, signersHatId, safe, minThreshold, targetThreshold, maxSigners
-        );
+        hsgFactory.deployHatsSignerGate(ownerHatId, signersHatId, safe, minThreshold, targetThreshold, maxSigners);
 
         vm.stopBroadcast();
     }
