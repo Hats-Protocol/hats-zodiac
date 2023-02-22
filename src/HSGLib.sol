@@ -33,7 +33,7 @@ error GuardAlreadySet();
 /// @notice Can't remove a signer if they're still wearing the signer hat
 error StillWearsSignerHat(address signer);
 
-/// @notice Can't add more signers than designated by `maxSigners`
+/// @notice Can never have more signers than designated by `maxSigners`
 error MaxSignersReached();
 
 /// @notice Target threshold must be lower than `maxSigners`

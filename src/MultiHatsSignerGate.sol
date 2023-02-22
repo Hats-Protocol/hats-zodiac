@@ -34,9 +34,7 @@ contract MultiHatsSignerGate is HatsSignerGateBase {
 
     /// @notice Function to become an owner on the safe if you are wearing `_hatId` and `_hatId` is a valid signer hat
     function claimSigner(uint256 _hatId) public {
-        // TODO TRST-H-4 - also remove invalid signers from the safe
-
-        if (signerCount == maxSigners) {
+        if (signerCount >= maxSigners) {
             revert MaxSignersReached();
         }
 

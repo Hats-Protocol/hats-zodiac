@@ -157,6 +157,10 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         address[] memory owners = safe.getOwners();
         uint256 validSignerCount = _countValidSigners(owners);
 
+        if (validSignerCount > maxSigners) {
+            revert MaxSignersReached();
+        }
+
         // update the signer count accordingly
         signerCount = validSignerCount;
 

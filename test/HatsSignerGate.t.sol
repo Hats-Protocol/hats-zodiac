@@ -578,4 +578,53 @@ contract HatsSignerGateTest is HSGTestSetup {
         vm.expectRevert(NotCalledFromSafe.selector);
         hatsSignerGate.checkAfterExecution(hex"00", true);
     }
+
+    function testAttackOnMaxSignerFails() public {
+        // max signers is 5
+        // 5 signers claim
+        addSigners(5);
+
+        // a signer misbehaves and loses the hat
+        mockIsWearerCall(addresses[4], signerHat, false);
+
+        // reconcile is called, so signerCount is updated to 4
+        hatsSignerGate.reconcileSignerCount();
+        assertEq(hatsSignerGate.signerCount(), 4);
+
+        // a new signer claims, so signerCount is updated to 5
+        mockIsWearerCall(addresses[5], signerHat, true);
+        vm.prank(addresses[5]);
+        hatsSignerGate.claimSigner();
+        assertEq(hatsSignerGate.signerCount(), 5);
+
+        // the malicious signer behaves nicely and regains the hat
+        mockIsWearerCall(addresses[4], signerHat, true);
+
+        // reoncile is called again making signerCount 6, ie too high
+        vm.expectRevert(MaxSignersReached.selector);
+        hatsSignerGate.reconcileSignerCount();
+        assertEq(hatsSignerGate.signerCount(), 5);
+
+        // // any eligible signer can now claim at will
+        // mockIsWearerCall(addresses[6], signerHat, true);
+        // vm.prank(addresses[6]);
+        // hatsSignerGate.claimSigner();
+        // assertEq(hatsSignerGate.signerCount(), 7);
+    }
+
+    function testValidSignersCanClaimAfterMaxSignerLosesHat() public {
+        // max signers is 5
+        // 5 signers claim
+        addSigners(5);
+
+        // a signer misbehaves and loses the hat
+        mockIsWearerCall(addresses[4], signerHat, false);
+
+        // reconcile is called, so signerCount is updated to 4
+        hatsSignerGate.reconcileSignerCount();
+        
+        mockIsWearerCall(addresses[5], signerHat, true);
+        vm.prank(addresses[5]);
+        hatsSignerGate.claimSigner();
+    }
 }
