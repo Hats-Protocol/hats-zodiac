@@ -21,7 +21,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
     uint256 public targetThreshold;
 
     /// @notice The maximum number of signers allowed for the `safe`
-    uint256 public maxSigners; 
+    uint256 public maxSigners;
 
     /// @notice The current number of signers on the `safe`
     uint256 public signerCount;
@@ -363,7 +363,8 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         bytes memory signatures,
         address // msgSender
     ) external override {
-        // TODO TRST-L-7 check that msg.sender is the safe
+        if (msg.sender != address(safe)) revert NotCalledFromSafe();
+
         uint256 safeOwnerCount = safe.getOwners().length;
 
         if (safeOwnerCount < minThreshold) {
@@ -406,9 +407,9 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
 
     /// @notice Post-flight check to prevent `safe` signers from removing this contract as a guard or as a module, and from changing the threshold
     /// @dev Modified from https://github.com/gnosis/zodiac-guard-mod/blob/988ebc7b71e352f121a0be5f6ae37e79e47a4541/contracts/ModGuard.sol#L86
-    // TODO check on safety changes to above
     function checkAfterExecution(bytes32, bool) external override {
-        // TODO TRST-L-7 check that msg.sender is the safe
+        if (msg.sender != address(safe)) revert NotCalledFromSafe();
+        
         if (
             abi.decode(StorageAccessible(address(safe)).getStorageAt(uint256(GUARD_STORAGE_SLOT), 1), (address))
                 != address(this)

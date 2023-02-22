@@ -567,4 +567,15 @@ contract HatsSignerGateTest is HSGTestSetup {
             signatures
         );
     }
+
+    function testCannotCallCheckTransactionFromNonSafe() public {
+        vm.expectRevert(NotCalledFromSafe.selector);
+        hatsSignerGate.checkTransaction(address(0), 0, hex"00", Enum.Operation.Call, 0, 0, 0, address(0), payable(address(0)), hex"00", address(0));
+
+    }
+
+    function testCannotCallCheckAfterExecutionFromNonSafe() public {
+        vm.expectRevert(NotCalledFromSafe.selector);
+        hatsSignerGate.checkAfterExecution(hex"00", true);
+    }
 }
