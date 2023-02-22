@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: CC0
 pragma solidity >=0.8.13;
 
+import { console2 } from "forge-std/Test.sol"; // remove after testing
 import "./HatsSignerGate.sol";
 import "./MultiHatsSignerGate.sol";
 import "@gnosis.pm/safe-contracts/contracts/GnosisSafe.sol";
@@ -31,10 +32,7 @@ contract HatsSignerGateFactory {
 
     string public version;
 
-    // TODO TRST-M-5 - add an internal nonce counter
-
-    // Track list and count of deployed Hats signer gates
-    // address[] public hatsSignerGateList;
+    uint256 internal nonce;
 
     // events
 
@@ -86,15 +84,14 @@ contract HatsSignerGateFactory {
         uint256 _signersHatId,
         uint256 _minThreshold,
         uint256 _targetThreshold,
-        uint256 _maxSigners,
-        uint256 _saltNonce
+        uint256 _maxSigners
     ) public returns (address hsg, address payable safe) {
         // Deploy new safe but do not set it up yet
         safe = payable(gnosisSafeProxyFactory.createProxy(safeSingleton, hex"00"));
 
         // Deploy new hats signer gate
         hsg = deployHatsSignerGate(
-            _ownerHatId, _signersHatId, safe, _minThreshold, _targetThreshold, _maxSigners, _saltNonce
+            _ownerHatId, _signersHatId, safe, _minThreshold, _targetThreshold, _maxSigners
         );
 
         // Generate delegate call so the safe calls enableModule on itself during setup
@@ -125,22 +122,26 @@ contract HatsSignerGateFactory {
     }
 
     // option 2: deploy a new signer gate and attach it to an existing Safe
+    /// @dev Do not attach HatsSignerGate to a Safe with existing modules; HatsSignerGate will freeze all subsequent transactions
     function deployHatsSignerGate(
         uint256 _ownerHatId,
         uint256 _signersHatId,
         address _safe, // existing Gnosis Safe that the signers will join
         uint256 _minThreshold,
         uint256 _targetThreshold,
-        uint256 _maxSigners,
-        uint256 _saltNonce
+        uint256 _maxSigners
     ) public returns (address hsg) {
         bytes memory initializeParams = abi.encode(
             _ownerHatId, _signersHatId, _safe, hatsAddress, _minThreshold, _targetThreshold, _maxSigners, version
         );
 
+        console2.log(nonce);
+
         hsg = moduleProxyFactory.deployModule(
-            hatsSignerGateSingleton, abi.encodeWithSignature("setUp(bytes)", initializeParams), _saltNonce
+            hatsSignerGateSingleton, abi.encodeWithSignature("setUp(bytes)", initializeParams), ++nonce
         );
+
+        console2.log(nonce);
 
         emit HatsSignerGateSetup(hsg, _ownerHatId, _signersHatId, _safe, _minThreshold, _targetThreshold, _maxSigners);
     }
@@ -179,15 +180,14 @@ contract HatsSignerGateFactory {
         uint256[] calldata _signersHatIds,
         uint256 _minThreshold,
         uint256 _targetThreshold,
-        uint256 _maxSigners,
-        uint256 _saltNonce
+        uint256 _maxSigners
     ) public returns (address mhsg, address payable safe) {
         // Deploy new safe but do not set it up yet
         safe = payable(gnosisSafeProxyFactory.createProxy(safeSingleton, hex"00"));
 
         // Deploy new hats signer gate
         mhsg = deployMultiHatsSignerGate(
-            _ownerHatId, _signersHatIds, safe, _minThreshold, _targetThreshold, _maxSigners, _saltNonce
+            _ownerHatId, _signersHatIds, safe, _minThreshold, _targetThreshold, _maxSigners
         );
 
         // Generate delegate call so the safe calls enableModule on itself during setup
@@ -217,22 +217,26 @@ contract HatsSignerGateFactory {
     }
 
     // option 2: deploy a new signer gate and attach it to an existing Safe
+    /// @dev Do not attach MultiHatsSignerGate to a Safe with existing modules; MultiHatsSignerGate will freeze all subsequent transactions
     function deployMultiHatsSignerGate(
         uint256 _ownerHatId,
         uint256[] calldata _signersHatIds,
         address _safe, // existing Gnosis Safe that the signers will join
         uint256 _minThreshold,
         uint256 _targetThreshold,
-        uint256 _maxSigners,
-        uint256 _saltNonce
+        uint256 _maxSigners
     ) public returns (address mhsg) {
         bytes memory initializeParams = abi.encode(
             _ownerHatId, _signersHatIds, _safe, hatsAddress, _minThreshold, _targetThreshold, _maxSigners, version
         );
 
+        console2.log(nonce);
+
         mhsg = moduleProxyFactory.deployModule(
-            multiHatsSignerGateSingleton, abi.encodeWithSignature("setUp(bytes)", initializeParams), _saltNonce
+            multiHatsSignerGateSingleton, abi.encodeWithSignature("setUp(bytes)", initializeParams), ++nonce
         );
+
+        console2.log(nonce);
 
         emit MultiHatsSignerGateSetup(
             mhsg, _ownerHatId, _signersHatIds, _safe, _minThreshold, _targetThreshold, _maxSigners

@@ -42,15 +42,7 @@ contract HatsSignerGateFactoryTest is HSGFactoryTestSetup {
         safe = deploySafe(initSafeOwners, 1);
 
         hatsSignerGate = HatsSignerGate(
-            factory.deployHatsSignerGate(
-                ownerHat,
-                signerHat,
-                address(safe),
-                minThreshold,
-                targetThreshold,
-                maxSigners,
-                2 // saltNonce
-            )
+            factory.deployHatsSignerGate(ownerHat, signerHat, address(safe), minThreshold, targetThreshold, maxSigners)
         );
 
         assertEq(safe.getOwners()[0], address(this));
@@ -125,13 +117,7 @@ contract HatsSignerGateFactoryTest is HSGFactoryTestSetup {
 
         multiHatsSignerGate = MultiHatsSignerGate(
             factory.deployMultiHatsSignerGate(
-                ownerHat,
-                signerHats,
-                address(safe),
-                minThreshold,
-                targetThreshold,
-                maxSigners,
-                2 // saltNonce
+                ownerHat, signerHats, address(safe), minThreshold, targetThreshold, maxSigners
             )
         );
 
