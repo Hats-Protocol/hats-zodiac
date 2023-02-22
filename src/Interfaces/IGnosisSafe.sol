@@ -42,4 +42,6 @@ interface IGnosisSafe {
     ) external view returns (bytes32);
 
     function isOwner(address owner) external returns (bool);
+
+    function getModulesPaginated(address start, uint256 pageSize) external view returns (address[] memory array, address next);
 }

@@ -63,6 +63,9 @@ error InvalidSignerHat(uint256 hatId);
 /// @notice Signers are not allowed to change the threshold
 error SignersCannotChangeThreshold();
 
+/// @notice Signers are not allowed to add new modules
+error SignersCannotAddModules();
+
 /// @notice Emmitted when a call to `checkTransaction` or `checkAfterExecution` is not made from the `safe`
 /// @dev Together with `guardEntries`, protects against arbitrary reentrancy attacks by the signers
 error NotCalledFromSafe();

@@ -165,7 +165,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         signerCount = validSignerCount;
 
         // TODO TRST-L-6 ensure that the safe's threshold cannot be set below minThreshold
-        
+
         uint256 currentThreshold = safe.getThreshold();
         uint256 newThreshold;
         uint256 target = targetThreshold; // save SLOADs
@@ -437,8 +437,12 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         if (safe.getThreshold() != _correctThreshold()) {
             revert SignersCannotChangeThreshold();
         }
-
-        // TODO TRST-M-6 - check that no new modules have been added, via getModulesPaginated()
+        
+        // SENTINEL_OWNERS and SENTINEL_MODULES are both 0x1
+        (address[] memory modules, ) = safe.getModulesPaginated(SENTINEL_OWNERS, 2);
+        if (modules.length > 1) {
+            revert SignersCannotAddModules();
+        }
 
         // leave checked to catch underflows triggered by re-erntry attempts
         --guardEntries;

@@ -627,4 +627,35 @@ contract HatsSignerGateTest is HSGTestSetup {
         vm.prank(addresses[5]);
         hatsSignerGate.claimSigner();
     }
+
+    function testCannotAddNewModules() public {
+        bytes memory addModuleData =
+            abi.encodeWithSignature("enableModule(address)", address(0xf00baa)); // some devs are from Boston
+
+        addSigners(2);
+
+        bytes32 txHash = getTxHash(address(safe), 0, addModuleData, safe);
+
+        bytes memory signatures = createNSigsForTx(txHash, 2);
+
+        mockIsWearerCall(addresses[0], signerHat, true);
+        mockIsWearerCall(addresses[1], signerHat, true);
+
+        vm.expectRevert(SignersCannotAddModules.selector);
+
+        // execute tx
+        safe.execTransaction(
+            address(safe),
+            0,
+            addModuleData,
+            Enum.Operation.Call,
+            // not using the refunder
+            0,
+            0,
+            0,
+            address(0),
+            payable(address(0)),
+            signatures
+        );
+    }
 }
