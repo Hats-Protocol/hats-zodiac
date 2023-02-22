@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: CC0
 pragma solidity >=0.8.13;
 
-// import { Test, console2 } from "forge-std/Test.sol"; // remove after testing
+import { Test, console2 } from "forge-std/Test.sol"; // remove after testing
 import "./HSGLib.sol";
 import { HatsOwnedInitializable } from "hats-auth/HatsOwnedInitializable.sol";
 import { BaseGuard } from "zodiac/guard/BaseGuard.sol";
@@ -164,8 +164,6 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         // update the signer count accordingly
         signerCount = validSignerCount;
 
-        // TODO TRST-L-6 ensure that the safe's threshold cannot be set below minThreshold
-
         uint256 currentThreshold = safe.getThreshold();
         uint256 newThreshold;
         uint256 target = targetThreshold; // save SLOADs
@@ -193,6 +191,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
 
     /// @notice Internal function to count the number of valid signers in an array of addresses
     /// @param owners The addresses to check for validity
+    /// @return validSignerCount The number of valid signers in `owners`
     function _countValidSigners(address[] memory owners) internal view returns (uint256 validSignerCount) {
         uint256 length = owners.length;
         // count the existing safe owners that wear the signer hat
@@ -313,7 +312,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
                 if (!success) {
                     revert FailedExecRemoveSigner();
                 }
-                
+
                 // increment the signer count if signerCount was correct, ie `reconcileSignerCount` was called prior
                 if (_currentSignerCount < _maxSigners) ++signerCount;
                 break;
@@ -433,6 +432,10 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         if (msg.sender != address(safe)) revert NotCalledFromSafe();
 
         uint256 safeOwnerCount = safe.getOwners().length;
+        // uint256 validSignerCount = _countValidSigners(safe.getOwners());
+
+        // ensure that safe threshold is correct
+        reconcileSignerCount();
 
         if (safeOwnerCount < minThreshold) {
             revert BelowMinThreshold(minThreshold, safeOwnerCount);
@@ -456,16 +459,12 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
             safe.nonce() - 1 // view function
         );
 
-        // TODO TRST-H-3 call reconcileSignerCount to ensure that threshold and wearer status is up to date
-
         uint256 validSigCount = countValidSignatures(txHash, signatures, signatures.length / 65);
 
         // revert if there aren't enough valid signatures
-        if (validSigCount < safe.getThreshold()) {
+        if (validSigCount < safe.getThreshold() || validSigCount < minThreshold) {
             revert InvalidSigners();
         }
-
-        // TODO TRST-H-2 add a check for validSigCount >= minThreshold
 
         unchecked {
             ++guardEntries;

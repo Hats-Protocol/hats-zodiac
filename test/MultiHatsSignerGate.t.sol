@@ -124,6 +124,7 @@ contract MultiHatsSignerGateTest is MHSGTestSetup {
         // have one of the signers submit/exec the tx
         vm.prank(addresses[0]);
 
+        // vm.expectRevert(abi.encodeWithSelector(BelowMinThreshold.selector, minThreshold, 1));
         vm.expectRevert(InvalidSigners.selector);
 
         safe.execTransaction(
