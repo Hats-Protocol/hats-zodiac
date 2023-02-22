@@ -165,8 +165,17 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         signerCount = validSignerCount;
 
         // TODO TRST-L-6 ensure that the safe's threshold cannot be set below minThreshold
+        
+        uint256 currentThreshold = safe.getThreshold();
+        uint256 newThreshold;
+        uint256 target = targetThreshold; // save SLOADs
 
-        if (validSignerCount <= targetThreshold && validSignerCount != safe.getThreshold()) {
+        if (validSignerCount <= target && validSignerCount != currentThreshold) {
+            newThreshold = validSignerCount;
+        } else if (validSignerCount > target && currentThreshold < target) {
+            newThreshold = target;
+        }
+        if (newThreshold > 0) {
             bytes memory data = abi.encodeWithSignature("changeThreshold(uint256)", validSignerCount);
 
             bool success = safe.execTransactionFromModule(
@@ -179,7 +188,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
             if (!success) {
                 revert FailedExecChangeThreshold();
             }
-        } // TODO TRST-H-5 - Add an else clause, stating that if the new validSignerCount > targetThreshold and safe.getThreshold() < targetThreshold, the threshold changes to targetThreshold.
+        } 
     }
 
     /// @notice Internal function to count the number of valid signers in an array of addresses
