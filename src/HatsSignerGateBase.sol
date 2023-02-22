@@ -21,7 +21,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
     uint256 public targetThreshold;
 
     /// @notice The maximum number of signers allowed for the `safe`
-    uint256 public maxSigners; // TODO Trust - make immutable (and other variables too?)
+    uint256 public maxSigners; 
 
     /// @notice The current number of signers on the `safe`
     uint256 public signerCount;
@@ -38,13 +38,6 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
     /// @dev The storage slot used by GnosisSafe to store the guard address
     ///      keccak256("guard_manager.guard.address")
     bytes32 internal constant GUARD_STORAGE_SLOT = 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
-
-    // TODO Trust - remove this
-    /// @dev The Safe transaction EIP712 typehash
-    /// keccak256(
-    ///     "SafeTx(address to,uint256 value,bytes data,uint8 operation,uint256 safeTxGas,uint256 baseGas,uint256 gasPrice,address gasToken,address refundReceiver,uint256 nonce)"
-    /// );
-    bytes32 private constant SAFE_TX_TYPEHASH = 0xbb8310d486368db6bd6f849402fdd73ad53d316b5a4b2644ad6efe0f941286d8;
 
     /// @dev Makes the singleton unusable by setting its owner to the 1-address
     constructor() payable initializer {
