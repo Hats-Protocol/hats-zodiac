@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: CC0
 pragma solidity >=0.8.13;
 
-import { Test, console2 } from "forge-std/Test.sol"; // remove after testing
+// import { Test, console2 } from "forge-std/Test.sol"; // remove after testing
 import "./HSGLib.sol";
 import { HatsOwnedInitializable } from "hats-auth/HatsOwnedInitializable.sol";
 import { BaseGuard } from "zodiac/guard/BaseGuard.sol";
@@ -212,9 +212,11 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
 
     /// @notice Internal function that adds `_signer` as an owner on `safe`, updating the threshold if appropriate
     /// @dev Unsafe. Does not check if `_signer` is a valid signer
+    /// @param _owners Array of owners on the `safe`
+    /// @param _currentSignerCount The current number of signers
     /// @param _signer The address to add as a new `safe` owner
-    function _grantSigner(address _signer) internal {
-        uint256 newSignerCount = signerCount;
+    function _grantSigner(address[] memory _owners, uint256 _currentSignerCount, address _signer) internal {
+        uint256 newSignerCount = _currentSignerCount;
 
         uint256 currentThreshold = safe.getThreshold(); // view function
         uint256 newThreshold = currentThreshold;
@@ -267,6 +269,58 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
 
         if (!success) {
             revert FailedExecAddSigner();
+        }
+    }
+
+    /// @notice Internal function that adds `_signer` as an owner on `safe` by swapping with an existing (invalid) owner
+    /// @dev Unsafe. Does not check if `_signer` is a valid signer.
+    /// @param _owners Array of owners on the `safe`
+    /// @param _ownerCount The number of owners on the `safe` (length of `_owners` array)
+    /// @param _maxSigners The maximum number of signers allowed
+    /// @param _currentSignerCount The current number of signers
+    /// @param _signer The address to add as a new `safe` owner
+    function _swapSigner(
+        address[] memory _owners,
+        uint256 _ownerCount,
+        uint256 _maxSigners,
+        uint256 _currentSignerCount,
+        address _signer
+    ) internal {
+        uint256 currentThreshold = safe.getThreshold();
+        address ownerToCheck;
+        bytes memory data;
+
+        for (uint256 i; i < _ownerCount - 1;) {
+            ownerToCheck = _owners[i];
+
+            if (!isValidSigner(ownerToCheck)) {
+                // prep the swap
+                data = abi.encodeWithSignature(
+                    "swapOwner(address,address,address)",
+                    _findPrevOwner(_owners, ownerToCheck), // prevOwner
+                    ownerToCheck, // oldOwner
+                    msg.sender // newOwner
+                );
+
+                // execute the swap, reverting if it fails for some reason
+                bool success = safe.execTransactionFromModule(
+                    address(safe), // to
+                    0, // value
+                    data, // data
+                    Enum.Operation.Call // operation
+                );
+
+                if (!success) {
+                    revert FailedExecRemoveSigner();
+                }
+                
+                // increment the signer count if signerCount was correct, ie `reconcileSignerCount` was called prior
+                if (_currentSignerCount < _maxSigners) ++signerCount;
+                break;
+            }
+            unchecked {
+                ++i;
+            }
         }
     }
 

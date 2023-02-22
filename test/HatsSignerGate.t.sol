@@ -598,11 +598,11 @@ contract HatsSignerGateTest is HSGTestSetup {
         hatsSignerGate.claimSigner();
         assertEq(hatsSignerGate.signerCount(), 5);
 
-        // the malicious signer behaves nicely and regains the hat
+        // the malicious signer behaves nicely and regains the hat, but they were kicked out by the previous signer claim
         mockIsWearerCall(addresses[4], signerHat, true);
 
-        // reoncile is called again making signerCount 6, ie too high
-        vm.expectRevert(MaxSignersReached.selector);
+        // reoncile is called again and signerCount stays at 5
+        // vm.expectRevert(MaxSignersReached.selector);
         hatsSignerGate.reconcileSignerCount();
         assertEq(hatsSignerGate.signerCount(), 5);
 
@@ -611,6 +611,58 @@ contract HatsSignerGateTest is HSGTestSetup {
         // vm.prank(addresses[6]);
         // hatsSignerGate.claimSigner();
         // assertEq(hatsSignerGate.signerCount(), 7);
+    }
+
+    function testAttackOnMaxSigner2Fails() public {
+        // max signers is x
+        // 1) we grant x signers
+        addSigners(5);
+        // 2) 3 signers lose validity
+        mockIsWearerCall(addresses[2], signerHat, false);
+        mockIsWearerCall(addresses[3], signerHat, false);
+        mockIsWearerCall(addresses[4], signerHat, false);
+
+        // 3) reconcile is called, signerCount=x-3
+        hatsSignerGate.reconcileSignerCount();
+        console2.log("A");
+        assertEq(hatsSignerGate.signerCount(), 2);
+
+        // 4) 3 more signers can be added with claimSigner()
+        mockIsWearerCall(addresses[5], signerHat, true);
+        vm.prank(addresses[5]);
+        hatsSignerGate.claimSigner();
+        mockIsWearerCall(addresses[6], signerHat, true);
+        vm.prank(addresses[6]);
+        hatsSignerGate.claimSigner();
+        mockIsWearerCall(addresses[7], signerHat, true);
+        vm.prank(addresses[7]);
+        hatsSignerGate.claimSigner();
+
+        console2.log("B");
+        assertEq(hatsSignerGate.signerCount(), 5);
+        console2.log("C");
+        assertEq(safe.getOwners().length, 5);
+
+        // 5) the 3 signers from (2) regain their validity
+        mockIsWearerCall(addresses[2], signerHat, true);
+        mockIsWearerCall(addresses[3], signerHat, true);
+        mockIsWearerCall(addresses[4], signerHat, true);
+
+
+        // but we still only have 5 owners and 5 signers
+        console2.log("D");
+        assertEq(hatsSignerGate.signerCount(), 5);
+        
+        console2.log("E");
+        assertEq(safe.getOwners().length, 5);
+
+        console2.log("F");
+        hatsSignerGate.reconcileSignerCount();
+        assertEq(hatsSignerGate.signerCount(), 5);
+
+        // // 6) we now have x+3 signers
+        // hatsSignerGate.reconcileSignerCount();
+        // assertEq(hatsSignerGate.signerCount(), 8);
     }
 
     function testValidSignersCanClaimAfterMaxSignerLosesHat() public {
