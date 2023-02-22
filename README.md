@@ -10,7 +10,7 @@ A contract that grants multisig signing rights to addresses wearing a given Hat.
 
 It also serves as a Zodiac guard that ensures A) that only valid signers can execute transations, i.e. only signatures addresses currently wearing a valid signer hat count, and B) signers cannot execute transactions that...
 
-1. remove the module from the multisig, 
+1. remove the module from the multisig,
 2. disconnect the guard from the multisig, or
 3. change the multisig threshold
 
