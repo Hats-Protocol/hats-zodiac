@@ -501,10 +501,10 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         --guardEntries;
     }
 
-    /// @notice Internal function to calculate the threshold that `safe` should have, given the current `signerCount`, `minThreshold`, and `targetThreshold`
+    /// @notice Internal function to calculate the threshold that `safe` should have, given the correct `signerCount`, `minThreshold`, and `targetThreshold`
     /// @return _threshold The correct threshold
-    function _correctThreshold() internal view returns (uint256 _threshold) {
-        uint256 count = signerCount; // save an SLOAD
+    function _getCorrectThreshold() internal view returns (uint256 _threshold) {
+        uint256 count = _countValidSigners(safe.getOwners());
         uint256 min = minThreshold;
         uint256 max = targetThreshold;
         if (count < min) _threshold = min;
