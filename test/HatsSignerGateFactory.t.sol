@@ -98,7 +98,7 @@ contract HatsSignerGateFactoryTest is HSGFactoryTestSetup {
 
     function testCannotReinitializeHSGSingleton() public {
         bytes memory initializeParams =
-            abi.encode(ownerHat, signerHat, address(safe), HATS, minThreshold, targetThreshold, maxSigners, version);
+            abi.encode(ownerHat, signerHat, address(safe), HATS, minThreshold, targetThreshold, maxSigners, version, 0);
         vm.expectRevert("Initializable: contract is already initialized");
         singletonHatsSignerGate.setUp(initializeParams);
     }
@@ -167,7 +167,7 @@ contract HatsSignerGateFactoryTest is HSGFactoryTestSetup {
         signerHats[0] = signerHat;
 
         bytes memory initializeParams =
-            abi.encode(ownerHat, signerHats, address(safe), HATS, minThreshold, targetThreshold, maxSigners, version);
+            abi.encode(ownerHat, signerHats, address(safe), HATS, minThreshold, targetThreshold, maxSigners, version, 0);
         vm.expectRevert("Initializable: contract is already initialized");
         singletonMultiHatsSignerGate.setUp(initializeParams);
     }

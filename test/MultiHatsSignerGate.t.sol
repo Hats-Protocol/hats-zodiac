@@ -142,7 +142,6 @@ contract MultiHatsSignerGateTest is MHSGTestSetup {
         );
 
         // confirm it was not executed by checking ETH balance changes
-        // assertEq(address(safe).balance, preValue); // FIXME something weird is going on with vm.hoax();
         assertEq(destAddress.balance, 0);
         assertEq(safe.nonce(), preNonce);
     }

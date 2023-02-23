@@ -29,6 +29,9 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
     /// @notice The version of HatsSignerGate used in this contract
     string public version;
 
+    /// @notice The number of modules enabled on the `safe`, as enabled via this contract
+    uint256 public enabledModuleCount;
+
     /// @dev A simple re-entrency guard
     uint256 internal guardEntries;
 
@@ -64,7 +67,8 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         uint256 _minThreshold,
         uint256 _targetThreshold,
         uint256 _maxSigners,
-        string memory _version
+        string memory _version,
+        uint256 _existingModuleCount
     ) internal {
         _HatsOwned_init(_ownerHatId, _hats);
         maxSigners = _maxSigners;
@@ -73,6 +77,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         _setTargetThreshold(_targetThreshold);
         _setMinThreshold(_minThreshold);
         version = _version;
+        enabledModuleCount = _existingModuleCount + 1; // this contract is enabled as well
     }
 
     /// @notice Checks if `_account` is a valid signer
@@ -151,6 +156,22 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         minThreshold = _minThreshold;
     }
 
+    function enableNewModule(address _module) public onlyOwner {
+        ++enabledModuleCount;
+
+        bytes memory data = abi.encodeWithSignature("enableModule(address)", _module);
+        bool success = safe.execTransactionFromModule(
+            address(safe), // to
+            0, // value
+            data, // data
+            Enum.Operation.Call // operation
+        );
+
+        if (!success) {
+            revert FailedExecEnableModule();
+        }
+    }
+
     /// @notice Tallies the number of existing `safe` owners that wear a signer hat, sets `signerCount` to that value, and updates the `safe` threshold if necessary
     /// @dev Does NOT remove invalid `safe` owners
     function reconcileSignerCount() public {
@@ -221,7 +242,6 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         uint256 newThreshold = currentThreshold;
 
         bytes memory addOwnerData;
-        address[] memory owners = safe.getOwners(); // view function
 
         // if the only owner is a non-signer (ie this module set as an owner on initialization), replace it with _signer
         if (_owners.length == 1 && _owners[0] == address(this)) {
@@ -491,8 +511,8 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         }
 
         // SENTINEL_OWNERS and SENTINEL_MODULES are both 0x1
-        (address[] memory modules,) = safe.getModulesPaginated(SENTINEL_OWNERS, 2);
-        if (modules.length > 1) {
+        (address[] memory modules,) = safe.getModulesPaginated(SENTINEL_OWNERS, enabledModuleCount + 1);
+        if (modules.length > enabledModuleCount) {
             revert SignersCannotAddModules();
         }
 

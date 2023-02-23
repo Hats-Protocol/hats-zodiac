@@ -54,6 +54,9 @@ error FailedExecAddSigner();
 /// @notice Emitted when a call to remove a signer fails
 error FailedExecRemoveSigner();
 
+/// @notice Emitted when a call to enable a module fails
+error FailedExecEnableModule();
+
 /// @notice Cannot exececute a tx if `safeOnwerCount` < `minThreshold`
 error BelowMinThreshold(uint256 minThreshold, uint256 safeOwnerCount);
 
