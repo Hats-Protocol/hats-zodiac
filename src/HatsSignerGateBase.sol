@@ -224,7 +224,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         address[] memory owners = safe.getOwners(); // view function
 
         // if the only owner is a non-signer (ie this module set as an owner on initialization), replace it with _signer
-        if (owners.length == 1 && owners[0] == address(this)) {
+        if (_owners.length == 1 && _owners[0] == address(this)) {
             // prevOwner will always be the sentinel when owners.length == 1
 
             // set up the swapOwner call
@@ -285,7 +285,6 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         uint256 _currentSignerCount,
         address _signer
     ) internal {
-        uint256 currentThreshold = safe.getThreshold();
         address ownerToCheck;
         bytes memory data;
 
@@ -298,7 +297,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
                     "swapOwner(address,address,address)",
                     _findPrevOwner(_owners, ownerToCheck), // prevOwner
                     ownerToCheck, // oldOwner
-                    msg.sender // newOwner
+                    _signer // newOwner
                 );
 
                 // execute the swap, reverting if it fails for some reason
@@ -487,7 +486,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
             revert CannotDisableProtectedModules(address(this));
         }
 
-        if (safe.getThreshold() != _correctThreshold()) {
+        if (safe.getThreshold() != _getCorrectThreshold()) {
             revert SignersCannotChangeThreshold();
         }
 
