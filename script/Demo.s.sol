@@ -46,8 +46,7 @@ contract Demo is Script {
             member, // signer hat
             2, // min threshold
             3, // target threshold
-            5, // max signers
-            block.number // saltNonce
+            5 // max signers
         );
         hsg = HatsSignerGate(hsg_);
 

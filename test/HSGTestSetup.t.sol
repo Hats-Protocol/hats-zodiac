@@ -27,7 +27,7 @@ contract HSGTestSetup is HSGFactoryTestSetup, SignatureDecoder {
 
         // initSafeOwners[0] = address(this);
 
-        (pks, addresses) = createAddressesFromPks(6);
+        (pks, addresses) = createAddressesFromPks(10);
 
         version = "1.0";
 

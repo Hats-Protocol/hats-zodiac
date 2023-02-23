@@ -29,6 +29,9 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
     /// @notice The version of HatsSignerGate used in this contract
     string public version;
 
+    /// @notice The number of modules enabled on the `safe`, as enabled via this contract
+    uint256 public enabledModuleCount;
+
     /// @dev A simple re-entrency guard
     uint256 internal guardEntries;
 
@@ -38,12 +41,6 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
     /// @dev The storage slot used by GnosisSafe to store the guard address
     ///      keccak256("guard_manager.guard.address")
     bytes32 internal constant GUARD_STORAGE_SLOT = 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
-
-    /// @dev The Safe transaction EIP712 typehash
-    /// keccak256(
-    ///     "SafeTx(address to,uint256 value,bytes data,uint8 operation,uint256 safeTxGas,uint256 baseGas,uint256 gasPrice,address gasToken,address refundReceiver,uint256 nonce)"
-    /// );
-    bytes32 private constant SAFE_TX_TYPEHASH = 0xbb8310d486368db6bd6f849402fdd73ad53d316b5a4b2644ad6efe0f941286d8;
 
     /// @dev Makes the singleton unusable by setting its owner to the 1-address
     constructor() payable initializer {
@@ -70,7 +67,8 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         uint256 _minThreshold,
         uint256 _targetThreshold,
         uint256 _maxSigners,
-        string memory _version
+        string memory _version,
+        uint256 _existingModuleCount
     ) internal {
         _HatsOwned_init(_ownerHatId, _hats);
         maxSigners = _maxSigners;
@@ -79,6 +77,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         _setTargetThreshold(_targetThreshold);
         _setMinThreshold(_minThreshold);
         version = _version;
+        enabledModuleCount = _existingModuleCount + 1; // this contract is enabled as well
     }
 
     /// @notice Checks if `_account` is a valid signer
@@ -157,16 +156,45 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         minThreshold = _minThreshold;
     }
 
+    function enableNewModule(address _module) public onlyOwner {
+        ++enabledModuleCount;
+
+        bytes memory data = abi.encodeWithSignature("enableModule(address)", _module);
+        bool success = safe.execTransactionFromModule(
+            address(safe), // to
+            0, // value
+            data, // data
+            Enum.Operation.Call // operation
+        );
+
+        if (!success) {
+            revert FailedExecEnableModule();
+        }
+    }
+
     /// @notice Tallies the number of existing `safe` owners that wear a signer hat, sets `signerCount` to that value, and updates the `safe` threshold if necessary
     /// @dev Does NOT remove invalid `safe` owners
     function reconcileSignerCount() public {
         address[] memory owners = safe.getOwners();
         uint256 validSignerCount = _countValidSigners(owners);
 
+        if (validSignerCount > maxSigners) {
+            revert MaxSignersReached();
+        }
+
         // update the signer count accordingly
         signerCount = validSignerCount;
 
-        if (validSignerCount <= targetThreshold && validSignerCount != safe.getThreshold()) {
+        uint256 currentThreshold = safe.getThreshold();
+        uint256 newThreshold;
+        uint256 target = targetThreshold; // save SLOADs
+
+        if (validSignerCount <= target && validSignerCount != currentThreshold) {
+            newThreshold = validSignerCount;
+        } else if (validSignerCount > target && currentThreshold < target) {
+            newThreshold = target;
+        }
+        if (newThreshold > 0) {
             bytes memory data = abi.encodeWithSignature("changeThreshold(uint256)", validSignerCount);
 
             bool success = safe.execTransactionFromModule(
@@ -184,6 +212,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
 
     /// @notice Internal function to count the number of valid signers in an array of addresses
     /// @param owners The addresses to check for validity
+    /// @return validSignerCount The number of valid signers in `owners`
     function _countValidSigners(address[] memory owners) internal view returns (uint256 validSignerCount) {
         uint256 length = owners.length;
         // count the existing safe owners that wear the signer hat
@@ -203,18 +232,19 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
 
     /// @notice Internal function that adds `_signer` as an owner on `safe`, updating the threshold if appropriate
     /// @dev Unsafe. Does not check if `_signer` is a valid signer
+    /// @param _owners Array of owners on the `safe`
+    /// @param _currentSignerCount The current number of signers
     /// @param _signer The address to add as a new `safe` owner
-    function _grantSigner(address _signer) internal {
-        uint256 newSignerCount = signerCount;
+    function _grantSigner(address[] memory _owners, uint256 _currentSignerCount, address _signer) internal {
+        uint256 newSignerCount = _currentSignerCount;
 
         uint256 currentThreshold = safe.getThreshold(); // view function
         uint256 newThreshold = currentThreshold;
 
         bytes memory addOwnerData;
-        address[] memory owners = safe.getOwners(); // view function
 
         // if the only owner is a non-signer (ie this module set as an owner on initialization), replace it with _signer
-        if (owners.length == 1 && owners[0] == address(this)) {
+        if (_owners.length == 1 && _owners[0] == address(this)) {
             // prevOwner will always be the sentinel when owners.length == 1
 
             // set up the swapOwner call
@@ -258,6 +288,57 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
 
         if (!success) {
             revert FailedExecAddSigner();
+        }
+    }
+
+    /// @notice Internal function that adds `_signer` as an owner on `safe` by swapping with an existing (invalid) owner
+    /// @dev Unsafe. Does not check if `_signer` is a valid signer.
+    /// @param _owners Array of owners on the `safe`
+    /// @param _ownerCount The number of owners on the `safe` (length of `_owners` array)
+    /// @param _maxSigners The maximum number of signers allowed
+    /// @param _currentSignerCount The current number of signers
+    /// @param _signer The address to add as a new `safe` owner
+    function _swapSigner(
+        address[] memory _owners,
+        uint256 _ownerCount,
+        uint256 _maxSigners,
+        uint256 _currentSignerCount,
+        address _signer
+    ) internal {
+        address ownerToCheck;
+        bytes memory data;
+
+        for (uint256 i; i < _ownerCount - 1;) {
+            ownerToCheck = _owners[i];
+
+            if (!isValidSigner(ownerToCheck)) {
+                // prep the swap
+                data = abi.encodeWithSignature(
+                    "swapOwner(address,address,address)",
+                    _findPrevOwner(_owners, ownerToCheck), // prevOwner
+                    ownerToCheck, // oldOwner
+                    _signer // newOwner
+                );
+
+                // execute the swap, reverting if it fails for some reason
+                bool success = safe.execTransactionFromModule(
+                    address(safe), // to
+                    0, // value
+                    data, // data
+                    Enum.Operation.Call // operation
+                );
+
+                if (!success) {
+                    revert FailedExecRemoveSigner();
+                }
+
+                // increment the signer count if signerCount was correct, ie `reconcileSignerCount` was called prior
+                if (_currentSignerCount < _maxSigners) ++signerCount;
+                break;
+            }
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -367,7 +448,13 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         bytes memory signatures,
         address // msgSender
     ) external override {
+        if (msg.sender != address(safe)) revert NotCalledFromSafe();
+
         uint256 safeOwnerCount = safe.getOwners().length;
+        // uint256 validSignerCount = _countValidSigners(safe.getOwners());
+
+        // ensure that safe threshold is correct
+        reconcileSignerCount();
 
         if (safeOwnerCount < minThreshold) {
             revert BelowMinThreshold(minThreshold, safeOwnerCount);
@@ -394,7 +481,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         uint256 validSigCount = countValidSignatures(txHash, signatures, signatures.length / 65);
 
         // revert if there aren't enough valid signatures
-        if (validSigCount < safe.getThreshold()) {
+        if (validSigCount < safe.getThreshold() || validSigCount < minThreshold) {
             revert InvalidSigners();
         }
 
@@ -405,8 +492,9 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
 
     /// @notice Post-flight check to prevent `safe` signers from removing this contract as a guard or as a module, and from changing the threshold
     /// @dev Modified from https://github.com/gnosis/zodiac-guard-mod/blob/988ebc7b71e352f121a0be5f6ae37e79e47a4541/contracts/ModGuard.sol#L86
-    // TODO check on safety changes to above
     function checkAfterExecution(bytes32, bool) external override {
+        if (msg.sender != address(safe)) revert NotCalledFromSafe();
+
         if (
             abi.decode(StorageAccessible(address(safe)).getStorageAt(uint256(GUARD_STORAGE_SLOT), 1), (address))
                 != address(this)
@@ -418,18 +506,24 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
             revert CannotDisableProtectedModules(address(this));
         }
 
-        if (safe.getThreshold() != _correctThreshold()) {
+        if (safe.getThreshold() != _getCorrectThreshold()) {
             revert SignersCannotChangeThreshold();
+        }
+
+        // SENTINEL_OWNERS and SENTINEL_MODULES are both 0x1
+        (address[] memory modules,) = safe.getModulesPaginated(SENTINEL_OWNERS, enabledModuleCount + 1);
+        if (modules.length > enabledModuleCount) {
+            revert SignersCannotAddModules();
         }
 
         // leave checked to catch underflows triggered by re-erntry attempts
         --guardEntries;
     }
 
-    /// @notice Internal function to calculate the threshold that `safe` should have, given the current `signerCount`, `minThreshold`, and `targetThreshold`
+    /// @notice Internal function to calculate the threshold that `safe` should have, given the correct `signerCount`, `minThreshold`, and `targetThreshold`
     /// @return _threshold The correct threshold
-    function _correctThreshold() internal view returns (uint256 _threshold) {
-        uint256 count = signerCount; // save an SLOAD
+    function _getCorrectThreshold() internal view returns (uint256 _threshold) {
+        uint256 count = _countValidSigners(safe.getOwners());
         uint256 min = minThreshold;
         uint256 max = targetThreshold;
         if (count < min) _threshold = min;

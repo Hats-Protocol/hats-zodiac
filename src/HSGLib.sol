@@ -33,7 +33,7 @@ error GuardAlreadySet();
 /// @notice Can't remove a signer if they're still wearing the signer hat
 error StillWearsSignerHat(address signer);
 
-/// @notice Can't add more signers than designated by `maxSigners`
+/// @notice Can never have more signers than designated by `maxSigners`
 error MaxSignersReached();
 
 /// @notice Target threshold must be lower than `maxSigners`
@@ -54,6 +54,9 @@ error FailedExecAddSigner();
 /// @notice Emitted when a call to remove a signer fails
 error FailedExecRemoveSigner();
 
+/// @notice Emitted when a call to enable a module fails
+error FailedExecEnableModule();
+
 /// @notice Cannot exececute a tx if `safeOnwerCount` < `minThreshold`
 error BelowMinThreshold(uint256 minThreshold, uint256 safeOwnerCount);
 
@@ -62,3 +65,10 @@ error InvalidSignerHat(uint256 hatId);
 
 /// @notice Signers are not allowed to change the threshold
 error SignersCannotChangeThreshold();
+
+/// @notice Signers are not allowed to add new modules
+error SignersCannotAddModules();
+
+/// @notice Emmitted when a call to `checkTransaction` or `checkAfterExecution` is not made from the `safe`
+/// @dev Together with `guardEntries`, protects against arbitrary reentrancy attacks by the signers
+error NotCalledFromSafe();

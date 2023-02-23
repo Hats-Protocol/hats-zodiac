@@ -42,15 +42,7 @@ contract HatsSignerGateFactoryTest is HSGFactoryTestSetup {
         safe = deploySafe(initSafeOwners, 1);
 
         hatsSignerGate = HatsSignerGate(
-            factory.deployHatsSignerGate(
-                ownerHat,
-                signerHat,
-                address(safe),
-                minThreshold,
-                targetThreshold,
-                maxSigners,
-                2 // saltNonce
-            )
+            factory.deployHatsSignerGate(ownerHat, signerHat, address(safe), minThreshold, targetThreshold, maxSigners)
         );
 
         assertEq(safe.getOwners()[0], address(this));
@@ -106,7 +98,7 @@ contract HatsSignerGateFactoryTest is HSGFactoryTestSetup {
 
     function testCannotReinitializeHSGSingleton() public {
         bytes memory initializeParams =
-            abi.encode(ownerHat, signerHat, address(safe), HATS, minThreshold, targetThreshold, maxSigners, version);
+            abi.encode(ownerHat, signerHat, address(safe), HATS, minThreshold, targetThreshold, maxSigners, version, 0);
         vm.expectRevert("Initializable: contract is already initialized");
         singletonHatsSignerGate.setUp(initializeParams);
     }
@@ -125,13 +117,7 @@ contract HatsSignerGateFactoryTest is HSGFactoryTestSetup {
 
         multiHatsSignerGate = MultiHatsSignerGate(
             factory.deployMultiHatsSignerGate(
-                ownerHat,
-                signerHats,
-                address(safe),
-                minThreshold,
-                targetThreshold,
-                maxSigners,
-                2 // saltNonce
+                ownerHat, signerHats, address(safe), minThreshold, targetThreshold, maxSigners
             )
         );
 
@@ -181,7 +167,7 @@ contract HatsSignerGateFactoryTest is HSGFactoryTestSetup {
         signerHats[0] = signerHat;
 
         bytes memory initializeParams =
-            abi.encode(ownerHat, signerHats, address(safe), HATS, minThreshold, targetThreshold, maxSigners, version);
+            abi.encode(ownerHat, signerHats, address(safe), HATS, minThreshold, targetThreshold, maxSigners, version, 0);
         vm.expectRevert("Initializable: contract is already initialized");
         singletonMultiHatsSignerGate.setUp(initializeParams);
     }

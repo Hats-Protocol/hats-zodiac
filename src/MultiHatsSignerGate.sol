@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: CC0
 pragma solidity >=0.8.13;
 
-import { Test, console2 } from "forge-std/Test.sol"; // remove after testing
-import { HatsSignerGateBase } from "./HatsSignerGateBase.sol";
+// import { Test, console2 } from "forge-std/Test.sol"; // remove after testing
+import { HatsSignerGateBase, IGnosisSafe, Enum } from "./HatsSignerGateBase.sol";
 import "./HSGLib.sol";
 
 contract MultiHatsSignerGate is HatsSignerGateBase {
@@ -24,18 +24,23 @@ contract MultiHatsSignerGate is HatsSignerGateBase {
             uint256 _minThreshold,
             uint256 _targetThreshold,
             uint256 _maxSigners,
-            string memory _version
-        ) = abi.decode(initializeParams, (uint256, uint256[], address, address, uint256, uint256, uint256, string));
+            string memory _version,
+            uint256 _existingModuleCount
+        ) = abi.decode(
+            initializeParams, (uint256, uint256[], address, address, uint256, uint256, uint256, string, uint256)
+        );
 
-        _setUp(_ownerHatId, _safe, _hats, _minThreshold, _targetThreshold, _maxSigners, _version);
+        _setUp(_ownerHatId, _safe, _hats, _minThreshold, _targetThreshold, _maxSigners, _version, _existingModuleCount);
 
         _addSignerHats(_signerHats);
     }
 
     /// @notice Function to become an owner on the safe if you are wearing `_hatId` and `_hatId` is a valid signer hat
-    /// @dev overloads HatsSignerGateBase.claimSigner()
     function claimSigner(uint256 _hatId) public {
-        if (signerCount == maxSigners) {
+        uint256 maxSigs = maxSigners; // save SLOADs
+        uint256 currentSignerCount = signerCount;
+
+        if (currentSignerCount >= maxSigs) {
             revert MaxSignersReached();
         }
 
@@ -51,10 +56,22 @@ contract MultiHatsSignerGate is HatsSignerGateBase {
             revert NotSignerHatWearer(msg.sender);
         }
 
-        // register the hat used to claim. This will be the hat checked in `checkTransaction() for this signer`
-        claimedSignerHats[msg.sender] = _hatId;
+        /* 
+        We check the safe owner count in case there are existing owners who are no longer valid signers. 
+        If we're already at maxSigners, we'll replace one of the invalid owners by swapping the signer.
+        Otherwise, we'll simply add the new signer.
+        */
+        address[] memory owners = safe.getOwners();
+        uint256 ownerCount = owners.length;
 
-        _grantSigner(msg.sender);
+        if (ownerCount >= maxSigs) {
+            _swapSigner(owners, ownerCount, maxSigs, currentSignerCount, msg.sender);
+        } else {
+            _grantSigner(owners, currentSignerCount, msg.sender);
+        }
+
+        // register the hat used to claim. This will be the hat checked in `checkTransaction()` for this signer
+        claimedSignerHats[msg.sender] = _hatId;
     }
 
     /// @notice Checks if `_account` is a valid signer, ie is wearing the signer hat

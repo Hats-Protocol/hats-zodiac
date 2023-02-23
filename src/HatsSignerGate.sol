@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: CC0
 pragma solidity >=0.8.13;
 
-import { Test, console2 } from "forge-std/Test.sol"; // remove after testing
-import { HatsSignerGateBase } from "./HatsSignerGateBase.sol";
+// import { Test, console2 } from "forge-std/Test.sol"; // remove after testing
+import { HatsSignerGateBase, IGnosisSafe, Enum } from "./HatsSignerGateBase.sol";
 import "./HSGLib.sol";
 
 contract HatsSignerGate is HatsSignerGateBase {
@@ -20,10 +20,13 @@ contract HatsSignerGate is HatsSignerGateBase {
             uint256 _minThreshold,
             uint256 _targetThreshold,
             uint256 _maxSigners,
-            string memory _version
-        ) = abi.decode(initializeParams, (uint256, uint256, address, address, uint256, uint256, uint256, string));
+            string memory _version,
+            uint256 _existingModuleCount
+        ) = abi.decode(
+            initializeParams, (uint256, uint256, address, address, uint256, uint256, uint256, string, uint256)
+        );
 
-        _setUp(_ownerHatId, _safe, _hats, _minThreshold, _targetThreshold, _maxSigners, _version);
+        _setUp(_ownerHatId, _safe, _hats, _minThreshold, _targetThreshold, _maxSigners, _version, _existingModuleCount);
 
         signersHatId = _signersHatId;
     }
@@ -31,7 +34,10 @@ contract HatsSignerGate is HatsSignerGateBase {
     /// @notice Claims signer rights for `msg.sender` if `msg.sender` is a valid & new signer, updating the threshold if appropriate
     /// @dev Reverts if `maxSigners` has been reached
     function claimSigner() public virtual {
-        if (signerCount == maxSigners) {
+        uint256 maxSigs = maxSigners; // save SLOADs
+        uint256 currentSignerCount = signerCount;
+
+        if (currentSignerCount >= maxSigs) {
             revert MaxSignersReached();
         }
 
@@ -43,7 +49,19 @@ contract HatsSignerGate is HatsSignerGateBase {
             revert NotSignerHatWearer(msg.sender);
         }
 
-        _grantSigner(msg.sender);
+        /* 
+        We check the safe owner count in case there are existing owners who are no longer valid signers. 
+        If we're already at maxSigners, we'll replace one of the invalid owners by swapping the signer.
+        Otherwise, we'll simply add the new signer.
+        */
+        address[] memory owners = safe.getOwners();
+        uint256 ownerCount = owners.length;
+
+        if (ownerCount >= maxSigs) {
+            _swapSigner(owners, ownerCount, maxSigs, currentSignerCount, msg.sender);
+        } else {
+            _grantSigner(owners, currentSignerCount, msg.sender);
+        }
     }
 
     /// @notice Checks if `_account` is a valid signer, ie is wearing the signer hat

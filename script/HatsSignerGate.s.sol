@@ -14,7 +14,6 @@ contract DeployHatsSignerGate is Script {
     uint256 public minThreshold = 3;
     uint256 public targetThreshold = 3;
     uint256 public maxSigners = 9;
-    uint256 public saltNonce = 1;
     // string public version = "MC Super Scouts Demo #1";
     // string public version = "Rinkeby test #5";
 
@@ -26,9 +25,7 @@ contract DeployHatsSignerGate is Script {
         vm.startBroadcast(deployer);
 
         /* ddress hatsSignerGate = */
-        hsgFactory.deployHatsSignerGate(
-            ownerHatId, signersHatId, safe, minThreshold, targetThreshold, maxSigners, saltNonce
-        );
+        hsgFactory.deployHatsSignerGate(ownerHatId, signersHatId, safe, minThreshold, targetThreshold, maxSigners);
 
         vm.stopBroadcast();
     }
