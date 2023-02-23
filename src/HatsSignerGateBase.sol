@@ -298,13 +298,14 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
     /// @param _maxSigners The maximum number of signers allowed
     /// @param _currentSignerCount The current number of signers
     /// @param _signer The address to add as a new `safe` owner
+    /// @return success Whether an invalid signer was found and successfully replaced with `_signer`
     function _swapSigner(
         address[] memory _owners,
         uint256 _ownerCount,
         uint256 _maxSigners,
         uint256 _currentSignerCount,
         address _signer
-    ) internal {
+    ) internal returns (bool success) {
         address ownerToCheck;
         bytes memory data;
 
@@ -321,7 +322,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
                 );
 
                 // execute the swap, reverting if it fails for some reason
-                bool success = safe.execTransactionFromModule(
+                success = safe.execTransactionFromModule(
                     address(safe), // to
                     0, // value
                     data, // data

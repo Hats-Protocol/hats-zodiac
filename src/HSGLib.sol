@@ -36,6 +36,10 @@ error StillWearsSignerHat(address signer);
 /// @notice Can never have more signers than designated by `maxSigners`
 error MaxSignersReached();
 
+/// @notice Emitted when a valid signer attempts `claimSigner` but there are already `maxSigners` signers
+/// @dev This will only occur if `signerCount` is out of sync with the current number of valid signers, which can be resolved by calling `reconcileSignerCount`
+error NoInvalidSignersToReplace();
+
 /// @notice Target threshold must be lower than `maxSigners`
 error InvalidTargetThreshold();
 

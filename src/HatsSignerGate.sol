@@ -58,7 +58,10 @@ contract HatsSignerGate is HatsSignerGateBase {
         uint256 ownerCount = owners.length;
 
         if (ownerCount >= maxSigs) {
-            _swapSigner(owners, ownerCount, maxSigs, currentSignerCount, msg.sender);
+            bool success = _swapSigner(owners, ownerCount, maxSigs, currentSignerCount, msg.sender);
+            if (!success) {
+                revert NoInvalidSignersToReplace();
+            }
         } else {
             _grantSigner(owners, currentSignerCount, msg.sender);
         }
