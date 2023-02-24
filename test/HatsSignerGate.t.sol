@@ -496,9 +496,9 @@ contract HatsSignerGateTest is HSGTestSetup {
         mockIsWearerCall(addresses[0], signerHat, true);
         mockIsWearerCall(addresses[1], signerHat, true);
 
-        vm.expectRevert(abi.encodeWithSelector(CannotDisableProtectedModules.selector, address(hatsSignerGate)));
+        vm.expectRevert(SignersCannotChangeModules.selector);
+        
         // execute tx
-
         safe.execTransaction(
             address(safe),
             0,
@@ -732,7 +732,7 @@ contract HatsSignerGateTest is HSGTestSetup {
         mockIsWearerCall(addresses[0], signerHat, true);
         mockIsWearerCall(addresses[1], signerHat, true);
 
-        vm.expectRevert(SignersCannotAddModules.selector);
+        vm.expectRevert(SignersCannotChangeModules.selector);
 
         // execute tx
         safe.execTransaction(
@@ -774,7 +774,7 @@ contract HatsSignerGateTest is HSGTestSetup {
         mockIsWearerCall(addresses[0], signerHat, true);
         mockIsWearerCall(addresses[1], signerHat, true);
 
-        vm.expectRevert(SignersCannotAddModules.selector);
+        vm.expectRevert(SignersCannotChangeModules.selector);
 
         // execute tx
         safe.execTransaction(
@@ -872,5 +872,9 @@ contract HatsSignerGateTest is HSGTestSetup {
         vm.prank(addresses[5]);
         vm.expectRevert(NoInvalidSignersToReplace.selector);
         hatsSignerGate.claimSigner();
+    }
+
+    function testSignersCannotChangeModules() public {
+        //
     }
 }

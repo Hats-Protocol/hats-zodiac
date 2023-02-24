@@ -32,8 +32,11 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
     /// @notice The number of modules enabled on the `safe`, as enabled via this contract
     uint256 public enabledModuleCount;
 
+    /// @dev Temporary record of the existing modules on the `safe` when a transaction is submitted
+    bytes32 internal _existingModulesHash;
+    
     /// @dev A simple re-entrency guard
-    uint256 internal guardEntries;
+    uint256 internal _guardEntries;
 
     /// @dev The head pointer used in the GnosisSafe owners linked list
     address internal constant SENTINEL_OWNERS = address(0x1);
@@ -486,12 +489,17 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
             revert InvalidSigners();
         }
 
+        // record existing modules for post-flight check
+        // SENTINEL_OWNERS and SENTINEL_MODULES are both address(0x1)
+        (address[] memory modules,) = safe.getModulesPaginated(SENTINEL_OWNERS, enabledModuleCount);
+        _existingModulesHash = keccak256(abi.encode(modules));
+
         unchecked {
-            ++guardEntries;
+            ++_guardEntries;
         }
     }
 
-    /// @notice Post-flight check to prevent `safe` signers from removing this contract as a guard or as a module, and from changing the threshold
+    /// @notice Post-flight check to prevent `safe` signers from removing this contract guard, changing any modules, or changing the threshold
     /// @dev Modified from https://github.com/gnosis/zodiac-guard-mod/blob/988ebc7b71e352f121a0be5f6ae37e79e47a4541/contracts/ModGuard.sol#L86
     function checkAfterExecution(bytes32, bool) external override {
         if (msg.sender != address(safe)) revert NotCalledFromSafe();
@@ -503,22 +511,18 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
             revert CannotDisableThisGuard(address(this));
         }
 
-        if (!IAvatar(address(safe)).isModuleEnabled(address(this))) {
-            revert CannotDisableProtectedModules(address(this));
-        }
-
         if (safe.getThreshold() != _getCorrectThreshold()) {
             revert SignersCannotChangeThreshold();
         }
 
-        // SENTINEL_OWNERS and SENTINEL_MODULES are both 0x1
+        // SENTINEL_OWNERS and SENTINEL_MODULES are both address(0x1)
         (address[] memory modules,) = safe.getModulesPaginated(SENTINEL_OWNERS, enabledModuleCount + 1);
-        if (modules.length > enabledModuleCount) {
-            revert SignersCannotAddModules();
+        if (keccak256(abi.encode(modules)) != _existingModulesHash) {
+            revert SignersCannotChangeModules();
         }
 
         // leave checked to catch underflows triggered by re-erntry attempts
-        --guardEntries;
+        --_guardEntries;
     }
 
     /// @notice Internal function to calculate the threshold that `safe` should have, given the correct `signerCount`, `minThreshold`, and `targetThreshold`

@@ -15,9 +15,6 @@ library HSGLib {
 /// @notice Signers are not allowed to disable the HatsSignerGate guard
 error CannotDisableThisGuard(address guard);
 
-/// @notice Signers are not allowed to disable the HatsSignerGate module
-error CannotDisableProtectedModules(address module);
-
 /// @notice Only the wearer of the owner Hat can make changes to this contract
 error NotOwnerHatWearer(address user);
 
@@ -71,7 +68,7 @@ error InvalidSignerHat(uint256 hatId);
 error SignersCannotChangeThreshold();
 
 /// @notice Signers are not allowed to add new modules
-error SignersCannotAddModules();
+error SignersCannotChangeModules();
 
 /// @notice Emmitted when a call to `checkTransaction` or `checkAfterExecution` is not made from the `safe`
 /// @dev Together with `guardEntries`, protects against arbitrary reentrancy attacks by the signers
