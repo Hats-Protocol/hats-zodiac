@@ -38,7 +38,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
     /// @dev A simple re-entrency guard
     uint256 internal _guardEntries;
 
-    /// @dev The head pointer used in the GnosisSafe owners linked list
+    /// @dev The head pointer used in the GnosisSafe owners linked list, as well as the module linked list
     address internal constant SENTINEL_OWNERS = address(0x1);
 
     /// @dev The storage slot used by GnosisSafe to store the guard address
@@ -159,7 +159,10 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         minThreshold = _minThreshold;
     }
 
-    function enableNewModule(address _module) public onlyOwner {
+    /// @notice Allows the owner to enable a new module on the `safe`
+    /// @dev Increments the `enabledModuleCount` to include the new module in the allowed list (see `checkTransaction` and `checkAfterExecution`)
+    /// @param _module The address of the module to enable
+    function enableNewModule(address _module) external onlyOwner {
         ++enabledModuleCount;
 
         bytes memory data = abi.encodeWithSignature("enableModule(address)", _module);

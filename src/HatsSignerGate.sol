@@ -31,8 +31,8 @@ contract HatsSignerGate is HatsSignerGateBase {
         signersHatId = _signersHatId;
     }
 
-    /// @notice Claims signer rights for `msg.sender` if `msg.sender` is a valid & new signer, updating the threshold if appropriate
-    /// @dev Reverts if `maxSigners` has been reached
+    /// @notice Function to become an owner on the safe if you are wearing the signers hat
+    /// @dev Reverts if `maxSigners` has been reached, the caller is either invalid or has already claimed. Swaps caller with existing invalid owner if relevant.
     function claimSigner() public virtual {
         uint256 maxSigs = maxSigners; // save SLOADs
         uint256 currentSignerCount = signerCount;
@@ -58,8 +58,9 @@ contract HatsSignerGate is HatsSignerGateBase {
         uint256 ownerCount = owners.length;
 
         if (ownerCount >= maxSigs) {
-            bool success = _swapSigner(owners, ownerCount, maxSigs, currentSignerCount, msg.sender);
-            if (!success) {
+            bool swapped = _swapSigner(owners, ownerCount, maxSigs, currentSignerCount, msg.sender);
+            if (!swapped) {
+                // if there are no invalid owners, we can't add a new signer, so we revert
                 revert NoInvalidSignersToReplace();
             }
         } else {
