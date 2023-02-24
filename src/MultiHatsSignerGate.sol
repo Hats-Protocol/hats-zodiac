@@ -36,6 +36,8 @@ contract MultiHatsSignerGate is HatsSignerGateBase {
     }
 
     /// @notice Function to become an owner on the safe if you are wearing `_hatId` and `_hatId` is a valid signer hat
+    /// @dev Reverts if `maxSigners` has been reached, the caller is either invalid or has already claimed. Swaps caller with existing invalid owner if relevant.
+    /// @param _hatId The hat id to claim signer rights for
     function claimSigner(uint256 _hatId) public {
         uint256 maxSigs = maxSigners; // save SLOADs
         uint256 currentSignerCount = signerCount;
@@ -65,7 +67,11 @@ contract MultiHatsSignerGate is HatsSignerGateBase {
         uint256 ownerCount = owners.length;
 
         if (ownerCount >= maxSigs) {
-            _swapSigner(owners, ownerCount, maxSigs, currentSignerCount, msg.sender);
+            bool swapped = _swapSigner(owners, ownerCount, maxSigs, currentSignerCount, msg.sender);
+            if (!swapped) {
+                // if there are no invalid owners, we can't add a new signer, so we revert
+                revert NoInvalidSignersToReplace();
+            }
         } else {
             _grantSigner(owners, currentSignerCount, msg.sender);
         }
@@ -105,6 +111,8 @@ contract MultiHatsSignerGate is HatsSignerGateBase {
     }
 
     /// @notice A `_hatId` is valid if it is included in the `validSignerHats` mapping
+    /// @param _hatId The hat id to check
+    /// @return valid Whether `_hatId` is a valid signer hat
     function isValidSignerHat(uint256 _hatId) public view returns (bool valid) {
         valid = validSignerHats[_hatId];
     }

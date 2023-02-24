@@ -496,9 +496,9 @@ contract HatsSignerGateTest is HSGTestSetup {
         mockIsWearerCall(addresses[0], signerHat, true);
         mockIsWearerCall(addresses[1], signerHat, true);
 
-        vm.expectRevert(abi.encodeWithSelector(CannotDisableProtectedModules.selector, address(hatsSignerGate)));
+        vm.expectRevert(SignersCannotChangeModules.selector);
+        
         // execute tx
-
         safe.execTransaction(
             address(safe),
             0,
@@ -732,7 +732,7 @@ contract HatsSignerGateTest is HSGTestSetup {
         mockIsWearerCall(addresses[0], signerHat, true);
         mockIsWearerCall(addresses[1], signerHat, true);
 
-        vm.expectRevert(SignersCannotAddModules.selector);
+        vm.expectRevert(SignersCannotChangeModules.selector);
 
         // execute tx
         safe.execTransaction(
@@ -774,7 +774,7 @@ contract HatsSignerGateTest is HSGTestSetup {
         mockIsWearerCall(addresses[0], signerHat, true);
         mockIsWearerCall(addresses[1], signerHat, true);
 
-        vm.expectRevert(SignersCannotAddModules.selector);
+        vm.expectRevert(SignersCannotChangeModules.selector);
 
         // execute tx
         safe.execTransaction(
@@ -845,5 +845,36 @@ contract HatsSignerGateTest is HSGTestSetup {
             payable(address(0)),
             signatures
         );
+    }
+
+    function testCannotClaimSignerIfNoInvalidSigners() public {
+        console2.log("A");
+        assertEq(maxSigners, 5);
+        addSigners(5);
+        // one signer loses their hat
+        mockIsWearerCall(addresses[4], signerHat, false);
+        console2.log("B");
+        assertEq(hatsSignerGate.signerCount(), 5);
+
+        // reconcile is called, updating signer count to 4
+        hatsSignerGate.reconcileSignerCount();
+        console2.log("C");
+        assertEq(hatsSignerGate.signerCount(), 4);
+
+        // bad signer regains their hat
+        mockIsWearerCall(addresses[4], signerHat, true);
+        // signer count is still 4 because reoncile hasn't been called again
+        console2.log("D");
+        assertEq(hatsSignerGate.signerCount(), 4);
+        
+        // new valid signer tries to claim, but can't because
+        mockIsWearerCall(addresses[5], signerHat, true);
+        vm.prank(addresses[5]);
+        vm.expectRevert(NoInvalidSignersToReplace.selector);
+        hatsSignerGate.claimSigner();
+    }
+
+    function testSignersCannotChangeModules() public {
+        //
     }
 }

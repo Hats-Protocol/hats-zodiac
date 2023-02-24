@@ -15,9 +15,6 @@ library HSGLib {
 /// @notice Signers are not allowed to disable the HatsSignerGate guard
 error CannotDisableThisGuard(address guard);
 
-/// @notice Signers are not allowed to disable the HatsSignerGate module
-error CannotDisableProtectedModules(address module);
-
 /// @notice Only the wearer of the owner Hat can make changes to this contract
 error NotOwnerHatWearer(address user);
 
@@ -35,6 +32,10 @@ error StillWearsSignerHat(address signer);
 
 /// @notice Can never have more signers than designated by `maxSigners`
 error MaxSignersReached();
+
+/// @notice Emitted when a valid signer attempts `claimSigner` but there are already `maxSigners` signers
+/// @dev This will only occur if `signerCount` is out of sync with the current number of valid signers, which can be resolved by calling `reconcileSignerCount`
+error NoInvalidSignersToReplace();
 
 /// @notice Target threshold must be lower than `maxSigners`
 error InvalidTargetThreshold();
@@ -67,7 +68,7 @@ error InvalidSignerHat(uint256 hatId);
 error SignersCannotChangeThreshold();
 
 /// @notice Signers are not allowed to add new modules
-error SignersCannotAddModules();
+error SignersCannotChangeModules();
 
 /// @notice Emmitted when a call to `checkTransaction` or `checkAfterExecution` is not made from the `safe`
 /// @dev Together with `guardEntries`, protects against arbitrary reentrancy attacks by the signers
