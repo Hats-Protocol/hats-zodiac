@@ -7,16 +7,13 @@ import "../src/HatsSignerGateFactory.sol";
 
 contract DeployHatsSignerGate is Script {
     HatsSignerGateFactory public hsgFactory; // to deploy
-    uint256 public ownerHatId =
-        80879840001451919384001045261058892020911433267621717443310830747648;
-    uint256 public signersHatId =
-        80985152293120476570698963288742562453230328363022266554565141725184;
+    uint256 public ownerHatId = 80879840001451919384001045261058892020911433267621717443310830747648;
+    uint256 public signersHatId = 80985152293120476570698963288742562453230328363022266554565141725184;
     address public safe = 0x56c7A84Cf42Cfe70BfdF14140747ffc63b96E51A;
     // address public hats = 0x245e5B56C18B18aC2d72F94C5F7bE1D52497A8aD;
     uint256 public minThreshold = 3;
     uint256 public targetThreshold = 3;
     uint256 public maxSigners = 9;
-    uint256 public saltNonce = 1;
     // string public version = "MC Super Scouts Demo #1";
     // string public version = "Rinkeby test #5";
 
@@ -27,15 +24,8 @@ contract DeployHatsSignerGate is Script {
         address deployer = vm.rememberKey(privKey);
         vm.startBroadcast(deployer);
 
-        address hatsSignerGate = hsgFactory.deployHatsSignerGate(
-            ownerHatId,
-            signersHatId,
-            safe,
-            minThreshold,
-            targetThreshold,
-            maxSigners,
-            saltNonce
-        );
+        /* ddress hatsSignerGate = */
+        hsgFactory.deployHatsSignerGate(ownerHatId, signersHatId, safe, minThreshold, targetThreshold, maxSigners);
 
         vm.stopBroadcast();
     }

@@ -3,6 +3,7 @@ pragma solidity ^0.8.13;
 
 import "./HSGFactoryTestSetup.t.sol";
 import "./HatsSignerGateFactory.t.sol";
+import "../src/HSGLib.sol";
 import "@gnosis.pm/safe-contracts/contracts/common/SignatureDecoder.sol";
 import "@gnosis.pm/safe-contracts/contracts/common/Enum.sol";
 
@@ -26,12 +27,13 @@ contract HSGTestSetup is HSGFactoryTestSetup, SignatureDecoder {
 
         // initSafeOwners[0] = address(this);
 
-        (pks, addresses) = createAddressesFromPks(6);
+        (pks, addresses) = createAddressesFromPks(10);
 
         version = "1.0";
 
         factory = new HatsSignerGateFactory(
             address(singletonHatsSignerGate),
+            address(singletonMultiHatsSignerGate),
             HATS,
             address(singletonSafe),
             gnosisFallbackLibrary,
@@ -41,13 +43,7 @@ contract HSGTestSetup is HSGFactoryTestSetup, SignatureDecoder {
             version
         );
 
-        (hatsSignerGate, safe) = deployHSGAndSafe(
-            ownerHat,
-            signerHat,
-            minThreshold,
-            targetThreshold,
-            maxSigners
-        );
+        (hatsSignerGate, safe) = deployHSGAndSafe(ownerHat, signerHat, minThreshold, targetThreshold, maxSigners);
     }
 
     //// HELPER FUNCTIONS ////
@@ -63,25 +59,13 @@ contract HSGTestSetup is HSGFactoryTestSetup, SignatureDecoder {
         }
     }
 
-    function mockIsWearerCall(
-        address wearer,
-        uint256 hat,
-        bool result
-    ) public {
-        bytes memory data = abi.encodeWithSignature(
-            "isWearerOfHat(address,uint256)",
-            wearer,
-            hat
-        );
+    function mockIsWearerCall(address wearer, uint256 hat, bool result) public {
+        bytes memory data = abi.encodeWithSignature("isWearerOfHat(address,uint256)", wearer, hat);
         vm.mockCall(HATS, data, abi.encode(result));
     }
 
     // modified from Orca (https://github.com/orcaprotocol/contracts/blob/main/contracts/utils/SafeTxHelper.sol)
-    function executeSafeTxFrom(
-        address from,
-        bytes memory data,
-        GnosisSafe _safe
-    ) public {
+    function executeSafeTxFrom(address from, bytes memory data, GnosisSafe _safe) public {
         safe.execTransaction(
             address(_safe),
             0,
@@ -99,74 +83,63 @@ contract HSGTestSetup is HSGFactoryTestSetup, SignatureDecoder {
     }
 
     // borrowed from Orca (https://github.com/orcaprotocol/contracts/blob/main/contracts/utils/SafeTxHelper.sol)
-    function getSafeTxHash(
-        address to,
-        bytes memory data,
-        GnosisSafe _safe
-    ) public view returns (bytes32 txHash) {
-        return
-            _safe.getTransactionHash(
-                to,
-                0,
-                data,
-                Enum.Operation.Call,
-                // not using the refunder
-                0,
-                0,
-                0,
-                address(0),
-                payable(address(0)),
-                safe.nonce()
-            );
+    function getSafeTxHash(address to, bytes memory data, GnosisSafe _safe) public view returns (bytes32 txHash) {
+        return _safe.getTransactionHash(
+            to,
+            0,
+            data,
+            Enum.Operation.Call,
+            // not using the refunder
+            0,
+            0,
+            0,
+            address(0),
+            payable(address(0)),
+            safe.nonce()
+        );
     }
 
-    function getEthTransferSafeTxHash(
-        address to,
-        uint256 value,
-        GnosisSafe _safe
-    ) public view returns (bytes32 txHash) {
-        return
-            _safe.getTransactionHash(
-                to,
-                value,
-                hex"00",
-                Enum.Operation.Call,
-                // not using the refunder
-                0,
-                0,
-                0,
-                address(0),
-                payable(address(0)),
-                safe.nonce()
-            );
-    }
-
-    function getTxHash(
-        address to,
-        uint256 value,
-        bytes memory data,
-        GnosisSafe _safe
-    ) public view returns (bytes32 txHash) {
-        return
-            _safe.getTransactionHash(
-                to,
-                value,
-                data,
-                Enum.Operation.Call,
-                // not using the refunder
-                0,
-                0,
-                0,
-                address(0),
-                payable(address(0)),
-                safe.nonce()
-            );
-    }
-
-    function createNSigsForTx(bytes32 txHash, uint256 signerCount)
+    function getEthTransferSafeTxHash(address to, uint256 value, GnosisSafe _safe)
         public
-        returns (bytes memory signatures)
+        view
+        returns (bytes32 txHash)
     {
+        return _safe.getTransactionHash(
+            to,
+            value,
+            hex"00",
+            Enum.Operation.Call,
+            // not using the refunder
+            0,
+            0,
+            0,
+            address(0),
+            payable(address(0)),
+            safe.nonce()
+        );
+    }
+
+    function getTxHash(address to, uint256 value, bytes memory data, GnosisSafe _safe)
+        public
+        view
+        returns (bytes32 txHash)
+    {
+        return _safe.getTransactionHash(
+            to,
+            value,
+            data,
+            Enum.Operation.Call,
+            // not using the refunder
+            0,
+            0,
+            0,
+            address(0),
+            payable(address(0)),
+            safe.nonce()
+        );
+    }
+
+    function createNSigsForTx(bytes32 txHash, uint256 signerCount) public returns (bytes memory signatures) {
         uint8 v;
         bytes32 r;
         bytes32 s;
@@ -191,12 +164,10 @@ contract HSGTestSetup is HSGFactoryTestSetup, SignatureDecoder {
         }
     }
 
-    function signaturesForEthTransferTx(
-        address to,
-        uint256 value,
-        uint256 signerCount,
-        GnosisSafe _safe
-    ) public returns (bytes memory signatures) {
+    function signaturesForEthTransferTx(address to, uint256 value, uint256 signerCount, GnosisSafe _safe)
+        public
+        returns (bytes memory signatures)
+    {
         // create tx to send some eth from safe to wherever
         bytes32 txHash = getEthTransferSafeTxHash(to, value, _safe);
         // have each signer sign the tx
@@ -220,13 +191,14 @@ contract HSGTestSetup is HSGFactoryTestSetup, SignatureDecoder {
 
         for (uint256 i = 0; i < signerCount; ++i) {
             address addy = address(uint160(signers[i]));
-            emit log_address(addy);
+            // emit log_address(addy);
             signatures = bytes.concat(signatures, walletSigs[addy]);
         }
     }
 
     function createAddressesFromPks(uint256 count)
         public
+        pure
         returns (uint256[] memory pks_, address[] memory addresses_)
     {
         pks_ = new uint256[](count);
@@ -239,11 +211,7 @@ contract HSGTestSetup is HSGFactoryTestSetup, SignatureDecoder {
     }
 
     // borrowed from https://gist.github.com/subhodi/b3b86cc13ad2636420963e692a4d896f
-    function sort(
-        uint256[] memory arr,
-        int256 left,
-        int256 right
-    ) internal {
+    function sort(uint256[] memory arr, int256 left, int256 right) internal {
         int256 i = left;
         int256 j = right;
         if (i == j) return;
@@ -252,10 +220,7 @@ contract HSGTestSetup is HSGFactoryTestSetup, SignatureDecoder {
             while (arr[uint256(i)] < pivot) i++;
             while (pivot < arr[uint256(j)]) j--;
             if (i <= j) {
-                (arr[uint256(i)], arr[uint256(j)]) = (
-                    arr[uint256(j)],
-                    arr[uint256(i)]
-                );
+                (arr[uint256(i)], arr[uint256(j)]) = (arr[uint256(j)], arr[uint256(i)]);
                 i++;
                 j--;
             }

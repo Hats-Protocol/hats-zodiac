@@ -10,6 +10,7 @@ import "@gnosis.pm/safe-contracts/contracts/GnosisSafe.sol";
 contract DeployHatsSignerGateFactory is Script {
     using stdJson for string;
     // deployment params to be read from DeployParams.json
+
     address public gnosisFallbackLibrary;
     address public gnosisMultisendLibrary;
     address public gnosisSafeProxyFactory;
@@ -20,7 +21,7 @@ contract DeployHatsSignerGateFactory is Script {
     // deployment params to be set manually
     string public version = "HSG Beta 5";
 
-    function getChainKey() public returns (string memory) {
+    function getChainKey() public view returns (string memory) {
         return string.concat(".", vm.toString(block.chainid));
     }
 
@@ -33,17 +34,8 @@ contract DeployHatsSignerGateFactory is Script {
         bytes memory params = json.parseRaw(chain);
 
         // the json is parsed in alphabetical order, so we decode it that way too
-        (
-            gnosisFallbackLibrary,
-            gnosisMultisendLibrary,
-            gnosisSafeProxyFactory,
-            hats,
-            moduleProxyFactory,
-            safeSingleton
-        ) = abi.decode(
-            params,
-            (address, address, address, address, address, address)
-        );
+        (gnosisFallbackLibrary, gnosisMultisendLibrary, gnosisSafeProxyFactory, hats, moduleProxyFactory, safeSingleton)
+        = abi.decode(params, (address, address, address, address, address, address));
     }
 
     function run() external {
@@ -54,9 +46,12 @@ contract DeployHatsSignerGateFactory is Script {
 
         // deploy singleton
         HatsSignerGate hsgSingleton = new HatsSignerGate();
+        MultiHatsSignerGate mhsgSingleton = new MultiHatsSignerGate();
 
-        HatsSignerGateFactory factory = new HatsSignerGateFactory(
+        /* HatsSignerGateFactory factory = */
+        new HatsSignerGateFactory(
             address(hsgSingleton),
+            address(mhsgSingleton),
             hats,
             safeSingleton,
             gnosisFallbackLibrary,
