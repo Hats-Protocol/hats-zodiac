@@ -12,6 +12,8 @@ Currently, this repo contains the following:
 
 A contract that grants multisig signing rights to addresses wearing a given Hat, enabling on-chain organizations (such as DAOs) to revocably delegate constrained signing authority and responsibility to individuals.
 
+### Overview
+
 #### Zodiac Module
 
 [HatsSignerGate.sol](./contracts/HatsSignerGate.sol) is a **Zodiac module** that...
