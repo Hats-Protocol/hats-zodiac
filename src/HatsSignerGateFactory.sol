@@ -233,7 +233,7 @@ contract HatsSignerGateFactory {
 
         emit MultiHatsSignerGateSetup(
             mhsg, _ownerHatId, _signersHatIds, safe, _minThreshold, _targetThreshold, _maxSigners
-            );
+        );
 
         return (mhsg, safe);
     }
@@ -284,6 +284,6 @@ contract HatsSignerGateFactory {
 
         emit MultiHatsSignerGateSetup(
             mhsg, _ownerHatId, _signersHatIds, _safe, _minThreshold, _targetThreshold, _maxSigners
-            );
+        );
     }
 }
