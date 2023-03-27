@@ -1010,6 +1010,20 @@ contract HatsSignerGateTest is HSGTestSetup {
         assertEq(hatsSignerGate.validSignerCount(), 5, "valid signer count");
     }
 
+    function testSetTargetThresholdUpdatesThresholdCorrectly() public {
+        // set target threshold to 5
+        mockIsWearerCall(address(this), ownerHat, true);
+        hatsSignerGate.setTargetThreshold(5);
+        // add 5 valid signers
+        addSigners(5);
+        // one loses their hat
+        mockIsWearerCall(addresses[4], signerHat, false);
+        // lower target threshold to 4
+        hatsSignerGate.setTargetThreshold(4);
+        // since hatsSignerGate.validSignerCount() is also 4, the threshold should also be 4
+        assertEq(safe.getThreshold(), 4, "threshold");
+    }
+
     // function testSignersCannotChangeModules() public {
     //     //
     // }

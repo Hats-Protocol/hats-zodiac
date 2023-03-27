@@ -99,7 +99,8 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         if (_targetThreshold != targetThreshold) {
             _setTargetThreshold(_targetThreshold);
 
-            if (validSignerCount() > 1) _setSafeThreshold(_targetThreshold);
+            uint256 signerCount = validSignerCount();
+            if (signerCount > 1) _setSafeThreshold(_targetThreshold, signerCount);
 
             emit HSGLib.TargetThresholdSet(_targetThreshold);
         }
@@ -119,13 +120,14 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
     /// @notice Internal function to set the threshold for the `safe`
     /// @dev Forwards the threshold-setting call to `safe.ExecTransactionFromModule`
     /// @param _threshold The threshold to set on the `safe`
-    function _setSafeThreshold(uint256 _threshold) internal {
+    /// @param _signerCount The number of valid signers on the `safe`; should be calculated from `validSignerCount()`
+    function _setSafeThreshold(uint256 _threshold, uint256 _signerCount) internal {
         uint256 newThreshold = _threshold;
-        uint256 signerCount = validSignerCount();
+        // uint256 signerCount = validSignerCount();
 
         // ensure that txs can't execute if fewer signers than target threshold
-        if (signerCount <= _threshold) {
-            newThreshold = signerCount;
+        if (_signerCount <= _threshold) {
+            newThreshold = _signerCount;
         }
         if (newThreshold != safe.getThreshold()) {
             bytes memory data = abi.encodeWithSignature("changeThreshold(uint256)", newThreshold);
