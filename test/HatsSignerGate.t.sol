@@ -1024,6 +1024,16 @@ contract HatsSignerGateTest is HSGTestSetup {
         assertEq(safe.getThreshold(), 4, "threshold");
     }
 
+    function testSetTargetTresholdCannotSetBelowMinThreshold() public {
+        assertEq(hatsSignerGate.minThreshold(), 2, "min threshold");
+        assertEq(hatsSignerGate.targetThreshold(), 2, "target threshold");
+
+        // set target threshold to 1 — should fail
+        mockIsWearerCall(address(this), ownerHat, true);
+        vm.expectRevert(InvalidTargetThreshold.selector);
+        hatsSignerGate.setTargetThreshold(1);
+    }
+
     // function testSignersCannotChangeModules() public {
     //     //
     // }

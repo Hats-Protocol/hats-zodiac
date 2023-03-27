@@ -107,9 +107,14 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
     }
 
     /// @notice Internal function to set the target threshold
-    /// @dev Reverts if `_targetThreshold` is greater than `maxSigners`
+    /// @dev Reverts if `_targetThreshold` is greater than `maxSigners` or lower than `minThreshold`
     /// @param _targetThreshold The new target threshold to set
     function _setTargetThreshold(uint256 _targetThreshold) internal {
+        // target threshold cannot be lower than min threshold
+        if (_targetThreshold < minThreshold) {
+            revert InvalidTargetThreshold();
+        }
+        // target threshold cannot be greater than max signers
         if (_targetThreshold > maxSigners) {
             revert InvalidTargetThreshold();
         }
