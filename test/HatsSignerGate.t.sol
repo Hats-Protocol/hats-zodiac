@@ -83,6 +83,9 @@ contract HatsSignerGateTest is HSGTestSetup {
     }
 
     function testReconcileSignerCount() public {
+        mockIsWearerCall(addresses[1], signerHat, false);
+        mockIsWearerCall(addresses[2], signerHat, false);
+        mockIsWearerCall(addresses[3], signerHat, false);
         // add 3 more safe owners the old fashioned way
         // 1
         bytes memory addOwnersData1 = abi.encodeWithSignature("addOwnerWithThreshold(address,uint256)", addresses[1], 1);
@@ -123,18 +126,16 @@ contract HatsSignerGateTest is HSGTestSetup {
             Enum.Operation.Call // operation
         );
 
-        assertEq(hatsSignerGate.signerCount(), 0);
+        assertEq(hatsSignerGate.validSignerCount(), 0);
 
         // set only two of them as valid signers
         mockIsWearerCall(address(hatsSignerGate), signerHat, true);
         mockIsWearerCall(addresses[1], signerHat, true);
-        mockIsWearerCall(addresses[2], signerHat, false);
-        mockIsWearerCall(addresses[3], signerHat, false);
 
         // do the reconcile
         hatsSignerGate.reconcileSignerCount();
 
-        assertEq(hatsSignerGate.signerCount(), 2);
+        assertEq(hatsSignerGate.validSignerCount(), 2);
         assertEq(safe.getThreshold(), 2);
 
         // now we can remove both the invalid signers with no changes to hatsSignerCount
@@ -143,7 +144,7 @@ contract HatsSignerGateTest is HSGTestSetup {
         mockIsWearerCall(addresses[3], signerHat, false);
         hatsSignerGate.removeSigner(addresses[3]);
 
-        assertEq(hatsSignerGate.signerCount(), 2);
+        assertEq(hatsSignerGate.validSignerCount(), 2);
         assertEq(safe.getThreshold(), 2);
     }
 
@@ -152,7 +153,7 @@ contract HatsSignerGateTest is HSGTestSetup {
 
         assertEq(safe.getOwners().length, 1);
 
-        assertEq(hatsSignerGate.signerCount(), 1);
+        assertEq(hatsSignerGate.validSignerCount(), 1);
 
         assertEq(safe.getOwners()[0], addresses[0]);
 
@@ -162,7 +163,7 @@ contract HatsSignerGateTest is HSGTestSetup {
     function testAddThreeSigners() public {
         addSigners(3);
 
-        assertEq(hatsSignerGate.signerCount(), 3);
+        assertEq(hatsSignerGate.validSignerCount(), 3);
 
         assertEq(safe.getOwners()[0], addresses[2]);
         assertEq(safe.getOwners()[1], addresses[1]);
@@ -182,7 +183,7 @@ contract HatsSignerGateTest is HSGTestSetup {
         // this call should fail
         hatsSignerGate.claimSigner();
 
-        assertEq(hatsSignerGate.signerCount(), 5);
+        assertEq(hatsSignerGate.validSignerCount(), 5);
 
         assertEq(safe.getOwners()[0], addresses[4]);
         assertEq(safe.getOwners()[1], addresses[3]);
@@ -213,7 +214,7 @@ contract HatsSignerGateTest is HSGTestSetup {
 
         hatsSignerGate.claimSigner();
 
-        assertEq(hatsSignerGate.signerCount(), 2);
+        assertEq(hatsSignerGate.validSignerCount(), 2);
     }
 
     function testNonHatWearerCannotClaimSigner() public {
@@ -234,7 +235,7 @@ contract HatsSignerGateTest is HSGTestSetup {
 
         assertEq(safe.getOwners().length, 1);
         assertEq(safe.getOwners()[0], address(hatsSignerGate));
-        assertEq(hatsSignerGate.signerCount(), 0);
+        assertEq(hatsSignerGate.validSignerCount(), 0);
 
         assertEq(safe.getThreshold(), 1);
     }
@@ -250,7 +251,7 @@ contract HatsSignerGateTest is HSGTestSetup {
 
         assertEq(safe.getOwners().length, 1);
         assertEq(safe.getOwners()[0], addresses[1]);
-        assertEq(hatsSignerGate.signerCount(), 1);
+        assertEq(hatsSignerGate.validSignerCount(), 1);
 
         assertEq(safe.getThreshold(), 1);
     }
@@ -261,13 +262,13 @@ contract HatsSignerGateTest is HSGTestSetup {
         mockIsWearerCall(addresses[0], signerHat, false);
 
         hatsSignerGate.reconcileSignerCount();
-        assertEq(hatsSignerGate.signerCount(), 1);
+        assertEq(hatsSignerGate.validSignerCount(), 1);
 
         hatsSignerGate.removeSigner(addresses[0]);
 
         assertEq(safe.getOwners().length, 1);
         assertEq(safe.getOwners()[0], addresses[1]);
-        assertEq(hatsSignerGate.signerCount(), 1);
+        assertEq(hatsSignerGate.validSignerCount(), 1);
 
         assertEq(safe.getThreshold(), 1);
     }
@@ -278,14 +279,14 @@ contract HatsSignerGateTest is HSGTestSetup {
         mockIsWearerCall(addresses[0], signerHat, false);
 
         hatsSignerGate.reconcileSignerCount();
-        assertEq(hatsSignerGate.signerCount(), 2);
+        assertEq(hatsSignerGate.validSignerCount(), 2);
 
         hatsSignerGate.removeSigner(addresses[0]);
 
         assertEq(safe.getOwners().length, 2);
         assertEq(safe.getOwners()[0], addresses[2]);
         assertEq(safe.getOwners()[1], addresses[1]);
-        assertEq(hatsSignerGate.signerCount(), 2);
+        assertEq(hatsSignerGate.validSignerCount(), 2);
 
         assertEq(safe.getThreshold(), 2);
     }
@@ -301,7 +302,7 @@ contract HatsSignerGateTest is HSGTestSetup {
 
         assertEq(safe.getOwners().length, 1);
         assertEq(safe.getOwners()[0], addresses[0]);
-        assertEq(hatsSignerGate.signerCount(), 1);
+        assertEq(hatsSignerGate.validSignerCount(), 1);
 
         assertEq(safe.getThreshold(), 1);
     }
@@ -735,13 +736,13 @@ contract HatsSignerGateTest is HSGTestSetup {
 
         // reconcile is called, so signerCount is updated to 4
         hatsSignerGate.reconcileSignerCount();
-        assertEq(hatsSignerGate.signerCount(), 4);
+        assertEq(hatsSignerGate.validSignerCount(), 4);
 
         // a new signer claims, so signerCount is updated to 5
         mockIsWearerCall(addresses[5], signerHat, true);
         vm.prank(addresses[5]);
         hatsSignerGate.claimSigner();
-        assertEq(hatsSignerGate.signerCount(), 5);
+        assertEq(hatsSignerGate.validSignerCount(), 5);
 
         // the malicious signer behaves nicely and regains the hat, but they were kicked out by the previous signer claim
         mockIsWearerCall(addresses[4], signerHat, true);
@@ -749,7 +750,7 @@ contract HatsSignerGateTest is HSGTestSetup {
         // reoncile is called again and signerCount stays at 5
         // vm.expectRevert(MaxSignersReached.selector);
         hatsSignerGate.reconcileSignerCount();
-        assertEq(hatsSignerGate.signerCount(), 5);
+        assertEq(hatsSignerGate.validSignerCount(), 5);
 
         // // any eligible signer can now claim at will
         // mockIsWearerCall(addresses[6], signerHat, true);
@@ -770,7 +771,7 @@ contract HatsSignerGateTest is HSGTestSetup {
         // 3) reconcile is called, signerCount=x-3
         hatsSignerGate.reconcileSignerCount();
         console2.log("A");
-        assertEq(hatsSignerGate.signerCount(), 2);
+        assertEq(hatsSignerGate.validSignerCount(), 2);
 
         // 4) 3 more signers can be added with claimSigner()
         mockIsWearerCall(addresses[5], signerHat, true);
@@ -784,7 +785,7 @@ contract HatsSignerGateTest is HSGTestSetup {
         hatsSignerGate.claimSigner();
 
         console2.log("B");
-        assertEq(hatsSignerGate.signerCount(), 5);
+        assertEq(hatsSignerGate.validSignerCount(), 5);
         console2.log("C");
         assertEq(safe.getOwners().length, 5);
 
@@ -795,14 +796,14 @@ contract HatsSignerGateTest is HSGTestSetup {
 
         // but we still only have 5 owners and 5 signers
         console2.log("D");
-        assertEq(hatsSignerGate.signerCount(), 5);
+        assertEq(hatsSignerGate.validSignerCount(), 5);
 
         console2.log("E");
         assertEq(safe.getOwners().length, 5);
 
         console2.log("F");
         hatsSignerGate.reconcileSignerCount();
-        assertEq(hatsSignerGate.signerCount(), 5);
+        assertEq(hatsSignerGate.validSignerCount(), 5);
 
         // // 6) we now have x+3 signers
         // hatsSignerGate.reconcileSignerCount();
@@ -911,9 +912,7 @@ contract HatsSignerGateTest is HSGTestSetup {
 
         // reconcile is called, so signerCount is updated to 2
         hatsSignerGate.reconcileSignerCount();
-        console2.log("A");
-        assertEq(hatsSignerGate.signerCount(), 2);
-        console2.log("B");
+        assertEq(hatsSignerGate.validSignerCount(), 2);
         assertEq(safe.getThreshold(), 2);
 
         // the 3 owners regain their hats
@@ -953,33 +952,65 @@ contract HatsSignerGateTest is HSGTestSetup {
     }
 
     function testCannotClaimSignerIfNoInvalidSigners() public {
-        console2.log("A");
         assertEq(maxSigners, 5);
         addSigners(5);
         // one signer loses their hat
         mockIsWearerCall(addresses[4], signerHat, false);
-        console2.log("B");
-        assertEq(hatsSignerGate.signerCount(), 5);
+        assertEq(hatsSignerGate.validSignerCount(), 4);
 
         // reconcile is called, updating signer count to 4
         hatsSignerGate.reconcileSignerCount();
-        console2.log("C");
-        assertEq(hatsSignerGate.signerCount(), 4);
+        assertEq(hatsSignerGate.validSignerCount(), 4);
 
         // bad signer regains their hat
         mockIsWearerCall(addresses[4], signerHat, true);
-        // signer count is still 4 because reoncile hasn't been called again
-        console2.log("D");
-        assertEq(hatsSignerGate.signerCount(), 4);
+        // signer count returns to 5
+        assertEq(hatsSignerGate.validSignerCount(), 5);
 
-        // new valid signer tries to claim, but can't because
+        // new valid signer tries to claim, but can't because we're already at max signers
         mockIsWearerCall(addresses[5], signerHat, true);
         vm.prank(addresses[5]);
-        vm.expectRevert(NoInvalidSignersToReplace.selector);
+        vm.expectRevert(MaxSignersReached.selector);
         hatsSignerGate.claimSigner();
     }
 
-    function testSignersCannotChangeModules() public {
-        //
+    function testRemoveSignerCorrectlyUpdates() public {
+        assertEq(hatsSignerGate.targetThreshold(), 2, "target threshold");
+        assertEq(maxSigners, 5, "max signers");
+        // start with 5 valid signers
+        addSigners(5);
+
+        // the last two lose their hats
+        mockIsWearerCall(addresses[3], signerHat, false);
+        mockIsWearerCall(addresses[4], signerHat, false);
+
+        // the 4th regains its hat
+        mockIsWearerCall(addresses[3], signerHat, true);
+
+        // remove the 5th signer
+        hatsSignerGate.removeSigner(addresses[4]);
+
+        // signer count should be 4 and threshold at target
+        assertEq(hatsSignerGate.validSignerCount(), 4, "valid signer count");
+        assertEq(safe.getThreshold(), hatsSignerGate.targetThreshold(), "ending threshold");
     }
+
+    function testCanClaimToReplaceInvalidSignerAtMaxSigner() public {
+        assertEq(maxSigners, 5, "max signers");
+        // start with 5 valid signers (the max)
+        addSigners(5);
+
+        // the last one loses their hat
+        mockIsWearerCall(addresses[4], signerHat, false);
+
+        // a new signer valid tries to claim, and can
+        mockIsWearerCall(addresses[5], signerHat, true);
+        vm.prank(addresses[5]);
+        hatsSignerGate.claimSigner();
+        assertEq(hatsSignerGate.validSignerCount(), 5, "valid signer count");
+    }
+
+    // function testSignersCannotChangeModules() public {
+    //     //
+    // }
 }

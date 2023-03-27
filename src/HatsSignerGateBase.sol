@@ -23,8 +23,8 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
     /// @notice The maximum number of signers allowed for the `safe`
     uint256 public maxSigners;
 
-    /// @notice The current number of signers on the `safe`
-    uint256 public signerCount;
+    // /// @notice The current number of signers on the `safe`
+    // uint256 public signerCount;
 
     /// @notice The version of HatsSignerGate used in this contract
     string public version;
@@ -99,7 +99,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         if (_targetThreshold != targetThreshold) {
             _setTargetThreshold(_targetThreshold);
 
-            if (signerCount > 1) _setSafeThreshold(_targetThreshold);
+            if (validSignerCount() > 1) _setSafeThreshold(_targetThreshold);
 
             emit HSGLib.TargetThresholdSet(_targetThreshold);
         }
@@ -121,11 +121,11 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
     /// @param _threshold The threshold to set on the `safe`
     function _setSafeThreshold(uint256 _threshold) internal {
         uint256 newThreshold = _threshold;
-        uint256 signerCount_ = signerCount; // save an SLOAD
+        uint256 signerCount = validSignerCount();
 
         // ensure that txs can't execute if fewer signers than target threshold
-        if (signerCount_ <= _threshold) {
-            newThreshold = signerCount_;
+        if (signerCount <= _threshold) {
+            newThreshold = signerCount;
         }
         if (newThreshold != safe.getThreshold()) {
             bytes memory data = abi.encodeWithSignature("changeThreshold(uint256)", newThreshold);
@@ -181,30 +181,26 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         }
     }
 
-    /// @notice Tallies the number of existing `safe` owners that wear a signer hat, sets `signerCount` to that value, and updates the `safe` threshold if necessary
+    /// @notice Tallies the number of existing `safe` owners that wear a signer hat and updates the `safe` threshold if necessary
     /// @dev Does NOT remove invalid `safe` owners
     function reconcileSignerCount() public {
-        address[] memory owners = safe.getOwners();
-        uint256 validSignerCount = _countValidSigners(owners);
+        uint256 signerCount = validSignerCount();
 
-        if (validSignerCount > maxSigners) {
+        if (signerCount > maxSigners) {
             revert MaxSignersReached();
         }
-
-        // update the signer count accordingly
-        signerCount = validSignerCount;
 
         uint256 currentThreshold = safe.getThreshold();
         uint256 newThreshold;
         uint256 target = targetThreshold; // save SLOADs
 
-        if (validSignerCount <= target && validSignerCount != currentThreshold) {
-            newThreshold = validSignerCount;
-        } else if (validSignerCount > target && currentThreshold < target) {
+        if (signerCount <= target && signerCount != currentThreshold) {
+            newThreshold = signerCount;
+        } else if (signerCount > target && currentThreshold < target) {
             newThreshold = target;
         }
         if (newThreshold > 0) {
-            bytes memory data = abi.encodeWithSignature("changeThreshold(uint256)", validSignerCount);
+            bytes memory data = abi.encodeWithSignature("changeThreshold(uint256)", signerCount);
 
             bool success = safe.execTransactionFromModule(
                 address(safe), // to
@@ -219,17 +215,21 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         }
     }
 
+    function validSignerCount() public view returns (uint256 signerCount) {
+        signerCount = _countValidSigners(safe.getOwners());
+    }
+
     /// @notice Internal function to count the number of valid signers in an array of addresses
     /// @param owners The addresses to check for validity
-    /// @return validSignerCount The number of valid signers in `owners`
-    function _countValidSigners(address[] memory owners) internal view returns (uint256 validSignerCount) {
+    /// @return signerCount The number of valid signers in `owners`
+    function _countValidSigners(address[] memory owners) internal view returns (uint256 signerCount) {
         uint256 length = owners.length;
         // count the existing safe owners that wear the signer hat
         for (uint256 i; i < length;) {
             if (isValidSigner(owners[i])) {
                 // shouldn't overflow given reasonable owners array length
                 unchecked {
-                    ++validSignerCount;
+                    ++signerCount;
                 }
             }
             // shouldn't overflow given reasonable owners array length
@@ -284,9 +284,6 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
             addOwnerData = abi.encodeWithSignature("addOwnerWithThreshold(address,uint256)", _signer, newThreshold);
         }
 
-        // increment signer count
-        signerCount = newSignerCount;
-
         // execute the call
         bool success = safe.execTransactionFromModule(
             address(safe), // to
@@ -304,17 +301,12 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
     /// @dev Unsafe. Does not check if `_signer` is a valid signer.
     /// @param _owners Array of owners on the `safe`
     /// @param _ownerCount The number of owners on the `safe` (length of `_owners` array)
-    /// @param _maxSigners The maximum number of signers allowed
-    /// @param _currentSignerCount The current number of signers
     /// @param _signer The address to add as a new `safe` owner
     /// @return success Whether an invalid signer was found and successfully replaced with `_signer`
-    function _swapSigner(
-        address[] memory _owners,
-        uint256 _ownerCount,
-        uint256 _maxSigners,
-        uint256 _currentSignerCount,
-        address _signer
-    ) internal returns (bool success) {
+    function _swapSigner(address[] memory _owners, uint256 _ownerCount, address _signer)
+        internal
+        returns (bool success)
+    {
         address ownerToCheck;
         bytes memory data;
 
@@ -342,8 +334,6 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
                     revert FailedExecRemoveSigner();
                 }
 
-                // increment the signer count if signerCount was correct, ie `reconcileSignerCount` was called prior
-                if (_currentSignerCount < _maxSigners) ++signerCount;
                 break;
             }
             unchecked {
@@ -368,10 +358,10 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
     function _removeSigner(address _signer) internal {
         bytes memory removeOwnerData;
         address[] memory owners = safe.getOwners();
-        uint256 currentSignerCount = signerCount; // save an SLOAD
-        uint256 newSignerCount;
+        uint256 validSigners = _countValidSigners(owners);
+        // uint256 newSignerCount;
 
-        if (currentSignerCount < 2 && owners.length == 1) {
+        if (validSigners < 2 && owners.length == 1) {
             // signerCount could be 0 after reconcileSignerCount
             // make address(this) the only owner
             removeOwnerData = abi.encodeWithSignature(
@@ -385,26 +375,17 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         } else {
             uint256 currentThreshold = safe.getThreshold();
             uint256 newThreshold = currentThreshold;
-            uint256 validSignerCount = _countValidSigners(owners);
-
-            if (validSignerCount == currentSignerCount) {
-                newSignerCount = currentSignerCount;
-            } else {
-                newSignerCount = currentSignerCount - 1;
-            }
+            // uint256 validSignerCount = _countValidSigners(owners);
 
             // ensure that txs can't execute if fewer signers than target threshold
-            if (newSignerCount <= targetThreshold) {
-                newThreshold = newSignerCount;
+            if (validSigners <= targetThreshold) {
+                newThreshold = validSigners;
             }
 
             removeOwnerData = abi.encodeWithSignature(
                 "removeOwner(address,address,uint256)", _findPrevOwner(owners, _signer), _signer, newThreshold
             );
         }
-
-        // update signerCount
-        signerCount = newSignerCount;
 
         bool success = safe.execTransactionFromModule(
             address(safe), // to
@@ -552,7 +533,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
     /// @notice Internal function to calculate the threshold that `safe` should have, given the correct `signerCount`, `minThreshold`, and `targetThreshold`
     /// @return _threshold The correct threshold
     function _getCorrectThreshold() internal view returns (uint256 _threshold) {
-        uint256 count = _countValidSigners(safe.getOwners());
+        uint256 count = validSignerCount();
         uint256 min = minThreshold;
         uint256 max = targetThreshold;
         if (count < min) _threshold = min;

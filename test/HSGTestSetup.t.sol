@@ -44,6 +44,7 @@ contract HSGTestSetup is HSGFactoryTestSetup, SignatureDecoder {
         );
 
         (hatsSignerGate, safe) = deployHSGAndSafe(ownerHat, signerHat, minThreshold, targetThreshold, maxSigners);
+        mockIsWearerCall(address(hatsSignerGate), signerHat, false);
     }
 
     //// HELPER FUNCTIONS ////

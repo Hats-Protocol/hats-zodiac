@@ -39,6 +39,7 @@ contract MHSGTestSetup is HSGTestSetup {
         );
 
         (multiHatsSignerGate, safe) = deployMHSGAndSafe(ownerHat, signerHats, minThreshold, targetThreshold, maxSigners);
+        mockIsWearerCall(address(multiHatsSignerGate), signerHat, false);
     }
 
     function addSigners_Multi(uint256 count) internal {

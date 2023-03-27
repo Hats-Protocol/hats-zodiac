@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: CC0
 pragma solidity >=0.8.13;
 
-// import { Test, console2 } from "forge-std/Test.sol"; // remove after testing
+import { Test, console2 } from "forge-std/Test.sol"; // remove after testing
 import { HatsSignerGateBase, IGnosisSafe, Enum } from "./HatsSignerGateBase.sol";
 import "./HSGLib.sol";
 
@@ -35,7 +35,8 @@ contract HatsSignerGate is HatsSignerGateBase {
     /// @dev Reverts if `maxSigners` has been reached, the caller is either invalid or has already claimed. Swaps caller with existing invalid owner if relevant.
     function claimSigner() public virtual {
         uint256 maxSigs = maxSigners; // save SLOADs
-        uint256 currentSignerCount = signerCount;
+        address[] memory owners = safe.getOwners();
+        uint256 currentSignerCount = _countValidSigners(owners);
 
         if (currentSignerCount >= maxSigs) {
             revert MaxSignersReached();
@@ -49,16 +50,14 @@ contract HatsSignerGate is HatsSignerGateBase {
             revert NotSignerHatWearer(msg.sender);
         }
 
-        /* 
-        We check the safe owner count in case there are existing owners who are no longer valid signers. 
+        /*
+        We check the safe owner count in case there are existing owners who are no longer valid signers.
         If we're already at maxSigners, we'll replace one of the invalid owners by swapping the signer.
         Otherwise, we'll simply add the new signer.
         */
-        address[] memory owners = safe.getOwners();
         uint256 ownerCount = owners.length;
-
         if (ownerCount >= maxSigs) {
-            bool swapped = _swapSigner(owners, ownerCount, maxSigs, currentSignerCount, msg.sender);
+            bool swapped = _swapSigner(owners, ownerCount, msg.sender);
             if (!swapped) {
                 // if there are no invalid owners, we can't add a new signer, so we revert
                 revert NoInvalidSignersToReplace();
@@ -73,6 +72,8 @@ contract HatsSignerGate is HatsSignerGateBase {
     /// @param _account The address to check
     /// @return valid Whether `_account` is a valid signer
     function isValidSigner(address _account) public view override returns (bool valid) {
+        // console2.log("ivs 1");
         valid = HATS.isWearerOfHat(_account, signersHatId);
+        // console2.log("ivs 2");
     }
 }
