@@ -70,6 +70,9 @@ error SignersCannotChangeThreshold();
 /// @notice Signers are not allowed to add new modules
 error SignersCannotChangeModules();
 
+/// @notice Signers are not allowed to change owners
+error SignersCannotChangeOwners();
+
 /// @notice Emmitted when a call to `checkTransaction` or `checkAfterExecution` is not made from the `safe`
 /// @dev Together with `guardEntries`, protects against arbitrary reentrancy attacks by the signers
 error NotCalledFromSafe();

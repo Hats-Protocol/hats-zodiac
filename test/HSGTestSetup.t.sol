@@ -8,7 +8,7 @@ import "@gnosis.pm/safe-contracts/contracts/common/SignatureDecoder.sol";
 import "@gnosis.pm/safe-contracts/contracts/common/Enum.sol";
 
 contract HSGTestSetup is HSGFactoryTestSetup, SignatureDecoder {
-    address public SENTINELS = address(0x1);
+    address public constant SENTINELS = address(0x1);
 
     uint256[] public pks;
     address[] public addresses;
@@ -227,5 +227,20 @@ contract HSGTestSetup is HSGFactoryTestSetup, SignatureDecoder {
         }
         if (left < j) sort(arr, left, j);
         if (i < right) sort(arr, i, right);
+    }
+
+    function findPrevOwner(address[] memory _owners, address _owner) internal pure returns (address prevOwner) {
+        prevOwner = SENTINELS;
+
+        for (uint256 i; i < _owners.length;) {
+            if (_owners[i] == _owner) {
+                if (i == 0) break;
+                prevOwner = _owners[i - 1];
+            }
+            // shouldn't overflow given reasonable _owners array length
+            unchecked {
+                ++i;
+            }
+        }
     }
 }

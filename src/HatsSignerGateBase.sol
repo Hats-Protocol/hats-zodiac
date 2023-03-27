@@ -34,7 +34,10 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
 
     /// @dev Temporary record of the existing modules on the `safe` when a transaction is submitted
     bytes32 internal _existingModulesHash;
-    
+
+    /// @dev Temporary record of the existing owners on the `safe` when a transaction is submitted
+    bytes32 internal _existingOwnersHash;
+
     /// @dev A simple re-entrency guard
     uint256 internal _guardEntries;
 
@@ -457,14 +460,19 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
     ) external override {
         if (msg.sender != address(safe)) revert NotCalledFromSafe();
 
-        uint256 safeOwnerCount = safe.getOwners().length;
-        // uint256 validSignerCount = _countValidSigners(safe.getOwners());
+        // get the safe owners
+        address[] memory owners = safe.getOwners();
+        {
+            // scope to avoid stack too deep errors
+            uint256 safeOwnerCount = owners.length;
+            // uint256 validSignerCount = _countValidSigners(safe.getOwners());
 
-        // ensure that safe threshold is correct
-        reconcileSignerCount();
+            // ensure that safe threshold is correct
+            reconcileSignerCount();
 
-        if (safeOwnerCount < minThreshold) {
-            revert BelowMinThreshold(minThreshold, safeOwnerCount);
+            if (safeOwnerCount < minThreshold) {
+                revert BelowMinThreshold(minThreshold, safeOwnerCount);
+            }
         }
 
         // get the tx hash; view function
@@ -497,33 +505,46 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         (address[] memory modules,) = safe.getModulesPaginated(SENTINEL_OWNERS, enabledModuleCount);
         _existingModulesHash = keccak256(abi.encode(modules));
 
+        // record existing owners for post-flight check
+        _existingOwnersHash = keccak256(abi.encode(owners));
+
         unchecked {
             ++_guardEntries;
         }
     }
 
-    /// @notice Post-flight check to prevent `safe` signers from removing this contract guard, changing any modules, or changing the threshold
-    /// @dev Modified from https://github.com/gnosis/zodiac-guard-mod/blob/988ebc7b71e352f121a0be5f6ae37e79e47a4541/contracts/ModGuard.sol#L86
+    /**
+     * @notice Post-flight check to prevent `safe` signers from performing any of the following actions:
+     *         - removing this contract guard
+     *         - changing any modules
+     *         - changing the threshold
+     *         - changing the owners
+     * @dev Modified from https://github.com/gnosis/zodiac-guard-mod/blob/988ebc7b71e352f121a0be5f6ae37e79e47a4541/contracts/ModGuard.sol#L86
+     */
     function checkAfterExecution(bytes32, bool) external override {
         if (msg.sender != address(safe)) revert NotCalledFromSafe();
-
+        // prevent signers from disabling this guard
         if (
             abi.decode(StorageAccessible(address(safe)).getStorageAt(uint256(GUARD_STORAGE_SLOT), 1), (address))
                 != address(this)
         ) {
             revert CannotDisableThisGuard(address(this));
         }
-
+        // prevent signers from changing the threshold
         if (safe.getThreshold() != _getCorrectThreshold()) {
             revert SignersCannotChangeThreshold();
         }
-
-        // SENTINEL_OWNERS and SENTINEL_MODULES are both address(0x1)
+        // prevent signers from changing the owners
+        address[] memory owners = safe.getOwners();
+        if (keccak256(abi.encode(owners)) != _existingOwnersHash) {
+            revert SignersCannotChangeOwners();
+        }
+        // prevent signers from changing the modules
+        /// @dev SENTINEL_OWNERS and SENTINEL_MODULES are both address(0x1)
         (address[] memory modules,) = safe.getModulesPaginated(SENTINEL_OWNERS, enabledModuleCount + 1);
         if (keccak256(abi.encode(modules)) != _existingModulesHash) {
             revert SignersCannotChangeModules();
         }
-
         // leave checked to catch underflows triggered by re-erntry attempts
         --_guardEntries;
     }

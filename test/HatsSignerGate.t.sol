@@ -497,7 +497,7 @@ contract HatsSignerGateTest is HSGTestSetup {
         mockIsWearerCall(addresses[1], signerHat, true);
 
         vm.expectRevert(SignersCannotChangeModules.selector);
-        
+
         // execute tx
         safe.execTransaction(
             address(safe),
@@ -597,6 +597,111 @@ contract HatsSignerGateTest is HSGTestSetup {
             address(safe),
             0,
             changeThresholdData,
+            Enum.Operation.Call,
+            // not using the refunder
+            0,
+            0,
+            0,
+            address(0),
+            payable(address(0)),
+            signatures
+        );
+    }
+
+    function testSignersCannotAddOwners() public {
+        addSigners(3);
+        // data for call to add owners
+        bytes memory addOwnerData = abi.encodeWithSignature(
+            "addOwnerWithThreshold(address,uint256)",
+            addresses[9], // newOwner
+            safe.getThreshold() // threshold
+        );
+
+        bytes32 txHash = getTxHash(address(safe), 0, addOwnerData, safe);
+        bytes memory signatures = createNSigsForTx(txHash, 2);
+
+        // ensure 2 signers are valid
+        mockIsWearerCall(addresses[0], signerHat, true);
+        mockIsWearerCall(addresses[1], signerHat, true);
+        // mock call to attempted new owner (doesn't matter if valid or not)
+        mockIsWearerCall(addresses[9], signerHat, false);
+
+        vm.expectRevert(abi.encodeWithSelector(SignersCannotChangeOwners.selector));
+        safe.execTransaction(
+            address(safe),
+            0,
+            addOwnerData,
+            Enum.Operation.Call,
+            // not using the refunder
+            0,
+            0,
+            0,
+            address(0),
+            payable(address(0)),
+            signatures
+        );
+    }
+
+    function testSignersCannotRemoveOwners() public {
+        addSigners(3);
+        address toRemove = addresses[2];
+        // data for call to remove owners
+        bytes memory removeOwnerData = abi.encodeWithSignature(
+            "removeOwner(address,address,uint256)",
+            findPrevOwner(safe.getOwners(), toRemove), // prevOwner
+            toRemove, // owner to remove
+            safe.getThreshold() // threshold
+        );
+
+        bytes32 txHash = getTxHash(address(safe), 0, removeOwnerData, safe);
+        bytes memory signatures = createNSigsForTx(txHash, 2);
+
+        // ensure 2 signers are valid
+        mockIsWearerCall(addresses[0], signerHat, true);
+        mockIsWearerCall(addresses[1], signerHat, true);
+
+        vm.expectRevert(abi.encodeWithSelector(SignersCannotChangeOwners.selector));
+        safe.execTransaction(
+            address(safe),
+            0,
+            removeOwnerData,
+            Enum.Operation.Call,
+            // not using the refunder
+            0,
+            0,
+            0,
+            address(0),
+            payable(address(0)),
+            signatures
+        );
+    }
+
+    function testSignersCannotSwapOwners() public {
+        addSigners(3);
+        address toRemove = addresses[2];
+        address toAdd = addresses[9];
+        // data for call to swap owners
+        bytes memory swapOwnerData = abi.encodeWithSignature(
+            "swapOwner(address,address,address)",
+            findPrevOwner(safe.getOwners(), toRemove), // prevOwner
+            toRemove, // owner to swap
+            toAdd // newOwner
+        );
+
+        bytes32 txHash = getTxHash(address(safe), 0, swapOwnerData, safe);
+        bytes memory signatures = createNSigsForTx(txHash, 2);
+
+        // ensure 2 signers are valid
+        mockIsWearerCall(addresses[0], signerHat, true);
+        mockIsWearerCall(addresses[1], signerHat, true);
+        // mock call to attempted new owner (doesn't matter if valid or not)
+        mockIsWearerCall(toAdd, signerHat, false);
+
+        vm.expectRevert(abi.encodeWithSelector(SignersCannotChangeOwners.selector));
+        safe.execTransaction(
+            address(safe),
+            0,
+            swapOwnerData,
             Enum.Operation.Call,
             // not using the refunder
             0,
@@ -866,7 +971,7 @@ contract HatsSignerGateTest is HSGTestSetup {
         // signer count is still 4 because reoncile hasn't been called again
         console2.log("D");
         assertEq(hatsSignerGate.signerCount(), 4);
-        
+
         // new valid signer tries to claim, but can't because
         mockIsWearerCall(addresses[5], signerHat, true);
         vm.prank(addresses[5]);
