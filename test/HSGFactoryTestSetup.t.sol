@@ -89,4 +89,39 @@ contract HSGFactoryTestSetup is Test {
         _multiHatsSignerGate = MultiHatsSignerGate(mhsg);
         _safe = GnosisSafe(payable(safe_));
     }
+
+    // borrowed from Orca (https://github.com/orcaprotocol/contracts/blob/main/contracts/utils/SafeTxHelper.sol)
+    function getSafeTxHash(address to, bytes memory data, GnosisSafe _safe) public view returns (bytes32 txHash) {
+        return _safe.getTransactionHash(
+            to,
+            0,
+            data,
+            Enum.Operation.Call,
+            // not using the refunder
+            0,
+            0,
+            0,
+            address(0),
+            payable(address(0)),
+            safe.nonce()
+        );
+    }
+
+    // modified from Orca (https://github.com/orcaprotocol/contracts/blob/main/contracts/utils/SafeTxHelper.sol)
+    function executeSafeTxFrom(address from, bytes memory data, GnosisSafe _safe) public {
+        safe.execTransaction(
+            address(_safe),
+            0,
+            data,
+            Enum.Operation.Call,
+            // not using the refunder
+            0,
+            0,
+            0,
+            address(0),
+            payable(address(0)),
+            // (r,s,v) [r - from] [s - unused] [v - 1 flag for onchain approval]
+            abi.encode(from, bytes32(0), bytes1(0x01))
+        );
+    }
 }

@@ -827,10 +827,10 @@ contract HatsSignerGateTest is HSGTestSetup {
     }
 
     function testSignersCannotAddNewModules() public {
-        (address[] memory modules, ) = safe.getModulesPaginated(SENTINELS, 5);
+        (address[] memory modules,) = safe.getModulesPaginated(SENTINELS, 5);
         console2.log(modules.length);
         // console2.log(modules[1]);
-        
+
         bytes memory addModuleData = abi.encodeWithSignature("enableModule(address)", address(0xf00baa)); // some devs are from Boston
 
         addSigners(2);

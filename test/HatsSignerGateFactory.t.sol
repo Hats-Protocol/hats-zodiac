@@ -4,6 +4,8 @@ pragma solidity ^0.8.13;
 import "./HSGFactoryTestSetup.t.sol";
 
 contract HatsSignerGateFactoryTest is HSGFactoryTestSetup {
+    error NoOtherModulesAllowed();
+
     function setUp() public {
         version = "1.0";
 
@@ -170,5 +172,74 @@ contract HatsSignerGateFactoryTest is HSGFactoryTestSetup {
             abi.encode(ownerHat, signerHats, address(safe), HATS, minThreshold, targetThreshold, maxSigners, version, 0);
         vm.expectRevert("Initializable: contract is already initialized");
         singletonMultiHatsSignerGate.setUp(initializeParams);
+    }
+
+    function testCannotDeployHSGToSafeWithExistingModules() public {
+        ownerHat = 1;
+        signerHat = 2;
+        minThreshold = 2;
+        targetThreshold = 2;
+        maxSigners = 5;
+
+        // deploy a safe to a signer
+        initSafeOwners[0] = address(this);
+        safe = deploySafe(initSafeOwners, 1);
+
+        // add a module
+        bytes memory addModuleData = abi.encodeWithSignature("enableModule(address)", address(0xf00baa)); // some devs are from Boston
+        bytes32 txHash = safe.getTransactionHash(
+            address(safe),
+            0,
+            addModuleData,
+            Enum.Operation.Call,
+            // not using the refunder
+            0,
+            0,
+            0,
+            address(0),
+            payable(address(0)),
+            safe.nonce()
+        );
+        executeSafeTxFrom(address(this), addModuleData, safe);
+
+        // attempt to deploy HSG, should revert
+        vm.expectRevert(NoOtherModulesAllowed.selector);
+        factory.deployHatsSignerGate(ownerHat, signerHat, address(safe), minThreshold, targetThreshold, maxSigners);
+    }
+
+    function testCannotDeployMHSGToSafeWithExistingModules() public {
+        ownerHat = 1;
+        uint256[] memory signerHats = new uint256[](1);
+        signerHats[0] = 2;
+        minThreshold = 2;
+        targetThreshold = 2;
+        maxSigners = 5;
+
+        // deploy a safe to a signer
+        initSafeOwners[0] = address(this);
+        safe = deploySafe(initSafeOwners, 1);
+
+        // add a module
+        bytes memory addModuleData = abi.encodeWithSignature("enableModule(address)", address(0xf00baa)); // some devs are from Boston
+        bytes32 txHash = safe.getTransactionHash(
+            address(safe),
+            0,
+            addModuleData,
+            Enum.Operation.Call,
+            // not using the refunder
+            0,
+            0,
+            0,
+            address(0),
+            payable(address(0)),
+            safe.nonce()
+        );
+        executeSafeTxFrom(address(this), addModuleData, safe);
+
+        // attempt to deploy HSG, should revert
+        vm.expectRevert(NoOtherModulesAllowed.selector);
+        factory.deployMultiHatsSignerGate(
+            ownerHat, signerHats, address(safe), minThreshold, targetThreshold, maxSigners
+        );
     }
 }
