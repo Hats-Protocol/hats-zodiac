@@ -1034,6 +1034,49 @@ contract HatsSignerGateTest is HSGTestSetup {
         hatsSignerGate.setTargetThreshold(1);
     }
 
+    function testCannotAccidentallySetThresholdHigherThanTarget() public {
+        assertEq(hatsSignerGate.targetThreshold(), 2, "target threshold");
+
+        // to reach the condition to test, we need...
+        // 1) signer count > target threshold
+        // 2) current threshold < target threshold
+
+        // 1) its unlikely to get both of these naturally since adding new signers increases the threshold
+        // but we can force it by adding owners to the safe by pretending to be the hatsSignerGate itself
+        // we start by adding 1 valid signer legitimately
+        addSigners(1);
+        // then we add 2 more valid owners my pranking the execTransactionFromModule function
+        mockIsWearerCall(addresses[2], signerHat, true);
+        mockIsWearerCall(addresses[3], signerHat, true);
+        bytes memory addOwner3 = abi.encodeWithSignature("addOwnerWithThreshold(address,uint256)", addresses[2], 1);
+        bytes memory addOwner4 = abi.encodeWithSignature("addOwnerWithThreshold(address,uint256)", addresses[3], 1);
+
+        // mockIsWearerCall(address(this), signerHat, true);
+        vm.startPrank(address(hatsSignerGate));
+        safe.execTransactionFromModule(
+            address(safe), // to
+            0, // value
+            addOwner3, // data
+            Enum.Operation.Call // operation
+        );
+        safe.execTransactionFromModule(
+            address(safe), // to
+            0, // value
+            addOwner4, // data
+            Enum.Operation.Call // operation
+        );
+
+        // now we've meet the necessary conditions
+        assertGt(
+            hatsSignerGate.validSignerCount(), hatsSignerGate.targetThreshold(), "1) signer count > target threshold"
+        );
+        assertLt(safe.getThreshold(), hatsSignerGate.targetThreshold(), "2) current threshold < target threshold");
+
+        // calling reconcile should change the threshold to the target
+        hatsSignerGate.reconcileSignerCount();
+        assertEq(safe.getThreshold(), hatsSignerGate.targetThreshold(), "threshold == target threshold");
+    }
+
     // function testSignersCannotChangeModules() public {
     //     //
     // }
