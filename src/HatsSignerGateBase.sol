@@ -295,7 +295,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         address ownerToCheck;
         bytes memory data;
 
-        for (uint256 i; i < _ownerCount - 1;) {
+        for (uint256 i; i < _ownerCount;) {
             ownerToCheck = _owners[i];
 
             if (!isValidSigner(ownerToCheck)) {

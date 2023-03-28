@@ -826,6 +826,24 @@ contract HatsSignerGateTest is HSGTestSetup {
         hatsSignerGate.claimSigner();
     }
 
+    function testValidSignersCanClaimAfterLastMaxSignerLosesHat() public {
+        // max signers is 5
+        // 5 signers claim
+        addSigners(5);
+
+        address[] memory owners = safe.getOwners();
+
+        // a signer misbehaves and loses the hat
+        mockIsWearerCall(owners[4], signerHat, false);
+
+        // validSignerCount is now 4
+        assertEq(hatsSignerGate.validSignerCount(), 4);
+
+        mockIsWearerCall(addresses[5], signerHat, true);
+        vm.prank(addresses[5]);
+        hatsSignerGate.claimSigner();
+    }
+
     function testSignersCannotAddNewModules() public {
         (address[] memory modules,) = safe.getModulesPaginated(SENTINELS, 5);
         console2.log(modules.length);
