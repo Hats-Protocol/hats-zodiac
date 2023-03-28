@@ -827,48 +827,10 @@ contract HatsSignerGateTest is HSGTestSetup {
     }
 
     function testSignersCannotAddNewModules() public {
-        bytes memory addModuleData = abi.encodeWithSignature("enableModule(address)", address(0xf00baa)); // some devs are from Boston
-
-        addSigners(2);
-
-        bytes32 txHash = getTxHash(address(safe), 0, addModuleData, safe);
-
-        bytes memory signatures = createNSigsForTx(txHash, 2);
-
-        mockIsWearerCall(addresses[0], signerHat, true);
-        mockIsWearerCall(addresses[1], signerHat, true);
-
-        vm.expectRevert(SignersCannotChangeModules.selector);
-
-        // execute tx
-        safe.execTransaction(
-            address(safe),
-            0,
-            addModuleData,
-            Enum.Operation.Call,
-            // not using the refunder
-            0,
-            0,
-            0,
-            address(0),
-            payable(address(0)),
-            signatures
-        );
-    }
-
-    function testOwnerCanAddNewModule() public {
-        mockIsWearerCall(address(this), ownerHat, true);
-        hatsSignerGate.enableNewModule(address(0xf00baa));
-
-        assertEq(hatsSignerGate.enabledModuleCount(), 2);
-    }
-
-    function testSignersCannotAddNewModulesWithExistingEnabledModule() public {
-        mockIsWearerCall(address(this), ownerHat, true);
-        hatsSignerGate.enableNewModule(address(0xdec1a551f1ed));
-
-        assertEq(hatsSignerGate.enabledModuleCount(), 2);
-
+        (address[] memory modules, ) = safe.getModulesPaginated(SENTINELS, 5);
+        console2.log(modules.length);
+        // console2.log(modules[1]);
+        
         bytes memory addModuleData = abi.encodeWithSignature("enableModule(address)", address(0xf00baa)); // some devs are from Boston
 
         addSigners(2);

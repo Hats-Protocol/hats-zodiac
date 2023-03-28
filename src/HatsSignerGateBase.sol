@@ -32,9 +32,6 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
     /// @notice The number of modules enabled on the `safe`, as enabled via this contract
     uint256 public enabledModuleCount;
 
-    /// @dev Temporary record of the existing modules on the `safe` when a transaction is submitted
-    bytes32 internal _existingModulesHash;
-
     /// @dev Temporary record of the existing owners on the `safe` when a transaction is submitted
     bytes32 internal _existingOwnersHash;
 
@@ -167,25 +164,6 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         }
 
         minThreshold = _minThreshold;
-    }
-
-    /// @notice Allows the owner to enable a new module on the `safe`
-    /// @dev Increments the `enabledModuleCount` to include the new module in the allowed list (see `checkTransaction` and `checkAfterExecution`)
-    /// @param _module The address of the module to enable
-    function enableNewModule(address _module) external onlyOwner {
-        ++enabledModuleCount;
-
-        bytes memory data = abi.encodeWithSignature("enableModule(address)", _module);
-        bool success = safe.execTransactionFromModule(
-            address(safe), // to
-            0, // value
-            data, // data
-            Enum.Operation.Call // operation
-        );
-
-        if (!success) {
-            revert FailedExecEnableModule();
-        }
     }
 
     /// @notice Tallies the number of existing `safe` owners that wear a signer hat and updates the `safe` threshold if necessary
@@ -488,11 +466,6 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
             revert InvalidSigners();
         }
 
-        // record existing modules for post-flight check
-        // SENTINEL_OWNERS and SENTINEL_MODULES are both address(0x1)
-        (address[] memory modules,) = safe.getModulesPaginated(SENTINEL_OWNERS, enabledModuleCount);
-        _existingModulesHash = keccak256(abi.encode(modules));
-
         // record existing owners for post-flight check
         _existingOwnersHash = keccak256(abi.encode(owners));
 
@@ -527,10 +500,21 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         if (keccak256(abi.encode(owners)) != _existingOwnersHash) {
             revert SignersCannotChangeOwners();
         }
-        // prevent signers from changing the modules
+        // prevent signers from removing this module or adding any other modules
         /// @dev SENTINEL_OWNERS and SENTINEL_MODULES are both address(0x1)
-        (address[] memory modules,) = safe.getModulesPaginated(SENTINEL_OWNERS, enabledModuleCount + 1);
-        if (keccak256(abi.encode(modules)) != _existingModulesHash) {
+        (address[] memory modulesWith1, address next) = safe.getModulesPaginated(SENTINEL_OWNERS, 1);
+        // ensure that there is only one module...
+        if (
+            // if the length is 0, we know this module has been removed
+            // forgefmt: disable-next-line
+            modulesWith1.length == 0
+            /* per Safe ModuleManager.sol#137, "If all entries fit into a single page, the next pointer will be 0x1", ie SENTINEL_OWNERS.
+            Therefore, if `next` is not SENTINEL_OWNERS, we know another module has been added. */
+            || next != SENTINEL_OWNERS
+        ) {
+            revert SignersCannotChangeModules();
+        } // ...and that the only module is this contract
+        else if (modulesWith1[0] != address(this)) {
             revert SignersCannotChangeModules();
         }
         // leave checked to catch underflows triggered by re-erntry attempts
