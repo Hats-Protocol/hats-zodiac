@@ -1039,6 +1039,66 @@ contract HatsSignerGateTest is HSGTestSetup {
         assertEq(safe.getThreshold(), hatsSignerGate.targetThreshold(), "threshold == target threshold");
     }
 
+    function testAttackerCannotExploitSigHandlingDifferences() public {
+        // start with 4 valid signers
+        addSigners(4);
+        // set target threshold (and therefore actual threshold) to 3
+        mockIsWearerCall(address(this), ownerHat, true);
+        hatsSignerGate.setTargetThreshold(3);
+        assertEq(safe.getThreshold(), 3, "initial threshold");
+        assertEq(safe.nonce(), 0, "pre nonce");
+        // invalidate the 3rd signer, who will be our attacker
+        address attacker = addresses[2];
+        mockIsWearerCall(attacker, signerHat, false);
+
+        // Attacker crafts a tx to submit to the safe.
+        address maliciousContract = makeAddr("maliciousContract");
+        bytes memory maliciousTx = abi.encodeWithSignature("maliciousCall(uint256)", 1 ether);
+        // Attacker gets 2 of the valid signers to sign it, and adds their own (invalid) signature: NSigs = 3
+        bytes32 txHash = safe.getTransactionHash(
+            address(safe), // to
+            0, // value
+            maliciousTx, // data
+            Enum.Operation.Call, // operation
+            0, // safeTxGas
+            0, // baseGas
+            0, // gasPrice
+            address(0), // gasToken
+            address(0), // refundReceiver
+            safe.nonce() // nonce
+        );
+        bytes memory sigs = createNSigsForTx(txHash, 3);
+
+        // attacker adds a contract signature from the 4th signer from a previous tx
+        // since HSG doesn't check that the correct data was signed, it would be considered a valid signature
+        bytes memory contractSig = abi.encode(addresses[3], bytes32(0), bytes1(0x01));
+        sigs = bytes.concat(sigs, contractSig);
+
+        // mock the maliciousTx so it would succeed if it were to be executed
+        vm.mockCall(maliciousContract, maliciousTx, abi.encode(true));
+        // attacker submits the tx to the safe, but it should fail
+        vm.expectRevert(InvalidSigners.selector);
+        vm.prank(attacker);
+        safe.execTransaction(
+            address(safe),
+            0,
+            maliciousTx,
+            Enum.Operation.Call,
+            // not using the refunder
+            0,
+            0,
+            0,
+            address(0),
+            payable(address(0)),
+            // (r,s,v) [r - from] [s - unused] [v - 1 flag for onchain approval]
+            sigs
+        );
+
+        assertEq(safe.getThreshold(), 3, "post threshold");
+        assertEq(hatsSignerGate.validSignerCount(), 3, "valid signer count");
+        assertEq(safe.nonce(), 0, "post nonce hasn't changed");
+    }
+
     // function testSignersCannotChangeModules() public {
     //     //
     // }

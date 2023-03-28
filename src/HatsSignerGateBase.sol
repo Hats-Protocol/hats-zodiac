@@ -458,11 +458,11 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
             // We subtract 1 since nonce was just incremented in the parent function call
             safe.nonce() - 1 // view function
         );
-
-        uint256 validSigCount = countValidSignatures(txHash, signatures, signatures.length / 65);
+        uint256 threshold = safe.getThreshold();
+        uint256 validSigCount = countValidSignatures(txHash, signatures, threshold);
 
         // revert if there aren't enough valid signatures
-        if (validSigCount < safe.getThreshold() || validSigCount < minThreshold) {
+        if (validSigCount < threshold || validSigCount < minThreshold) {
             revert InvalidSigners();
         }
 
