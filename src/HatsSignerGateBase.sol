@@ -425,14 +425,12 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         address // msgSender
     ) external override {
         if (msg.sender != address(safe)) revert NotCalledFromSafe();
-
         // get the safe owners
         address[] memory owners = safe.getOwners();
         {
             // scope to avoid stack too deep errors
             uint256 safeOwnerCount = owners.length;
             // uint256 validSignerCount = _countValidSigners(safe.getOwners());
-
             // ensure that safe threshold is correct
             reconcileSignerCount();
 
@@ -440,7 +438,6 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
                 revert BelowMinThreshold(minThreshold, safeOwnerCount);
             }
         }
-
         // get the tx hash; view function
         bytes32 txHash = safe.getTransactionHash(
             // Transaction info
@@ -472,6 +469,8 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         unchecked {
             ++_guardEntries;
         }
+        // revert if re-entry is detected
+        if (_guardEntries > 1) revert NoReentryAllowed();
     }
 
     /**
@@ -517,7 +516,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         else if (modulesWith1[0] != address(this)) {
             revert SignersCannotChangeModules();
         }
-        // leave checked to catch underflows triggered by re-erntry attempts
+        // leave checked to catch underflows triggered by re-entry attempts
         --_guardEntries;
     }
 

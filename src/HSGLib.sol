@@ -76,3 +76,7 @@ error SignersCannotChangeOwners();
 /// @notice Emmitted when a call to `checkTransaction` or `checkAfterExecution` is not made from the `safe`
 /// @dev Together with `guardEntries`, protects against arbitrary reentrancy attacks by the signers
 error NotCalledFromSafe();
+
+/// @notice Emmitted when attempting to reenter `checkTransaction`
+/// @dev The Safe will catch this error and re-throw with its own error message (`GS013`)
+error NoReentryAllowed();
