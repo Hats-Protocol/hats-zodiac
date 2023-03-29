@@ -124,4 +124,9 @@ contract HSGFactoryTestSetup is Test {
             abi.encode(from, bytes32(0), bytes1(0x01))
         );
     }
+
+    function mockIsWearerCall(address wearer, uint256 hat, bool result) public {
+        bytes memory data = abi.encodeWithSignature("isWearerOfHat(address,uint256)", wearer, hat);
+        vm.mockCall(HATS, data, abi.encode(result));
+    }
 }

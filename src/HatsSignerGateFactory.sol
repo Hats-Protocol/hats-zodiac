@@ -81,7 +81,7 @@ contract HatsSignerGateFactory {
         version = _version;
     }
 
-    // option 1: deploy a new Safe and signer gate, all wired up
+    /// @notice Deploy a new HatsSignerGate and a new Safe, all wired up together
     function deployHatsSignerGateAndSafe(
         uint256 _ownerHatId,
         uint256 _signersHatId,
@@ -119,8 +119,14 @@ contract HatsSignerGateFactory {
         return (hsg, safe);
     }
 
-    // option 2: deploy a new signer gate and attach it to an existing Safe
-    /// @dev HatsSignerGate cannot be attached to a safe with existing modules
+    /**
+     * @notice Deploy a new HatsSignerGate and relate it to an existing Safe
+     * @dev In order to wire it up to the existing Safe, the owners of the Safe must enable it as a module and guard
+     *      WARNING: HatsSignerGate must not be attached to a Safe with any other modules
+     *      WARNING: HatsSignerGate must not be attached to its Safe if `validSignerCount()` >= `_maxSigners`
+     *      Before wiring up HatsSignerGate to its Safe, call `canAttachHSGToSafe` and make sure the result is true
+     *      Failure to do so may result in the Safe being locked forever
+     */
     function deployHatsSignerGate(
         uint256 _ownerHatId,
         uint256 _signersHatId,
@@ -134,6 +140,19 @@ contract HatsSignerGateFactory {
         if (modulesWith1.length > 0) revert NoOtherModulesAllowed();
 
         return _deployHatsSignerGate(_ownerHatId, _signersHatId, _safe, _minThreshold, _targetThreshold, _maxSigners);
+    }
+
+    /**
+     * @notice Checks if a HatsSignerGate can be safely attached to a Safe
+     * @dev There must be...
+     *      1) No existing modules on the Safe
+     *      2) HatsSignerGate's `validSignerCount()` must be <= `_maxSigners`
+     */
+    function canAttachHSGToSafe(HatsSignerGate _hsg) public view returns (bool) {
+        (address[] memory modulesWith1,) = _hsg.safe().getModulesPaginated(SENTINEL_MODULES, 1);
+        uint256 moduleCount = modulesWith1.length;
+
+        return (moduleCount == 0 && _hsg.validSignerCount() <= _hsg.maxSigners());
     }
 
     function _deployHatsSignerGate(
@@ -183,7 +202,7 @@ contract HatsSignerGateFactory {
         _action = abi.encodeWithSignature("multiSend(bytes)", packedCalls);
     }
 
-    // option 3: deploy a new Safe and signer gate, all wired up
+    /// @notice Deploy a new MultiHatsSignerGate and a new Safe, all wired up together
     function deployMultiHatsSignerGateAndSafe(
         uint256 _ownerHatId,
         uint256[] calldata _signersHatIds,
@@ -224,8 +243,14 @@ contract HatsSignerGateFactory {
         return (mhsg, safe);
     }
 
-    // option 2: deploy a new signer gate and attach it to an existing Safe
-    /// @dev MultiHatsSignerGate cannot be attached to a safe with existing modules
+    /**
+     * @notice Deploy a new MultiHatsSignerGate and relate it to an existing Safe
+     * @dev In order to wire it up to the existing Safe, the owners of the Safe must enable it as a module and guard
+     *      WARNING: MultiHatsSignerGate must not be attached to a Safe with any other modules
+     *      WARNING: MultiHatsSignerGate must not be attached to its Safe if `validSignerCount()` > `_maxSigners`
+     *      Before wiring up MultiHatsSignerGate to its Safe, call `canAttachMHSGToSafe` and make sure the result is true
+     *      Failure to do so may result in the Safe being locked forever
+     */
     function deployMultiHatsSignerGate(
         uint256 _ownerHatId,
         uint256[] calldata _signersHatIds,
@@ -240,6 +265,19 @@ contract HatsSignerGateFactory {
 
         return
             _deployMultiHatsSignerGate(_ownerHatId, _signersHatIds, _safe, _minThreshold, _targetThreshold, _maxSigners);
+    }
+
+    /**
+     * @notice Checks if a MultiHatsSignerGate can be safely attached to a Safe
+     * @dev There must be...
+     *      1) No existing modules on the Safe
+     *      2) MultiHatsSignerGate's `validSignerCount()` must be <= `_maxSigners`
+     */
+    function canAttachMHSGToSafe(MultiHatsSignerGate _mhsg) public view returns (bool) {
+        (address[] memory modulesWith1,) = _mhsg.safe().getModulesPaginated(SENTINEL_MODULES, 1);
+        uint256 moduleCount = modulesWith1.length;
+
+        return (moduleCount == 0 && _mhsg.validSignerCount() <= _mhsg.maxSigners());
     }
 
     function _deployMultiHatsSignerGate(
