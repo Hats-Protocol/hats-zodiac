@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: CC0
 pragma solidity >=0.8.13;
 
-import { console2 } from "forge-std/Test.sol"; // remove after testing
+// import { console2 } from "forge-std/Test.sol"; // remove after testing
 import "./HatsSignerGate.sol";
 import "./MultiHatsSignerGate.sol";
 import "@gnosis.pm/safe-contracts/contracts/GnosisSafe.sol";

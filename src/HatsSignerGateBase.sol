@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: CC0
 pragma solidity >=0.8.13;
 
-import { Test, console2 } from "forge-std/Test.sol"; // remove after testing
+// import { Test, console2 } from "forge-std/Test.sol"; // remove after testing
 import "./HSGLib.sol";
 import { HatsOwnedInitializable } from "hats-auth/HatsOwnedInitializable.sol";
 import { BaseGuard } from "zodiac/guard/BaseGuard.sol";
@@ -22,9 +22,6 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
 
     /// @notice The maximum number of signers allowed for the `safe`
     uint256 public maxSigners;
-
-    // /// @notice The current number of signers on the `safe`
-    // uint256 public signerCount;
 
     /// @notice The version of HatsSignerGate used in this contract
     string public version;
@@ -125,7 +122,6 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
     /// @param _signerCount The number of valid signers on the `safe`; should be calculated from `validSignerCount()`
     function _setSafeThreshold(uint256 _threshold, uint256 _signerCount) internal {
         uint256 newThreshold = _threshold;
-        // uint256 signerCount = validSignerCount();
 
         // ensure that txs can't execute if fewer signers than target threshold
         if (_signerCount <= _threshold) {
@@ -200,6 +196,8 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         }
     }
 
+    /// @notice Tallies the number of existing `safe` owners that wear a signer hat
+    /// @return signerCount The number of valid signers on the `safe`
     function validSignerCount() public view returns (uint256 signerCount) {
         signerCount = _countValidSigners(safe.getOwners());
     }
