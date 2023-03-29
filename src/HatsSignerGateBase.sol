@@ -60,7 +60,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
     /// @param _safe The multisig to which this instance of HatsSignerGate is attached
     /// @param _hats The Hats Protocol address
     /// @param _minThreshold The minimum threshold for the `_safe`
-    /// @param _targetThreshold The maxium threshold for the `_safe`
+    /// @param _targetThreshold The maximum threshold for the `_safe`
     /// @param _maxSigners The maximum number of signers allowed on the `_safe`
     /// @param _version The current version of HatsSignerGate
     function _setUp(
