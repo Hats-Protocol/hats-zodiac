@@ -826,6 +826,24 @@ contract HatsSignerGateTest is HSGTestSetup {
         hatsSignerGate.claimSigner();
     }
 
+    function testValidSignersCanClaimAfterLastMaxSignerLosesHat() public {
+        // max signers is 5
+        // 5 signers claim
+        addSigners(5);
+
+        address[] memory owners = safe.getOwners();
+
+        // a signer misbehaves and loses the hat
+        mockIsWearerCall(owners[4], signerHat, false);
+
+        // validSignerCount is now 4
+        assertEq(hatsSignerGate.validSignerCount(), 4);
+
+        mockIsWearerCall(addresses[5], signerHat, true);
+        vm.prank(addresses[5]);
+        hatsSignerGate.claimSigner();
+    }
+
     function testSignersCannotAddNewModules() public {
         (address[] memory modules,) = safe.getModulesPaginated(SENTINELS, 5);
         console2.log(modules.length);
@@ -1099,7 +1117,128 @@ contract HatsSignerGateTest is HSGTestSetup {
         assertEq(safe.nonce(), 0, "post nonce hasn't changed");
     }
 
-    // function testSignersCannotChangeModules() public {
-    //     //
-    // }
+    function testSignersCannotReenterCheckTransactionToAddOwners() public {
+        address newOwner = makeAddr("newOwner");
+        bytes memory addOwnerAction;
+        bytes memory sigs;
+        bytes memory checkTxAction;
+        bytes memory multisend;
+        // start with 3 valid signers
+        addSigners(3);
+        // attacker is the first of these signers
+        address attacker = addresses[0];
+        assertEq(safe.getThreshold(), 2, "initial threshold");
+        assertEq(safe.getOwners().length, 3, "initial owner count");
+
+        /* attacker crafts a multisend tx to submit to the safe, with the following actions:
+            1) add a new owner 
+                — when `HSG.checkTransaction` is called, the hash of the original owner array will be stored
+            2) directly call `HSG.checkTransaction` 
+                — this will cause the hash of the new owner array (with the new owner from #1) to be stored
+                — when `HSG.checkAfterExecution` is called, the owner array check will pass even though 
+        */
+
+        // 1) craft the addOwner action
+        // mock the new owner as a valid signer
+        mockIsWearerCall(newOwner, signerHat, true);
+        {
+            // use scope to avoid stack too deep error
+            // compile the action
+            addOwnerAction = abi.encodeWithSignature("addOwnerWithThreshold(address,uint256)", newOwner, 2);
+
+            // 2) craft the direct checkTransaction action
+            // first craft a dummy/empty tx to pass to checkTransaction
+            bytes32 dummyTxHash = safe.getTransactionHash(
+                attacker, // send 0 eth to the attacker
+                0,
+                hex"00",
+                Enum.Operation.Call,
+                // not using the refunder
+                0,
+                0,
+                0,
+                address(0),
+                address(0),
+                safe.nonce()
+            );
+
+            // then have it signed by the attacker and a collaborator
+            sigs = createNSigsForTx(dummyTxHash, 2);
+
+            checkTxAction = abi.encodeWithSelector(
+                hatsSignerGate.checkTransaction.selector,
+                // checkTransaction params
+                attacker,
+                0,
+                hex"00",
+                Enum.Operation.Call,
+                0,
+                0,
+                0,
+                address(0),
+                payable(address(0)),
+                sigs,
+                attacker // msgSender
+            );
+
+            // now bundle the two actions into a multisend tx
+            bytes memory packedCalls = abi.encodePacked(
+                // 1) add owner
+                uint8(0), // 0 for call; 1 for delegatecall
+                safe, // to
+                uint256(0), // value
+                uint256(addOwnerAction.length), // data length
+                bytes(addOwnerAction), // data
+                // 2) direct call to checkTransaction
+                uint8(0), // 0 for call; 1 for delegatecall
+                hatsSignerGate, // to
+                uint256(0), // value
+                uint256(checkTxAction.length), // data length
+                bytes(checkTxAction) // data
+            );
+            multisend = abi.encodeWithSignature("multiSend(bytes)", packedCalls);
+        }
+
+        // now get the safe tx hash and have attacker sign it with a collaborator
+        bytes32 safeTxHash = safe.getTransactionHash(
+            gnosisMultisendLibrary, // to
+            0, // value
+            multisend, // data
+            Enum.Operation.DelegateCall, // operation
+            0, // safeTxGas
+            0, // baseGas
+            0, // gasPrice
+            address(0), // gasToken
+            address(0), // refundReceiver
+            safe.nonce() // nonce
+        );
+        sigs = createNSigsForTx(safeTxHash, 2);
+
+        // now submit the tx to the safe
+        vm.prank(attacker);
+        /* 
+        Expect revert because of re-entry into checkTransaction
+        While hatsSignerGate will throw the NoReentryAllowed error, 
+        since the error occurs within the context of the safe transaction, 
+        the safe will catch the error and re-throw with its own error, 
+        ie `GS013` ("Safe transaction failed when gasPrice and safeTxGas were 0")
+        */
+        vm.expectRevert(bytes("GS013"));
+        safe.execTransaction(
+            gnosisMultisendLibrary,
+            0,
+            multisend,
+            Enum.Operation.DelegateCall,
+            // not using the refunder
+            0,
+            0,
+            0,
+            address(0),
+            payable(address(0)),
+            sigs
+        );
+
+        // no new owners have been added, despite the attacker's best efforts
+        assertEq(safe.getOwners().length, 3, "post owner count");
+    }
 }
