@@ -473,10 +473,12 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
 
     /**
      * @notice Post-flight check to prevent `safe` signers from performing any of the following actions:
-     *         - removing this contract guard
-     *         - changing any modules
-     *         - changing the threshold
-     *         - changing the owners
+     *         1. removing this contract guard
+     *         2. changing any modules
+     *         3. changing the threshold
+     *         4. changing the owners
+     *     CAUTION: If the safe has any authority over the signersHat(s) — i.e. wears their admin hat(s) or is an eligibility or toggle module — 
+     *     then in some cases protections (3) and (4) may not hold. Proceed with caution if considering granting such authority to the safe.
      * @dev Modified from https://github.com/gnosis/zodiac-guard-mod/blob/988ebc7b71e352f121a0be5f6ae37e79e47a4541/contracts/ModGuard.sol#L86
      */
     function checkAfterExecution(bytes32, bool) external override {
