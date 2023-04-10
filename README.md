@@ -40,7 +40,6 @@ B) **Signers cannot execute transactions that remove the constraint in (A)**. Sp
 >
 > Proceed with caution if granting such authority to a Safe attached to HatsSignerGate.
 
-
 ### Contract Ownership
 
 Hats Signer Gate uses the [HatsOwned](https://github.com/Hats-Protocol/hats-auth/) mix-in to manage ownership via a specified `ownerHat`.
