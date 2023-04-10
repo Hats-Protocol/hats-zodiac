@@ -7,7 +7,7 @@ contract MultiHatsSignerGateTest is MHSGTestSetup {
     function test_Multi_AddSingleSigner() public {
         addSigners_Multi(1);
 
-        assertEq(multiHatsSignerGate.signerCount(), 1);
+        assertEq(multiHatsSignerGate.validSignerCount(), 1);
         assertEq(safe.getOwners()[0], addresses[0]);
         assertEq(safe.getThreshold(), 1);
     }
@@ -15,7 +15,7 @@ contract MultiHatsSignerGateTest is MHSGTestSetup {
     function test_Multi_AddTwoSigners_DifferentHats() public {
         addSigners_Multi(2);
 
-        assertEq(multiHatsSignerGate.signerCount(), 2);
+        assertEq(multiHatsSignerGate.validSignerCount(), 2);
         assertEq(safe.getOwners()[0], addresses[1]);
         assertEq(safe.getOwners()[1], addresses[0]);
         assertEq(safe.getThreshold(), 2);
@@ -40,7 +40,7 @@ contract MultiHatsSignerGateTest is MHSGTestSetup {
 
         assertEq(safe.getOwners().length, 1);
         assertEq(safe.getOwners()[0], address(multiHatsSignerGate));
-        assertEq(multiHatsSignerGate.signerCount(), 0);
+        assertEq(multiHatsSignerGate.validSignerCount(), 0);
         assertEq(safe.getThreshold(), 1);
     }
 
@@ -55,7 +55,7 @@ contract MultiHatsSignerGateTest is MHSGTestSetup {
 
         assertEq(safe.getOwners().length, 1);
         assertEq(safe.getOwners()[0], addresses[0]);
-        assertEq(multiHatsSignerGate.signerCount(), 1);
+        assertEq(multiHatsSignerGate.validSignerCount(), 1);
 
         assertEq(safe.getThreshold(), 1);
     }
@@ -123,7 +123,6 @@ contract MultiHatsSignerGateTest is MHSGTestSetup {
         // emit log_uint(address(safe).balance);
         // have one of the signers submit/exec the tx
         vm.prank(addresses[0]);
-        
 
         // vm.expectRevert(abi.encodeWithSelector(BelowMinThreshold.selector, minThreshold, 1));
         vm.expectRevert(InvalidSigners.selector);
