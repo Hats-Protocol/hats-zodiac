@@ -30,10 +30,15 @@ A) **Only valid signers can execute transations**, i.e. only signatures made by 
 
 B) **Signers cannot execute transactions that remove the constraint in (A)**. Specifically, this contract guards against signers...
 
-1. Removing the contract as a module on the multisig,
-2. Removing the contract as a guard on the multisig,
+1. Removing the contract as a guard on the multisig
+2. Removing the contract as a module on the multisig — or removing/changing/adding any other modules,
 3. Changing the multisig threshold
-4. Adding new modules to the multisig
+4. Changing the multisig owners
+
+> **Warning**
+> Protections against (3) and (4) above only hold if the Safe does not have any authority over the signer Hat(s). If it does — e.g. it wears an admin Hat of the signer Hat(s) or is an eligibility or toggle module on the signer Hat(s) — then in some cases the signers may be able to change the multisig threshold or owners.
+>
+> Proceed with caution if granting such authority to a Safe attached to HatsSignerGate.
 
 ### Contract Ownership
 
