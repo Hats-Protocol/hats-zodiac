@@ -40,7 +40,8 @@ contract MultiHatsSignerGate is HatsSignerGateBase {
     /// @param _hatId The hat id to claim signer rights for
     function claimSigner(uint256 _hatId) public {
         uint256 maxSigs = maxSigners; // save SLOADs
-        uint256 currentSignerCount = signerCount;
+        address[] memory owners = safe.getOwners();
+        uint256 currentSignerCount = _countValidSigners(owners);
 
         if (currentSignerCount >= maxSigs) {
             revert MaxSignersReached();
@@ -63,11 +64,10 @@ contract MultiHatsSignerGate is HatsSignerGateBase {
         If we're already at maxSigners, we'll replace one of the invalid owners by swapping the signer.
         Otherwise, we'll simply add the new signer.
         */
-        address[] memory owners = safe.getOwners();
         uint256 ownerCount = owners.length;
 
         if (ownerCount >= maxSigs) {
-            bool swapped = _swapSigner(owners, ownerCount, maxSigs, currentSignerCount, msg.sender);
+            bool swapped = _swapSigner(owners, ownerCount, msg.sender);
             if (!swapped) {
                 // if there are no invalid owners, we can't add a new signer, so we revert
                 revert NoInvalidSignersToReplace();

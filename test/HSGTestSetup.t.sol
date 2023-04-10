@@ -44,6 +44,7 @@ contract HSGTestSetup is HSGFactoryTestSetup, SignatureDecoder {
         );
 
         (hatsSignerGate, safe) = deployHSGAndSafe(ownerHat, signerHat, minThreshold, targetThreshold, maxSigners);
+        mockIsWearerCall(address(hatsSignerGate), signerHat, false);
     }
 
     //// HELPER FUNCTIONS ////
@@ -57,46 +58,6 @@ contract HSGTestSetup is HSGFactoryTestSetup, SignatureDecoder {
             vm.prank(addresses[i]);
             hatsSignerGate.claimSigner();
         }
-    }
-
-    function mockIsWearerCall(address wearer, uint256 hat, bool result) public {
-        bytes memory data = abi.encodeWithSignature("isWearerOfHat(address,uint256)", wearer, hat);
-        vm.mockCall(HATS, data, abi.encode(result));
-    }
-
-    // modified from Orca (https://github.com/orcaprotocol/contracts/blob/main/contracts/utils/SafeTxHelper.sol)
-    function executeSafeTxFrom(address from, bytes memory data, GnosisSafe _safe) public {
-        safe.execTransaction(
-            address(_safe),
-            0,
-            data,
-            Enum.Operation.Call,
-            // not using the refunder
-            0,
-            0,
-            0,
-            address(0),
-            payable(address(0)),
-            // (r,s,v) [r - from] [s - unused] [v - 1 flag for onchain approval]
-            abi.encode(from, bytes32(0), bytes1(0x01))
-        );
-    }
-
-    // borrowed from Orca (https://github.com/orcaprotocol/contracts/blob/main/contracts/utils/SafeTxHelper.sol)
-    function getSafeTxHash(address to, bytes memory data, GnosisSafe _safe) public view returns (bytes32 txHash) {
-        return _safe.getTransactionHash(
-            to,
-            0,
-            data,
-            Enum.Operation.Call,
-            // not using the refunder
-            0,
-            0,
-            0,
-            address(0),
-            payable(address(0)),
-            safe.nonce()
-        );
     }
 
     function getEthTransferSafeTxHash(address to, uint256 value, GnosisSafe _safe)
