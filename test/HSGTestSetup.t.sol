@@ -60,11 +60,6 @@ contract HSGTestSetup is HSGFactoryTestSetup, SignatureDecoder {
         }
     }
 
-    function mockIsWearerCall(address wearer, uint256 hat, bool result) public {
-        bytes memory data = abi.encodeWithSignature("isWearerOfHat(address,uint256)", wearer, hat);
-        vm.mockCall(HATS, data, abi.encode(result));
-    }
-
     function getEthTransferSafeTxHash(address to, uint256 value, GnosisSafe _safe)
         public
         view

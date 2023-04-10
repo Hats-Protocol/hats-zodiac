@@ -1141,7 +1141,8 @@ contract HatsSignerGateTest is HSGTestSetup {
         // 1) craft the addOwner action
         // mock the new owner as a valid signer
         mockIsWearerCall(newOwner, signerHat, true);
-        { // use scope to avoid stack too deep error
+        {
+            // use scope to avoid stack too deep error
             // compile the action
             addOwnerAction = abi.encodeWithSignature("addOwnerWithThreshold(address,uint256)", newOwner, 2);
 
