@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: CC0
 pragma solidity >=0.8.13;
 
-import { Test, console2 } from "forge-std/Test.sol"; // remove after testing
+// import { Test, console2 } from "forge-std/Test.sol"; // remove after testing
 import { HatsSignerGateBase, IGnosisSafe, Enum } from "./HatsSignerGateBase.sol";
 import "./HSGLib.sol";
 
@@ -72,8 +72,6 @@ contract HatsSignerGate is HatsSignerGateBase {
     /// @param _account The address to check
     /// @return valid Whether `_account` is a valid signer
     function isValidSigner(address _account) public view override returns (bool valid) {
-        // console2.log("ivs 1");
         valid = HATS.isWearerOfHat(_account, signersHatId);
-        // console2.log("ivs 2");
     }
 }
