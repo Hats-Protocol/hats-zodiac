@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: CC0
 pragma solidity >=0.8.13;
 
-// import { Test, console2 } from "forge-std/Test.sol"; // remove after testing
+import { Test, console2 } from "forge-std/Test.sol"; // remove after testing
 import "./HSGLib.sol";
 import { HatsOwnedInitializable } from "hats-auth/HatsOwnedInitializable.sol";
 import { BaseGuard } from "zodiac/guard/BaseGuard.sol";
@@ -346,11 +346,10 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
     function _removeSigner(address _signer) internal {
         bytes memory removeOwnerData;
         address[] memory owners = safe.getOwners();
-        uint256 validSigners = _countValidSigners(owners);
-        // uint256 newSignerCount;
 
-        if (validSigners < 2 && owners.length == 1) {
-            // signerCount could be 0 after reconcileSignerCount
+        // safe can't have 0 owners, so if there's only 1 existing owner, we need to replace it
+        if (owners.length == 1) {
+            // if only 1 owner, by definition there's at most one valid signer, so we don't need to check valid signers
             // make address(this) the only owner
             removeOwnerData = abi.encodeWithSignature(
                 "swapOwner(address,address,address)",
@@ -358,12 +357,11 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
                 _signer, // oldOwner
                 address(this) // newOwner
             );
-
-            // newSignerCount is already 0
         } else {
+            // if more than 1 owner, check valid signers
+            uint256 validSigners = _countValidSigners(owners);
             uint256 currentThreshold = safe.getThreshold();
             uint256 newThreshold = currentThreshold;
-            // uint256 validSignerCount = _countValidSigners(owners);
 
             // ensure that txs can't execute if fewer signers than target threshold
             if (validSigners <= targetThreshold) {
@@ -482,7 +480,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
      *         2. changing any modules
      *         3. changing the threshold
      *         4. changing the owners
-     *     CAUTION: If the safe has any authority over the signersHat(s) — i.e. wears their admin hat(s) or is an eligibility or toggle module — 
+     *     CAUTION: If the safe has any authority over the signersHat(s) — i.e. wears their admin hat(s) or is an eligibility or toggle module —
      *     then in some cases protections (3) and (4) may not hold. Proceed with caution if considering granting such authority to the safe.
      * @dev Modified from https://github.com/gnosis/zodiac-guard-mod/blob/988ebc7b71e352f121a0be5f6ae37e79e47a4541/contracts/ModGuard.sol#L86
      */
