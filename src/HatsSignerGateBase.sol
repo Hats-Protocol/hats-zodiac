@@ -173,11 +173,18 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         uint256 newThreshold;
         uint256 target = targetThreshold; // save SLOADs
 
-        if (signerCount <= target && signerCount != currentThreshold) {
-            newThreshold = signerCount;
-        } else if (signerCount > target && currentThreshold < target) {
-            newThreshold = target;
+        if (signerCount < target) {
+            // reduce threshold if necessary
+            if (signerCount != currentThreshold) newThreshold = signerCount;
+            // don't change threshold if (currentThreshold == signerCount)
+        } else {
+            // if (signerCount >= target), then...
+            if (currentThreshold != target) newThreshold = target;
+            // don't change threshold if (currentThreshold == target)
         }
+        // don't change threshold if (currentThreshold == target && signerCount >= target)
+
+        // change the threshold if necessary
         if (newThreshold > 0) {
             bytes memory data = abi.encodeWithSignature("changeThreshold(uint256)", newThreshold);
 

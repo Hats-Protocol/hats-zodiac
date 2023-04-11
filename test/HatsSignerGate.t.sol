@@ -890,10 +890,10 @@ contract HatsSignerGateTest is HSGTestSetup {
         mockIsWearerCall(addresses[3], signerHat, false);
         mockIsWearerCall(addresses[4], signerHat, false);
 
-        // reconcile is called, so signerCount is updated to 2
+        // reconcile is called, so threshold is updated to 2
         hatsSignerGate.reconcileSignerCount();
-        assertEq(hatsSignerGate.validSignerCount(), 2);
-        assertEq(safe.getThreshold(), 2);
+        assertEq(hatsSignerGate.validSignerCount(), 2, "signer count");
+        assertEq(safe.getThreshold(), 2, "threshold");
 
         // the 3 owners regain their hats
         mockIsWearerCall(addresses[2], signerHat, true);
