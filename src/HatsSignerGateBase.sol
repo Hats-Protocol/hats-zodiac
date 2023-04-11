@@ -67,8 +67,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         uint256 _minThreshold,
         uint256 _targetThreshold,
         uint256 _maxSigners,
-        string memory _version,
-        uint256 _existingModuleCount
+        string memory _version
     ) internal {
         _HatsOwned_init(_ownerHatId, _hats);
         maxSigners = _maxSigners;
@@ -77,7 +76,6 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         _setTargetThreshold(_targetThreshold);
         _setMinThreshold(_minThreshold);
         version = _version;
-        enabledModuleCount = _existingModuleCount + 1; // this contract is enabled as well
     }
 
     /// @notice Checks if `_account` is a valid signer
