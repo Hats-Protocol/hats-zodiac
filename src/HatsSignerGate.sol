@@ -21,12 +21,11 @@ contract HatsSignerGate is HatsSignerGateBase {
             uint256 _targetThreshold,
             uint256 _maxSigners,
             string memory _version,
-            uint256 _existingModuleCount
         ) = abi.decode(
             initializeParams, (uint256, uint256, address, address, uint256, uint256, uint256, string, uint256)
         );
 
-        _setUp(_ownerHatId, _safe, _hats, _minThreshold, _targetThreshold, _maxSigners, _version, _existingModuleCount);
+        _setUp(_ownerHatId, _safe, _hats, _minThreshold, _targetThreshold, _maxSigners, _version);
 
         signersHatId = _signersHatId;
     }

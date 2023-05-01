@@ -26,9 +26,6 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
     /// @notice The version of HatsSignerGate used in this contract
     string public version;
 
-    /// @notice The number of modules enabled on the `safe`, as enabled via this contract
-    uint256 public enabledModuleCount;
-
     /// @dev Temporary record of the existing owners on the `safe` when a transaction is submitted
     bytes32 internal _existingOwnersHash;
 
@@ -67,8 +64,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         uint256 _minThreshold,
         uint256 _targetThreshold,
         uint256 _maxSigners,
-        string memory _version,
-        uint256 _existingModuleCount
+        string memory _version
     ) internal {
         _HatsOwned_init(_ownerHatId, _hats);
         maxSigners = _maxSigners;
@@ -77,7 +73,6 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         _setTargetThreshold(_targetThreshold);
         _setMinThreshold(_minThreshold);
         version = _version;
-        enabledModuleCount = _existingModuleCount + 1; // this contract is enabled as well
     }
 
     /// @notice Checks if `_account` is a valid signer
@@ -477,7 +472,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
      *         2. changing any modules
      *         3. changing the threshold
      *         4. changing the owners
-     *     CAUTION: If the safe has any authority over the signersHat(s) — i.e. wears their admin hat(s) or is an eligibility or toggle module — 
+     *     CAUTION: If the safe has any authority over the signersHat(s) — i.e. wears their admin hat(s) or is an eligibility or toggle module —
      *     then in some cases protections (3) and (4) may not hold. Proceed with caution if considering granting such authority to the safe.
      * @dev Modified from https://github.com/gnosis/zodiac-guard-mod/blob/988ebc7b71e352f121a0be5f6ae37e79e47a4541/contracts/ModGuard.sol#L86
      */
