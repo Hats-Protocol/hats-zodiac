@@ -83,6 +83,9 @@ contract HatsSignerGateTest is HSGTestSetup {
     }
 
     function testReconcileSignerCount() public {
+        mockIsWearerCall(addresses[1], signerHat, false);
+        mockIsWearerCall(addresses[2], signerHat, false);
+        mockIsWearerCall(addresses[3], signerHat, false);
         // add 3 more safe owners the old fashioned way
         // 1
         bytes memory addOwnersData1 = abi.encodeWithSignature("addOwnerWithThreshold(address,uint256)", addresses[1], 1);
@@ -123,18 +126,16 @@ contract HatsSignerGateTest is HSGTestSetup {
             Enum.Operation.Call // operation
         );
 
-        assertEq(hatsSignerGate.signerCount(), 0);
+        assertEq(hatsSignerGate.validSignerCount(), 0);
 
         // set only two of them as valid signers
         mockIsWearerCall(address(hatsSignerGate), signerHat, true);
         mockIsWearerCall(addresses[1], signerHat, true);
-        mockIsWearerCall(addresses[2], signerHat, false);
-        mockIsWearerCall(addresses[3], signerHat, false);
 
         // do the reconcile
         hatsSignerGate.reconcileSignerCount();
 
-        assertEq(hatsSignerGate.signerCount(), 2);
+        assertEq(hatsSignerGate.validSignerCount(), 2);
         assertEq(safe.getThreshold(), 2);
 
         // now we can remove both the invalid signers with no changes to hatsSignerCount
@@ -143,7 +144,7 @@ contract HatsSignerGateTest is HSGTestSetup {
         mockIsWearerCall(addresses[3], signerHat, false);
         hatsSignerGate.removeSigner(addresses[3]);
 
-        assertEq(hatsSignerGate.signerCount(), 2);
+        assertEq(hatsSignerGate.validSignerCount(), 2);
         assertEq(safe.getThreshold(), 2);
     }
 
@@ -152,7 +153,7 @@ contract HatsSignerGateTest is HSGTestSetup {
 
         assertEq(safe.getOwners().length, 1);
 
-        assertEq(hatsSignerGate.signerCount(), 1);
+        assertEq(hatsSignerGate.validSignerCount(), 1);
 
         assertEq(safe.getOwners()[0], addresses[0]);
 
@@ -162,7 +163,7 @@ contract HatsSignerGateTest is HSGTestSetup {
     function testAddThreeSigners() public {
         addSigners(3);
 
-        assertEq(hatsSignerGate.signerCount(), 3);
+        assertEq(hatsSignerGate.validSignerCount(), 3);
 
         assertEq(safe.getOwners()[0], addresses[2]);
         assertEq(safe.getOwners()[1], addresses[1]);
@@ -182,7 +183,7 @@ contract HatsSignerGateTest is HSGTestSetup {
         // this call should fail
         hatsSignerGate.claimSigner();
 
-        assertEq(hatsSignerGate.signerCount(), 5);
+        assertEq(hatsSignerGate.validSignerCount(), 5);
 
         assertEq(safe.getOwners()[0], addresses[4]);
         assertEq(safe.getOwners()[1], addresses[3]);
@@ -213,7 +214,7 @@ contract HatsSignerGateTest is HSGTestSetup {
 
         hatsSignerGate.claimSigner();
 
-        assertEq(hatsSignerGate.signerCount(), 2);
+        assertEq(hatsSignerGate.validSignerCount(), 2);
     }
 
     function testNonHatWearerCannotClaimSigner() public {
@@ -234,7 +235,7 @@ contract HatsSignerGateTest is HSGTestSetup {
 
         assertEq(safe.getOwners().length, 1);
         assertEq(safe.getOwners()[0], address(hatsSignerGate));
-        assertEq(hatsSignerGate.signerCount(), 0);
+        assertEq(hatsSignerGate.validSignerCount(), 0);
 
         assertEq(safe.getThreshold(), 1);
     }
@@ -250,7 +251,7 @@ contract HatsSignerGateTest is HSGTestSetup {
 
         assertEq(safe.getOwners().length, 1);
         assertEq(safe.getOwners()[0], addresses[1]);
-        assertEq(hatsSignerGate.signerCount(), 1);
+        assertEq(hatsSignerGate.validSignerCount(), 1);
 
         assertEq(safe.getThreshold(), 1);
     }
@@ -261,13 +262,13 @@ contract HatsSignerGateTest is HSGTestSetup {
         mockIsWearerCall(addresses[0], signerHat, false);
 
         hatsSignerGate.reconcileSignerCount();
-        assertEq(hatsSignerGate.signerCount(), 1);
+        assertEq(hatsSignerGate.validSignerCount(), 1);
 
         hatsSignerGate.removeSigner(addresses[0]);
 
         assertEq(safe.getOwners().length, 1);
         assertEq(safe.getOwners()[0], addresses[1]);
-        assertEq(hatsSignerGate.signerCount(), 1);
+        assertEq(hatsSignerGate.validSignerCount(), 1);
 
         assertEq(safe.getThreshold(), 1);
     }
@@ -278,14 +279,14 @@ contract HatsSignerGateTest is HSGTestSetup {
         mockIsWearerCall(addresses[0], signerHat, false);
 
         hatsSignerGate.reconcileSignerCount();
-        assertEq(hatsSignerGate.signerCount(), 2);
+        assertEq(hatsSignerGate.validSignerCount(), 2);
 
         hatsSignerGate.removeSigner(addresses[0]);
 
         assertEq(safe.getOwners().length, 2);
         assertEq(safe.getOwners()[0], addresses[2]);
         assertEq(safe.getOwners()[1], addresses[1]);
-        assertEq(hatsSignerGate.signerCount(), 2);
+        assertEq(hatsSignerGate.validSignerCount(), 2);
 
         assertEq(safe.getThreshold(), 2);
     }
@@ -301,7 +302,7 @@ contract HatsSignerGateTest is HSGTestSetup {
 
         assertEq(safe.getOwners().length, 1);
         assertEq(safe.getOwners()[0], addresses[0]);
-        assertEq(hatsSignerGate.signerCount(), 1);
+        assertEq(hatsSignerGate.validSignerCount(), 1);
 
         assertEq(safe.getThreshold(), 1);
     }
@@ -497,7 +498,7 @@ contract HatsSignerGateTest is HSGTestSetup {
         mockIsWearerCall(addresses[1], signerHat, true);
 
         vm.expectRevert(SignersCannotChangeModules.selector);
-        
+
         // execute tx
         safe.execTransaction(
             address(safe),
@@ -608,6 +609,111 @@ contract HatsSignerGateTest is HSGTestSetup {
         );
     }
 
+    function testSignersCannotAddOwners() public {
+        addSigners(3);
+        // data for call to add owners
+        bytes memory addOwnerData = abi.encodeWithSignature(
+            "addOwnerWithThreshold(address,uint256)",
+            addresses[9], // newOwner
+            safe.getThreshold() // threshold
+        );
+
+        bytes32 txHash = getTxHash(address(safe), 0, addOwnerData, safe);
+        bytes memory signatures = createNSigsForTx(txHash, 2);
+
+        // ensure 2 signers are valid
+        mockIsWearerCall(addresses[0], signerHat, true);
+        mockIsWearerCall(addresses[1], signerHat, true);
+        // mock call to attempted new owner (doesn't matter if valid or not)
+        mockIsWearerCall(addresses[9], signerHat, false);
+
+        vm.expectRevert(abi.encodeWithSelector(SignersCannotChangeOwners.selector));
+        safe.execTransaction(
+            address(safe),
+            0,
+            addOwnerData,
+            Enum.Operation.Call,
+            // not using the refunder
+            0,
+            0,
+            0,
+            address(0),
+            payable(address(0)),
+            signatures
+        );
+    }
+
+    function testSignersCannotRemoveOwners() public {
+        addSigners(3);
+        address toRemove = addresses[2];
+        // data for call to remove owners
+        bytes memory removeOwnerData = abi.encodeWithSignature(
+            "removeOwner(address,address,uint256)",
+            findPrevOwner(safe.getOwners(), toRemove), // prevOwner
+            toRemove, // owner to remove
+            safe.getThreshold() // threshold
+        );
+
+        bytes32 txHash = getTxHash(address(safe), 0, removeOwnerData, safe);
+        bytes memory signatures = createNSigsForTx(txHash, 2);
+
+        // ensure 2 signers are valid
+        mockIsWearerCall(addresses[0], signerHat, true);
+        mockIsWearerCall(addresses[1], signerHat, true);
+
+        vm.expectRevert(abi.encodeWithSelector(SignersCannotChangeOwners.selector));
+        safe.execTransaction(
+            address(safe),
+            0,
+            removeOwnerData,
+            Enum.Operation.Call,
+            // not using the refunder
+            0,
+            0,
+            0,
+            address(0),
+            payable(address(0)),
+            signatures
+        );
+    }
+
+    function testSignersCannotSwapOwners() public {
+        addSigners(3);
+        address toRemove = addresses[2];
+        address toAdd = addresses[9];
+        // data for call to swap owners
+        bytes memory swapOwnerData = abi.encodeWithSignature(
+            "swapOwner(address,address,address)",
+            findPrevOwner(safe.getOwners(), toRemove), // prevOwner
+            toRemove, // owner to swap
+            toAdd // newOwner
+        );
+
+        bytes32 txHash = getTxHash(address(safe), 0, swapOwnerData, safe);
+        bytes memory signatures = createNSigsForTx(txHash, 2);
+
+        // ensure 2 signers are valid
+        mockIsWearerCall(addresses[0], signerHat, true);
+        mockIsWearerCall(addresses[1], signerHat, true);
+        // mock call to attempted new owner (doesn't matter if valid or not)
+        mockIsWearerCall(toAdd, signerHat, false);
+
+        vm.expectRevert(abi.encodeWithSelector(SignersCannotChangeOwners.selector));
+        safe.execTransaction(
+            address(safe),
+            0,
+            swapOwnerData,
+            Enum.Operation.Call,
+            // not using the refunder
+            0,
+            0,
+            0,
+            address(0),
+            payable(address(0)),
+            signatures
+        );
+    }
+
     function testCannotCallCheckTransactionFromNonSafe() public {
         vm.expectRevert(NotCalledFromSafe.selector);
         hatsSignerGate.checkTransaction(
@@ -630,13 +736,13 @@ contract HatsSignerGateTest is HSGTestSetup {
 
         // reconcile is called, so signerCount is updated to 4
         hatsSignerGate.reconcileSignerCount();
-        assertEq(hatsSignerGate.signerCount(), 4);
+        assertEq(hatsSignerGate.validSignerCount(), 4);
 
         // a new signer claims, so signerCount is updated to 5
         mockIsWearerCall(addresses[5], signerHat, true);
         vm.prank(addresses[5]);
         hatsSignerGate.claimSigner();
-        assertEq(hatsSignerGate.signerCount(), 5);
+        assertEq(hatsSignerGate.validSignerCount(), 5);
 
         // the malicious signer behaves nicely and regains the hat, but they were kicked out by the previous signer claim
         mockIsWearerCall(addresses[4], signerHat, true);
@@ -644,7 +750,7 @@ contract HatsSignerGateTest is HSGTestSetup {
         // reoncile is called again and signerCount stays at 5
         // vm.expectRevert(MaxSignersReached.selector);
         hatsSignerGate.reconcileSignerCount();
-        assertEq(hatsSignerGate.signerCount(), 5);
+        assertEq(hatsSignerGate.validSignerCount(), 5);
 
         // // any eligible signer can now claim at will
         // mockIsWearerCall(addresses[6], signerHat, true);
@@ -665,7 +771,7 @@ contract HatsSignerGateTest is HSGTestSetup {
         // 3) reconcile is called, signerCount=x-3
         hatsSignerGate.reconcileSignerCount();
         console2.log("A");
-        assertEq(hatsSignerGate.signerCount(), 2);
+        assertEq(hatsSignerGate.validSignerCount(), 2);
 
         // 4) 3 more signers can be added with claimSigner()
         mockIsWearerCall(addresses[5], signerHat, true);
@@ -679,7 +785,7 @@ contract HatsSignerGateTest is HSGTestSetup {
         hatsSignerGate.claimSigner();
 
         console2.log("B");
-        assertEq(hatsSignerGate.signerCount(), 5);
+        assertEq(hatsSignerGate.validSignerCount(), 5);
         console2.log("C");
         assertEq(safe.getOwners().length, 5);
 
@@ -690,14 +796,14 @@ contract HatsSignerGateTest is HSGTestSetup {
 
         // but we still only have 5 owners and 5 signers
         console2.log("D");
-        assertEq(hatsSignerGate.signerCount(), 5);
+        assertEq(hatsSignerGate.validSignerCount(), 5);
 
         console2.log("E");
         assertEq(safe.getOwners().length, 5);
 
         console2.log("F");
         hatsSignerGate.reconcileSignerCount();
-        assertEq(hatsSignerGate.signerCount(), 5);
+        assertEq(hatsSignerGate.validSignerCount(), 5);
 
         // // 6) we now have x+3 signers
         // hatsSignerGate.reconcileSignerCount();
@@ -720,48 +826,28 @@ contract HatsSignerGateTest is HSGTestSetup {
         hatsSignerGate.claimSigner();
     }
 
+    function testValidSignersCanClaimAfterLastMaxSignerLosesHat() public {
+        // max signers is 5
+        // 5 signers claim
+        addSigners(5);
+
+        address[] memory owners = safe.getOwners();
+
+        // a signer misbehaves and loses the hat
+        mockIsWearerCall(owners[4], signerHat, false);
+
+        // validSignerCount is now 4
+        assertEq(hatsSignerGate.validSignerCount(), 4);
+
+        mockIsWearerCall(addresses[5], signerHat, true);
+        vm.prank(addresses[5]);
+        hatsSignerGate.claimSigner();
+    }
+
     function testSignersCannotAddNewModules() public {
-        bytes memory addModuleData = abi.encodeWithSignature("enableModule(address)", address(0xf00baa)); // some devs are from Boston
-
-        addSigners(2);
-
-        bytes32 txHash = getTxHash(address(safe), 0, addModuleData, safe);
-
-        bytes memory signatures = createNSigsForTx(txHash, 2);
-
-        mockIsWearerCall(addresses[0], signerHat, true);
-        mockIsWearerCall(addresses[1], signerHat, true);
-
-        vm.expectRevert(SignersCannotChangeModules.selector);
-
-        // execute tx
-        safe.execTransaction(
-            address(safe),
-            0,
-            addModuleData,
-            Enum.Operation.Call,
-            // not using the refunder
-            0,
-            0,
-            0,
-            address(0),
-            payable(address(0)),
-            signatures
-        );
-    }
-
-    function testOwnerCanAddNewModule() public {
-        mockIsWearerCall(address(this), ownerHat, true);
-        hatsSignerGate.enableNewModule(address(0xf00baa));
-
-        assertEq(hatsSignerGate.enabledModuleCount(), 2);
-    }
-
-    function testSignersCannotAddNewModulesWithExistingEnabledModule() public {
-        mockIsWearerCall(address(this), ownerHat, true);
-        hatsSignerGate.enableNewModule(address(0xdec1a551f1ed));
-
-        assertEq(hatsSignerGate.enabledModuleCount(), 2);
+        (address[] memory modules,) = safe.getModulesPaginated(SENTINELS, 5);
+        console2.log(modules.length);
+        // console2.log(modules[1]);
 
         bytes memory addModuleData = abi.encodeWithSignature("enableModule(address)", address(0xf00baa)); // some devs are from Boston
 
@@ -806,9 +892,7 @@ contract HatsSignerGateTest is HSGTestSetup {
 
         // reconcile is called, so signerCount is updated to 2
         hatsSignerGate.reconcileSignerCount();
-        console2.log("A");
-        assertEq(hatsSignerGate.signerCount(), 2);
-        console2.log("B");
+        assertEq(hatsSignerGate.validSignerCount(), 2);
         assertEq(safe.getThreshold(), 2);
 
         // the 3 owners regain their hats
@@ -848,33 +932,313 @@ contract HatsSignerGateTest is HSGTestSetup {
     }
 
     function testCannotClaimSignerIfNoInvalidSigners() public {
-        console2.log("A");
         assertEq(maxSigners, 5);
         addSigners(5);
         // one signer loses their hat
         mockIsWearerCall(addresses[4], signerHat, false);
-        console2.log("B");
-        assertEq(hatsSignerGate.signerCount(), 5);
+        assertEq(hatsSignerGate.validSignerCount(), 4);
 
         // reconcile is called, updating signer count to 4
         hatsSignerGate.reconcileSignerCount();
-        console2.log("C");
-        assertEq(hatsSignerGate.signerCount(), 4);
+        assertEq(hatsSignerGate.validSignerCount(), 4);
 
         // bad signer regains their hat
         mockIsWearerCall(addresses[4], signerHat, true);
-        // signer count is still 4 because reoncile hasn't been called again
-        console2.log("D");
-        assertEq(hatsSignerGate.signerCount(), 4);
-        
-        // new valid signer tries to claim, but can't because
+        // signer count returns to 5
+        assertEq(hatsSignerGate.validSignerCount(), 5);
+
+        // new valid signer tries to claim, but can't because we're already at max signers
         mockIsWearerCall(addresses[5], signerHat, true);
         vm.prank(addresses[5]);
-        vm.expectRevert(NoInvalidSignersToReplace.selector);
+        vm.expectRevert(MaxSignersReached.selector);
         hatsSignerGate.claimSigner();
     }
 
-    function testSignersCannotChangeModules() public {
-        //
+    function testRemoveSignerCorrectlyUpdates() public {
+        assertEq(hatsSignerGate.targetThreshold(), 2, "target threshold");
+        assertEq(maxSigners, 5, "max signers");
+        // start with 5 valid signers
+        addSigners(5);
+
+        // the last two lose their hats
+        mockIsWearerCall(addresses[3], signerHat, false);
+        mockIsWearerCall(addresses[4], signerHat, false);
+
+        // the 4th regains its hat
+        mockIsWearerCall(addresses[3], signerHat, true);
+
+        // remove the 5th signer
+        hatsSignerGate.removeSigner(addresses[4]);
+
+        // signer count should be 4 and threshold at target
+        assertEq(hatsSignerGate.validSignerCount(), 4, "valid signer count");
+        assertEq(safe.getThreshold(), hatsSignerGate.targetThreshold(), "ending threshold");
+    }
+
+    function testCanClaimToReplaceInvalidSignerAtMaxSigner() public {
+        assertEq(maxSigners, 5, "max signers");
+        // start with 5 valid signers (the max)
+        addSigners(5);
+
+        // the last one loses their hat
+        mockIsWearerCall(addresses[4], signerHat, false);
+
+        // a new signer valid tries to claim, and can
+        mockIsWearerCall(addresses[5], signerHat, true);
+        vm.prank(addresses[5]);
+        hatsSignerGate.claimSigner();
+        assertEq(hatsSignerGate.validSignerCount(), 5, "valid signer count");
+    }
+
+    function testSetTargetThresholdUpdatesThresholdCorrectly() public {
+        // set target threshold to 5
+        mockIsWearerCall(address(this), ownerHat, true);
+        hatsSignerGate.setTargetThreshold(5);
+        // add 5 valid signers
+        addSigners(5);
+        // one loses their hat
+        mockIsWearerCall(addresses[4], signerHat, false);
+        // lower target threshold to 4
+        hatsSignerGate.setTargetThreshold(4);
+        // since hatsSignerGate.validSignerCount() is also 4, the threshold should also be 4
+        assertEq(safe.getThreshold(), 4, "threshold");
+    }
+
+    function testSetTargetTresholdCannotSetBelowMinThreshold() public {
+        assertEq(hatsSignerGate.minThreshold(), 2, "min threshold");
+        assertEq(hatsSignerGate.targetThreshold(), 2, "target threshold");
+
+        // set target threshold to 1 — should fail
+        mockIsWearerCall(address(this), ownerHat, true);
+        vm.expectRevert(InvalidTargetThreshold.selector);
+        hatsSignerGate.setTargetThreshold(1);
+    }
+
+    function testCannotAccidentallySetThresholdHigherThanTarget() public {
+        assertEq(hatsSignerGate.targetThreshold(), 2, "target threshold");
+
+        // to reach the condition to test, we need...
+        // 1) signer count > target threshold
+        // 2) current threshold < target threshold
+
+        // 1) its unlikely to get both of these naturally since adding new signers increases the threshold
+        // but we can force it by adding owners to the safe by pretending to be the hatsSignerGate itself
+        // we start by adding 1 valid signer legitimately
+        addSigners(1);
+        // then we add 2 more valid owners my pranking the execTransactionFromModule function
+        mockIsWearerCall(addresses[2], signerHat, true);
+        mockIsWearerCall(addresses[3], signerHat, true);
+        bytes memory addOwner3 = abi.encodeWithSignature("addOwnerWithThreshold(address,uint256)", addresses[2], 1);
+        bytes memory addOwner4 = abi.encodeWithSignature("addOwnerWithThreshold(address,uint256)", addresses[3], 1);
+
+        // mockIsWearerCall(address(this), signerHat, true);
+        vm.startPrank(address(hatsSignerGate));
+        safe.execTransactionFromModule(
+            address(safe), // to
+            0, // value
+            addOwner3, // data
+            Enum.Operation.Call // operation
+        );
+        safe.execTransactionFromModule(
+            address(safe), // to
+            0, // value
+            addOwner4, // data
+            Enum.Operation.Call // operation
+        );
+
+        // now we've meet the necessary conditions
+        assertGt(
+            hatsSignerGate.validSignerCount(), hatsSignerGate.targetThreshold(), "1) signer count > target threshold"
+        );
+        assertLt(safe.getThreshold(), hatsSignerGate.targetThreshold(), "2) current threshold < target threshold");
+
+        // calling reconcile should change the threshold to the target
+        hatsSignerGate.reconcileSignerCount();
+        assertEq(safe.getThreshold(), hatsSignerGate.targetThreshold(), "threshold == target threshold");
+    }
+
+    function testAttackerCannotExploitSigHandlingDifferences() public {
+        // start with 4 valid signers
+        addSigners(4);
+        // set target threshold (and therefore actual threshold) to 3
+        mockIsWearerCall(address(this), ownerHat, true);
+        hatsSignerGate.setTargetThreshold(3);
+        assertEq(safe.getThreshold(), 3, "initial threshold");
+        assertEq(safe.nonce(), 0, "pre nonce");
+        // invalidate the 3rd signer, who will be our attacker
+        address attacker = addresses[2];
+        mockIsWearerCall(attacker, signerHat, false);
+
+        // Attacker crafts a tx to submit to the safe.
+        address maliciousContract = makeAddr("maliciousContract");
+        bytes memory maliciousTx = abi.encodeWithSignature("maliciousCall(uint256)", 1 ether);
+        // Attacker gets 2 of the valid signers to sign it, and adds their own (invalid) signature: NSigs = 3
+        bytes32 txHash = safe.getTransactionHash(
+            address(safe), // to
+            0, // value
+            maliciousTx, // data
+            Enum.Operation.Call, // operation
+            0, // safeTxGas
+            0, // baseGas
+            0, // gasPrice
+            address(0), // gasToken
+            address(0), // refundReceiver
+            safe.nonce() // nonce
+        );
+        bytes memory sigs = createNSigsForTx(txHash, 3);
+
+        // attacker adds a contract signature from the 4th signer from a previous tx
+        // since HSG doesn't check that the correct data was signed, it would be considered a valid signature
+        bytes memory contractSig = abi.encode(addresses[3], bytes32(0), bytes1(0x01));
+        sigs = bytes.concat(sigs, contractSig);
+
+        // mock the maliciousTx so it would succeed if it were to be executed
+        vm.mockCall(maliciousContract, maliciousTx, abi.encode(true));
+        // attacker submits the tx to the safe, but it should fail
+        vm.expectRevert(InvalidSigners.selector);
+        vm.prank(attacker);
+        safe.execTransaction(
+            address(safe),
+            0,
+            maliciousTx,
+            Enum.Operation.Call,
+            // not using the refunder
+            0,
+            0,
+            0,
+            address(0),
+            payable(address(0)),
+            // (r,s,v) [r - from] [s - unused] [v - 1 flag for onchain approval]
+            sigs
+        );
+
+        assertEq(safe.getThreshold(), 3, "post threshold");
+        assertEq(hatsSignerGate.validSignerCount(), 3, "valid signer count");
+        assertEq(safe.nonce(), 0, "post nonce hasn't changed");
+    }
+
+    function testSignersCannotReenterCheckTransactionToAddOwners() public {
+        address newOwner = makeAddr("newOwner");
+        bytes memory addOwnerAction;
+        bytes memory sigs;
+        bytes memory checkTxAction;
+        bytes memory multisend;
+        // start with 3 valid signers
+        addSigners(3);
+        // attacker is the first of these signers
+        address attacker = addresses[0];
+        assertEq(safe.getThreshold(), 2, "initial threshold");
+        assertEq(safe.getOwners().length, 3, "initial owner count");
+
+        /* attacker crafts a multisend tx to submit to the safe, with the following actions:
+            1) add a new owner 
+                — when `HSG.checkTransaction` is called, the hash of the original owner array will be stored
+            2) directly call `HSG.checkTransaction` 
+                — this will cause the hash of the new owner array (with the new owner from #1) to be stored
+                — when `HSG.checkAfterExecution` is called, the owner array check will pass even though 
+        */
+
+        // 1) craft the addOwner action
+        // mock the new owner as a valid signer
+        mockIsWearerCall(newOwner, signerHat, true);
+        {
+            // use scope to avoid stack too deep error
+            // compile the action
+            addOwnerAction = abi.encodeWithSignature("addOwnerWithThreshold(address,uint256)", newOwner, 2);
+
+            // 2) craft the direct checkTransaction action
+            // first craft a dummy/empty tx to pass to checkTransaction
+            bytes32 dummyTxHash = safe.getTransactionHash(
+                attacker, // send 0 eth to the attacker
+                0,
+                hex"00",
+                Enum.Operation.Call,
+                // not using the refunder
+                0,
+                0,
+                0,
+                address(0),
+                address(0),
+                safe.nonce()
+            );
+
+            // then have it signed by the attacker and a collaborator
+            sigs = createNSigsForTx(dummyTxHash, 2);
+
+            checkTxAction = abi.encodeWithSelector(
+                hatsSignerGate.checkTransaction.selector,
+                // checkTransaction params
+                attacker,
+                0,
+                hex"00",
+                Enum.Operation.Call,
+                0,
+                0,
+                0,
+                address(0),
+                payable(address(0)),
+                sigs,
+                attacker // msgSender
+            );
+
+            // now bundle the two actions into a multisend tx
+            bytes memory packedCalls = abi.encodePacked(
+                // 1) add owner
+                uint8(0), // 0 for call; 1 for delegatecall
+                safe, // to
+                uint256(0), // value
+                uint256(addOwnerAction.length), // data length
+                bytes(addOwnerAction), // data
+                // 2) direct call to checkTransaction
+                uint8(0), // 0 for call; 1 for delegatecall
+                hatsSignerGate, // to
+                uint256(0), // value
+                uint256(checkTxAction.length), // data length
+                bytes(checkTxAction) // data
+            );
+            multisend = abi.encodeWithSignature("multiSend(bytes)", packedCalls);
+        }
+
+        // now get the safe tx hash and have attacker sign it with a collaborator
+        bytes32 safeTxHash = safe.getTransactionHash(
+            gnosisMultisendLibrary, // to
+            0, // value
+            multisend, // data
+            Enum.Operation.DelegateCall, // operation
+            0, // safeTxGas
+            0, // baseGas
+            0, // gasPrice
+            address(0), // gasToken
+            address(0), // refundReceiver
+            safe.nonce() // nonce
+        );
+        sigs = createNSigsForTx(safeTxHash, 2);
+
+        // now submit the tx to the safe
+        vm.prank(attacker);
+        /* 
+        Expect revert because of re-entry into checkTransaction
+        While hatsSignerGate will throw the NoReentryAllowed error, 
+        since the error occurs within the context of the safe transaction, 
+        the safe will catch the error and re-throw with its own error, 
+        ie `GS013` ("Safe transaction failed when gasPrice and safeTxGas were 0")
+        */
+        vm.expectRevert(bytes("GS013"));
+        safe.execTransaction(
+            gnosisMultisendLibrary,
+            0,
+            multisend,
+            Enum.Operation.DelegateCall,
+            // not using the refunder
+            0,
+            0,
+            0,
+            address(0),
+            payable(address(0)),
+            sigs
+        );
+
+        // no new owners have been added, despite the attacker's best efforts
+        assertEq(safe.getOwners().length, 3, "post owner count");
     }
 }

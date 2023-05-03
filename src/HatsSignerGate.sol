@@ -21,12 +21,11 @@ contract HatsSignerGate is HatsSignerGateBase {
             uint256 _targetThreshold,
             uint256 _maxSigners,
             string memory _version,
-            uint256 _existingModuleCount
         ) = abi.decode(
             initializeParams, (uint256, uint256, address, address, uint256, uint256, uint256, string, uint256)
         );
 
-        _setUp(_ownerHatId, _safe, _hats, _minThreshold, _targetThreshold, _maxSigners, _version, _existingModuleCount);
+        _setUp(_ownerHatId, _safe, _hats, _minThreshold, _targetThreshold, _maxSigners, _version);
 
         signersHatId = _signersHatId;
     }
@@ -35,7 +34,8 @@ contract HatsSignerGate is HatsSignerGateBase {
     /// @dev Reverts if `maxSigners` has been reached, the caller is either invalid or has already claimed. Swaps caller with existing invalid owner if relevant.
     function claimSigner() public virtual {
         uint256 maxSigs = maxSigners; // save SLOADs
-        uint256 currentSignerCount = signerCount;
+        address[] memory owners = safe.getOwners();
+        uint256 currentSignerCount = _countValidSigners(owners);
 
         if (currentSignerCount >= maxSigs) {
             revert MaxSignersReached();
@@ -49,16 +49,14 @@ contract HatsSignerGate is HatsSignerGateBase {
             revert NotSignerHatWearer(msg.sender);
         }
 
-        /* 
-        We check the safe owner count in case there are existing owners who are no longer valid signers. 
+        /*
+        We check the safe owner count in case there are existing owners who are no longer valid signers.
         If we're already at maxSigners, we'll replace one of the invalid owners by swapping the signer.
         Otherwise, we'll simply add the new signer.
         */
-        address[] memory owners = safe.getOwners();
         uint256 ownerCount = owners.length;
-
         if (ownerCount >= maxSigs) {
-            bool swapped = _swapSigner(owners, ownerCount, maxSigs, currentSignerCount, msg.sender);
+            bool swapped = _swapSigner(owners, ownerCount, msg.sender);
             if (!swapped) {
                 // if there are no invalid owners, we can't add a new signer, so we revert
                 revert NoInvalidSignersToReplace();
