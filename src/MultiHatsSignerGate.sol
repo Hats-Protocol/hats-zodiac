@@ -25,9 +25,7 @@ contract MultiHatsSignerGate is HatsSignerGateBase {
             uint256 _targetThreshold,
             uint256 _maxSigners,
             string memory _version
-        ) = abi.decode(
-            initializeParams, (uint256, uint256[], address, address, uint256, uint256, uint256, string)
-        );
+        ) = abi.decode(initializeParams, (uint256, uint256[], address, address, uint256, uint256, uint256, string));
 
         _setUp(_ownerHatId, _safe, _hats, _minThreshold, _targetThreshold, _maxSigners, _version);
 
