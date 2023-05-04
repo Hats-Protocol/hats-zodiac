@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: CC0
+// SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
 // import { Test, console2 } from "forge-std/Test.sol"; // remove after testing
@@ -25,9 +25,7 @@ contract MultiHatsSignerGate is HatsSignerGateBase {
             uint256 _targetThreshold,
             uint256 _maxSigners,
             string memory _version
-        ) = abi.decode(
-            initializeParams, (uint256, uint256[], address, address, uint256, uint256, uint256, string)
-        );
+        ) = abi.decode(initializeParams, (uint256, uint256[], address, address, uint256, uint256, uint256, string));
 
         _setUp(_ownerHatId, _safe, _hats, _minThreshold, _targetThreshold, _maxSigners, _version);
 

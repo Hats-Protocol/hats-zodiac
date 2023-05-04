@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: CC0
+// SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
 library HSGLib {
