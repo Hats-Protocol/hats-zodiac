@@ -1,8 +1,6 @@
 # hats-zodiac
 
-This repo holds several [Hats Protocol](https://github.com/Hats-Protocol/hats-protocol)-enabled [Zodiac](https://github.com/gnosis/zodiac) contracts.
-
-Currently, this repo contains the following:
+This repo holds several [Hats Protocol](https://github.com/Hats-Protocol/hats-protocol)-enabled [Zodiac](https://github.com/gnosis/zodiac) contracts. Currently, this repo contains the following, referred to collectively as Hats Signer Gate (HSG):
 
 - [Hats Signer Gate](#hats-signer-gate)
 - [Multi-Hats Signer Gate](#multi-hats-signer-gate)
@@ -61,29 +59,13 @@ The wearer of the `ownerHat` can make the following changes to Hats Signer Gate:
 
 ### Security Audits
 
-This project has received the following security audits. See the audits directory for the detailed reports.
+This project has received the following security audits. See the [audits directory](./audits/) for the detailed reports.
 
-| Auditor | Date | Commit Hash | Notes |
+| Auditor | Report Date | Commit Hash | Notes |
 | --- | --- | --- | --- |
-| Trust Security | Feb 23, 2023 | [b9b7fcf](https://github.com/Hats-Protocol/hats-zodiac/commit/b9b7fcf22fd5cbb98c7d93dead590e80bf9c780a) | Report also includes findings for [Hats Protocol](https://github.com/Hats-Protocol/hats-protocol) audit |
+| Trust Security | Feb 23, 2023 | [b9b7fcf](https://github.com/Hats-Protocol/hats-zodiac/commit/b9b7fcf22fd5cbb98c7d93dead590e80bf9c780a) | Report also includes findings from [Hats Protocol](https://github.com/Hats-Protocol/hats-protocol) audit |
+| Sherlock | May 3, 2023 | [9455c0](https://github.com/Hats-Protocol/hats-zodiac/commit/9455cc0957762f5dbbd8e62063d970199109b977) | Report also includes findings from [Hats Protocol](https://github.com/Hats-Protocol/hats-protocol) audit |
 
 ### Recent Deployments
 
-See [deployment parameters here](./script/DeployParams.json).
-
-#### Beta 5
-
-- Gnosis Chain (chain id #100)
-  - singleton &mdash; `0xbD7090427331Cae6fC8b7f0C78d5f0fd3F2B3AFa`
-  - factory &mdash; `0x805a6567eED224fBB62512085F9a106C8cD211f3`
-
-#### Beta 4
-
-> ⚠️ known bug in `removeSigner`
-
-- Gnosis Chain (chain id #100)
-  - singleton &mdash; `0x9b50AB91b3ffBcdd5d5Ed49eD70bf299434C955C`
-  - factory &mdash; `0xC4b6005f48417D67b2a81c3E31672f4042D36361`
-- Polygon (chain id #137)
-  - singleton &mdash; `0xbecec728ff088b358d0b560529814a6132987e6a`
-  - factory &mdash; `0x245e5b56c18b18ac2d72f94c5f7be1d52497a8ad`
+See [Releases](https://github.com/Hats-Protocol/hats-zodiac/releases) for deployments. Specific deployment parameters are [stored here](./script/DeployParams.json).
