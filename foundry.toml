@@ -31,6 +31,7 @@ tab_width = 4
 wrap_comments = false
 
 [rpc_endpoints]
+arbitrum = "${ARBITRUM_RPC}"
 ethereum = "${ETHEREUM_RPC}"
 optimism = "${OPTIMISM_RPC}"
 goerli = "${GOERLI_RPC}"
