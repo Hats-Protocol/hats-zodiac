@@ -24,7 +24,7 @@ A contract that grants multisig signing rights to addresses wearing a given Hat,
 
 Since Hat-wearing is dynamic — Hats can be programmatically revoked from wearers — this contract also services as a **Zodiac guard** to ensure that:
 
-A) **Only valid signers can execute transations**, i.e. only signatures made by accounts currently wearing a valid signer Hat count towards the threshold.
+A) **Only valid signers can execute transactions**, i.e. only signatures made by accounts currently wearing a valid signer Hat count towards the threshold.
 
 B) **Signers cannot execute transactions that remove the constraint in (A)**. Specifically, this contract guards against signers...
 
