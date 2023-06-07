@@ -14,7 +14,7 @@ A contract that grants multisig signing rights to addresses wearing a given Hat,
 
 #### Zodiac Module
 
-[HatsSignerGate.sol](./contracts/HatsSignerGate.sol) is a **Zodiac module** that...
+[HatsSignerGate.sol](./src/HatsSignerGate.sol) is a **Zodiac module** that...
 
 1. Grants multisig signing rights to addresses based on whether they are wearing the appropriate Hat(s).
 2. Removes signers who are no long valid (i.e. no longer wearing the signer Hat)
@@ -51,11 +51,11 @@ The wearer of the `ownerHat` can make the following changes to Hats Signer Gate:
 
 ### Multi-Hats Signer Gate
 
-[MultiHatsSignerGate.sol](./contracts/MultiHatsSignerGate.sol) is a modification of Hats Signer Gate that supports setting multiple Hats as valid signer Hats.
+[MultiHatsSignerGate.sol](./src/MultiHatsSignerGate.sol) is a modification of Hats Signer Gate that supports setting multiple Hats as valid signer Hats.
 
 ### Hats Signer Gate Factory
 
-[HatsSignerGateFactory](./contracts/HatsSignerGateFactory.sol) is a factory contract that enables users to deploy proxy instances of HatsSignerGate and MultiHatsSignerGate, either for an existing Safe or wired up to a new Safe deployed at the same time. It uses the [Zodiac module proxy factory](https://github.com/gnosis/zodiac/blob/master/contracts/factory/ModuleProxyFactory.sol) so that the deployments are tracked in the Zodiac subgraph.
+[HatsSignerGateFactory](./src/HatsSignerGateFactory.sol) is a factory contract that enables users to deploy proxy instances of HatsSignerGate and MultiHatsSignerGate, either for an existing Safe or wired up to a new Safe deployed at the same time. It uses the [Zodiac module proxy factory](https://github.com/gnosis/zodiac/blob/master/contracts/factory/ModuleProxyFactory.sol) so that the deployments are tracked in the Zodiac subgraph.
 
 ### Security Audits
 
