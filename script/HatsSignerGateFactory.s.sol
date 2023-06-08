@@ -65,6 +65,8 @@ contract DeployHatsSignerGateFactory is Script {
 
         factory;
 
+        // uncomment to check if its working correctly when simulating
+        // (address hsg, address safe) = factory.deployHatsSignerGateAndSafe(1, 2, 3, 4, 5);
         // GnosisSafe _safe = GnosisSafe(payable(safe));
         // console2.log("safe threshold", _safe.getThreshold());
         // console2.log("hsg is module", _safe.isModuleEnabled(hsg));
@@ -73,12 +75,14 @@ contract DeployHatsSignerGateFactory is Script {
     }
 
     // // simulation
-    // forge script script/HatsSignerGateFactory.s.sol -f gnosis
+    // forge script script/HatsSignerGateFactory.s.sol:DeployHatsSignerGateFactory -f gnosis
 
     // // actual deploy
     // forge script script/HatsSignerGateFactory.s.sol -f goerli --broadcast --verify
 
-    // forge verify-contract --chain-id 100 --num-of-optimizations 1000000 --watch --constructor-args $(cast abi-encode "constructor(address,address,address,address,address,address,address,string)" 0xEb1acAa1aDE15657C55633ecB43aa98AfD23bfe7 0x72c89eb08444bc16396dd9432b3e82d956c412ec 0xd9Db270c1B5E3Bd161E8c8503c55cEABeE709552 0xf48f2B2d2a534e402487b3ee7C18c33Aec0Fe5e4 0xA238CBeb142c10Ef7Ad8442C6D1f9E89e07e7761 0xa6B71E26C5e0845f74c812102Ca7114b6a896AB2 0x00000000000DC7F163742Eb4aBEf650037b1f588 "HSG Beta 5") --compiler-version v0.8.17 0x805a6567eed224fbb62512085f9a106c8cd211f3 src/HatsSignerGateFactory.sol:HatsSignerGateFactory $ETHERSCAN_KEY
+    // forge verify-contract --chain-id 5 --num-of-optimizations 1000000 --watch --constructor-args $(cast abi-encode "constructor(address,address,address,address,address,address,address,address,string)" 0x844b3c7781338D3308Eb8D64727033893fcE1432 0xca9d698adb4052ac7751019d69582950b1e42b43 0x9D2dfd6066d5935267291718E8AA16C8Ab729E9d 0xd9Db270c1B5E3Bd161E8c8503c55cEABeE709552 0xf48f2B2d2a534e402487b3ee7C18c33Aec0Fe5e4 0xA238CBeb142c10Ef7Ad8442C6D1f9E89e07e7761 0xa6B71E26C5e0845f74c812102Ca7114b6a896AB2 0x00000000000DC7F163742Eb4aBEf650037b1f588 "1.0-beta") --compiler-version v0.8.17 0x5Ba1E49a2efCd5589422FdF1F6BCE37e4A288611 src/HatsSignerGateFactory.sol:HatsSignerGateFactory --etherscan-api-key $ETHERSCAN_KEY
 
-    // forge verify-contract --chain-id 100 --num-of-optimizations 1000000 --watch --compiler-version v0.8.17 0xbd7090427331cae6fc8b7f0c78d5f0fd3f2b3afa src/HatsSignerGate.sol:HatsSignerGate $ETHERSCAN_KEY
+
+
+    // forge verify-contract --chain-id 5 --num-of-optimizations 1000000 --watch --compiler-version v0.8.17 0xca9d698adb4052ac7751019d69582950b1e42b43 src/MultiHatsSignerGate.sol:MultiHatsSignerGate --etherscan-api-key $ETHERSCAN_KEY
 }

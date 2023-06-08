@@ -287,7 +287,7 @@ contract HatsSignerGateFactory {
         uint256 _minThreshold,
         uint256 _targetThreshold,
         uint256 _maxSigners
-    ) public returns (address mhsg) {
+    ) internal returns (address mhsg) {
         bytes memory initializeParams = abi.encode(
             _ownerHatId, _signersHatIds, _safe, hatsAddress, _minThreshold, _targetThreshold, _maxSigners, version
         );
