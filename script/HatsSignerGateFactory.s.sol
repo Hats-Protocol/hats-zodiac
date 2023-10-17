@@ -22,11 +22,11 @@ contract DeployHatsSignerGateFactory is Script {
 
     /// ===========================================
     /// @dev deployment params to be set manually
-    string public version = "1.1-beta";
+    string public version = "1.2-beta";
     bytes32 public SALT = bytes32(abi.encode(0x4a75)); // ~ H(4) A(a) T(7) S(5)
 
     /// @dev set to true to deploy singletons, false to use existing deployments below
-    bool public deploySingletones = false;
+    bool public deploySingletones = true;
     HatsSignerGate public hsgSingleton = HatsSignerGate(0x844b3c7781338D3308Eb8D64727033893fcE1432);
     MultiHatsSignerGate public mhsgSingleton = MultiHatsSignerGate(0xca9d698Adb4052Ac7751019D69582950B1E42b43);
     /// ===========================================
@@ -75,13 +75,17 @@ contract DeployHatsSignerGateFactory is Script {
             version
         );
 
+        vm.stopBroadcast();
+
+        console.log("factory address", address(factory));
+        console.log("hsg address", address(hsgSingleton));
+        console.log("mhsg address", address(mhsgSingleton));
+
         // uncomment to check if its working correctly when simulating
         // (address hsg, address safe) = factory.deployHatsSignerGateAndSafe(1, 2, 3, 4, 5);
         // GnosisSafe _safe = GnosisSafe(payable(safe));
         // console2.log("safe threshold", _safe.getThreshold());
         // console2.log("hsg is module", _safe.isModuleEnabled(hsg));
-
-        vm.stopBroadcast();
     }
 
     // // simulation
