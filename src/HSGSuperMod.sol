@@ -8,7 +8,7 @@ import "./HSGLib.sol";
 
 contract HSGSuperMod is HatsSignerGateBase {
     uint256 public signersHatId;
-    TimelockController timelock;
+    TimelockController public timelock; // should probably switch the access to this later
 
 
     /// @notice Initializes a new instance of HatsSignerGate
@@ -96,38 +96,80 @@ contract HSGSuperMod is HatsSignerGateBase {
     }
 
     // /// @notice wraps an execution to be proposed through the timelock controller. signers can just create an execution like they would normally and it will handle the timelock stuff
-    // function executeTimelock(
-    //     address to,
-    //     uint256 value,
-    //     bytes calldata data,
-    //     Enum.Operation operation,
-    //     uint256 safeTxGas,
-    //     uint256 baseGas,
-    //     uint256 gasPrice,
-    //     address gasToken,
-    //     address payable refundReceiver,
-    //     bytes calldata signatures
-    // ) public payable {
-    //     bytes memory call = abi.encodeWithSignature(
-    //         "execTransaction(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,bytes)",
-    //         to,
-    //         value,
-    //         data,
-    //         operation,
-    //         safeTxGas,
-    //         baseGas,
-    //         gasPrice,
-    //         gasToken,
-    //         refundReceiver,
-    //         signatures
-    //     );
-    //     timelock.schedule(
-    //         address(safe), // target
-    //         0, // value
-    //         call, // data
-    //         bytes32(0), // predecessor
-    //         bytes32(0), // salt
-    //         timelock.getMinDelay() // delay
-    //     );
-    // }
+    function executeTimelock(
+        address to,
+        uint256 value,
+        bytes calldata data,
+        Enum.Operation operation,
+        uint256 safeTxGas,
+        uint256 baseGas,
+        uint256 gasPrice,
+        address gasToken,
+        address payable refundReceiver,
+        bytes calldata signatures
+    ) public payable returns (bytes32) {
+        bytes memory call = abi.encodeWithSignature(
+            "execTransaction(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,bytes)",
+            to,
+            value,
+            data,
+            operation,
+            safeTxGas,
+            baseGas,
+            gasPrice,
+            gasToken,
+            refundReceiver,
+            signatures
+        );
+        timelock.schedule(
+            address(safe), // target
+            0, // value
+            call, // data
+            bytes32(0), // predecessor
+            bytes32(0), // salt
+            timelock.getMinDelay() // delay
+        );
+        return timelock.hashOperation(
+            address(safe), // target
+            0, // value
+            call, // data
+            bytes32(0), // predecessor
+            bytes32(0) // salt
+        );
+    }
+
+    // there should be a better way to execute the final transaction than this
+    function executeTimelockFinal(
+        address to,
+        uint256 value,
+        bytes calldata data,
+        Enum.Operation operation,
+        uint256 safeTxGas,
+        uint256 baseGas,
+        uint256 gasPrice,
+        address gasToken,
+        address payable refundReceiver,
+        bytes calldata signatures
+    ) public payable {
+        bytes memory call = abi.encodeWithSignature(
+            "execTransaction(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,bytes)",
+            to,
+            value,
+            data,
+            operation,
+            safeTxGas,
+            baseGas,
+            gasPrice,
+            gasToken,
+            refundReceiver,
+            signatures
+        );
+        timelock.execute(
+            address(safe), // target
+            0, // value
+            call, // data
+            bytes32(0), // predecessor
+            bytes32(0) // salt
+        );
+    }
 }

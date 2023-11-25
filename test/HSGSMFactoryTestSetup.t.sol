@@ -28,6 +28,8 @@ contract HSGSMFactoryTestSetup is Test {
 
     bytes32 public constant GUARD_STORAGE_SLOT = 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
 
+    uint256 public constant MIN_DELAY = 100;
+
     uint256 public ownerHat;
     uint256 public signerHat;
     uint256 public minThreshold;
@@ -65,7 +67,7 @@ contract HSGSMFactoryTestSetup is Test {
         address hsg;
         address safe_;
         (hsg, safe_) =
-             factory.deployHSGSuperModAndSafe(_ownerHat, _signerHat, _minThreshold, _targetThreshold, _maxSigners);
+             factory.deployHSGSuperModAndSafeWithTimelock(_ownerHat, _signerHat, _minThreshold, _targetThreshold, _maxSigners, MIN_DELAY);
 
         _hatsSignerGate = HSGSuperMod(hsg);
         _safe = GnosisSafe(payable(safe_));
