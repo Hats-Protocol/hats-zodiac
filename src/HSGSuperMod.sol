@@ -96,7 +96,7 @@ contract HSGSuperMod is HatsSignerGateBase {
     }
 
     // /// @notice wraps an execution to be proposed through the timelock controller. signers can just create an execution like they would normally and it will handle the timelock stuff
-    function executeTimelock(
+    function scheduleTransaction(
         address to,
         uint256 value,
         bytes calldata data,
@@ -139,7 +139,7 @@ contract HSGSuperMod is HatsSignerGateBase {
     }
 
     // there should be a better way to execute the final transaction than this
-    function executeTimelockFinal(
+    function executeTimelockTransaction(
         address to,
         uint256 value,
         bytes calldata data,
@@ -171,5 +171,23 @@ contract HSGSuperMod is HatsSignerGateBase {
             bytes32(0), // predecessor
             bytes32(0) // salt
         );
+    }
+
+    // prevent user from executing transactions outside of timelock
+    function _additionalCheckTransaction(
+        address to,
+        uint256,
+        bytes calldata,
+        Enum.Operation,
+        uint256,
+        uint256,
+        uint256,
+        address,
+        address payable,
+        bytes memory,
+        address msgSender
+    ) override internal view {
+        // requires regular transactions to go through the timelock
+        if (msgSender != address(timelock)) require(to == address(timelock), "Transactions must go through the timelock.");
     }
 }

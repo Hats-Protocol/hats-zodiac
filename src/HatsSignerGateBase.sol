@@ -415,7 +415,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         address gasToken,
         address payable refundReceiver,
         bytes memory signatures,
-        address // msgSender
+        address msgSender// msgSender
     ) external override {
         if (msg.sender != address(safe)) revert NotCalledFromSafe();
         // get the safe owners
@@ -431,39 +431,72 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
                 revert BelowMinThreshold(minThreshold, safeOwnerCount);
             }
         }
-        // get the tx hash; view function
-        bytes32 txHash = safe.getTransactionHash(
-            // Transaction info
+
+        {
+            // get the tx hash; view function
+            bytes32 txHash = safe.getTransactionHash(
+                // Transaction info
+                to,
+                value,
+                data,
+                operation,
+                safeTxGas,
+                // Payment info
+                baseGas,
+                gasPrice,
+                gasToken,
+                refundReceiver,
+                // Signature info
+                // We subtract 1 since nonce was just incremented in the parent function call
+                safe.nonce() - 1 // view function
+            );
+            uint256 threshold = safe.getThreshold();
+            uint256 validSigCount = countValidSignatures(txHash, signatures, threshold);
+
+            // revert if there aren't enough valid signatures
+            if (validSigCount < threshold || validSigCount < minThreshold) {
+                revert InvalidSigners();
+            }
+        }
+
+        // record existing owners for post-flight check
+        _existingOwnersHash = keccak256(abi.encode(owners));
+
+        _additionalCheckTransaction(
             to,
             value,
             data,
             operation,
             safeTxGas,
-            // Payment info
             baseGas,
             gasPrice,
             gasToken,
             refundReceiver,
-            // Signature info
-            // We subtract 1 since nonce was just incremented in the parent function call
-            safe.nonce() - 1 // view function
+            signatures,
+            msgSender
         );
-        uint256 threshold = safe.getThreshold();
-        uint256 validSigCount = countValidSignatures(txHash, signatures, threshold);
-
-        // revert if there aren't enough valid signatures
-        if (validSigCount < threshold || validSigCount < minThreshold) {
-            revert InvalidSigners();
-        }
-
-        // record existing owners for post-flight check
-        _existingOwnersHash = keccak256(abi.encode(owners));
 
         unchecked {
             ++_guardEntries;
         }
         // revert if re-entry is detected
         if (_guardEntries > 1) revert NoReentryAllowed();
+    }
+
+    function _additionalCheckTransaction(
+        address to,
+        uint256 value,
+        bytes calldata data,
+        Enum.Operation operation,
+        uint256 safeTxGas,
+        uint256 baseGas,
+        uint256 gasPrice,
+        address gasToken,
+        address payable refundReceiver,
+        bytes memory signatures,
+        address msgSender
+    ) internal virtual {
+
     }
 
     /**
