@@ -1,5 +1,3 @@
-# README
-
 # Hats Signer Gate Super User
 
 Hello! This repo contains a fork of [Hats Signer Gate](https://github.com/Hats-Protocol/hats-zodiac) to enable a hats-controlled multisig to be accountable to its admin hat(s). Currently this module is in early stages, so please use at your own risk. A DAO could potentially use these contracts to build on-chain committees: 
