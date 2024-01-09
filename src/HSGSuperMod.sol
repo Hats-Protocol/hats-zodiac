@@ -95,7 +95,7 @@ contract HSGSuperMod is HatsSignerGateBase {
         if (!executed) revert("Could not execute.");
     }
 
-    // /// @notice wraps an execution to be proposed through the timelock controller. signers can just create an execution like they would normally and it will handle the timelock stuff
+    /// @notice wraps an execution to be proposed through the timelock controller. signers can just create an execution like they would normally and it will handle the timelock stuff
     function scheduleTransaction(
         address to,
         uint256 value,
