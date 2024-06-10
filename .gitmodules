@@ -9,7 +9,7 @@
 	url = https://github.com/Hats-Protocol/hats-auth
 [submodule "lib/safe-contracts"]
 	path = lib/safe-contracts
-	url = https://github.com/Hats-Protocol/safe-contracts
+	url = https://github.com/protofire/safe-contracts
 [submodule "lib/openzeppelin-contracts"]
 	path = lib/openzeppelin-contracts
 	url = https://github.com/Openzeppelin/openzeppelin-contracts
