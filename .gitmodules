@@ -16,3 +16,12 @@
 [submodule "lib/hats-protocol"]
 	path = lib/hats-protocol
 	url = https://github.com/hats-protocol/hats-protocol
+[submodule "lib/safe-contracts"]
+	path = lib/safe-contracts
+	url = https://github.com/alexkeating/safe-contracts
+[submodule "lib/wormhole"]
+	path = lib/wormhole
+	url = https://github.com/wormhole-foundation/wormhole
+[submodule "lib/wormhole.git"]
+	path = lib/wormhole.git
+	url = https://github.com/wormhole-foundation/wormhole.git
