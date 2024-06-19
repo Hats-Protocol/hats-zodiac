@@ -7,7 +7,7 @@ import "./MultiHatsSignerGate.sol";
 import "@gnosis.pm/safe-contracts/contracts/GnosisSafe.sol";
 import "@gnosis.pm/safe-contracts/contracts/libraries/MultiSend.sol";
 import "@gnosis.pm/safe-contracts/contracts/proxies/GnosisSafeProxyFactory.sol";
-import "@gnosis.pm/zodiac/factory/ModuleProxyFactory.sol";
+// import "@gnosis.pm/zodiac/factory/ModuleProxyFactory.sol";
 
 contract HatsSignerGateFactory {
     /// @notice (Multi)HatsSignerGates cannot be used with other modules
@@ -29,7 +29,7 @@ contract HatsSignerGateFactory {
 
     GnosisSafeProxyFactory public immutable gnosisSafeProxyFactory;
 
-    ModuleProxyFactory public immutable moduleProxyFactory;
+    // ModuleProxyFactory public immutable moduleProxyFactory;
 
     string public version;
 
@@ -77,7 +77,8 @@ contract HatsSignerGateFactory {
         gnosisFallbackLibrary = _gnosisFallbackLibrary;
         gnosisMultisendLibrary = _gnosisMultisendLibrary;
         gnosisSafeProxyFactory = GnosisSafeProxyFactory(_gnosisSafeProxyFactory);
-        moduleProxyFactory = ModuleProxyFactory(_moduleProxyFactory);
+		// TODO Deploy the HatsSignerGate
+        // moduleProxyFactory = ModuleProxyFactory(_moduleProxyFactory);
         version = _version;
     }
 
@@ -167,9 +168,10 @@ contract HatsSignerGateFactory {
             _ownerHatId, _signersHatId, _safe, hatsAddress, _minThreshold, _targetThreshold, _maxSigners, version
         );
 
-        hsg = moduleProxyFactory.deployModule(
-            hatsSignerGateSingleton, abi.encodeWithSignature("setUp(bytes)", initializeParams), ++nonce
-        );
+		// TODO replace
+        //hsg = moduleProxyFactory.deployModule(
+        //    hatsSignerGateSingleton, abi.encodeWithSignature("setUp(bytes)", initializeParams), ++nonce
+        //);
 
         emit HatsSignerGateSetup(hsg, _ownerHatId, _signersHatId, _safe, _minThreshold, _targetThreshold, _maxSigners);
     }
@@ -292,9 +294,10 @@ contract HatsSignerGateFactory {
             _ownerHatId, _signersHatIds, _safe, hatsAddress, _minThreshold, _targetThreshold, _maxSigners, version
         );
 
-        mhsg = moduleProxyFactory.deployModule(
-            multiHatsSignerGateSingleton, abi.encodeWithSignature("setUp(bytes)", initializeParams), ++nonce
-        );
+		// Remove zodiac as dependency
+        // mhsg = moduleProxyFactory.deployModule(
+        //     multiHatsSignerGateSingleton, abi.encodeWithSignature("setUp(bytes)", initializeParams), ++nonce
+        // );
 
         emit MultiHatsSignerGateSetup(
             mhsg, _ownerHatId, _signersHatIds, _safe, _minThreshold, _targetThreshold, _maxSigners
