@@ -22,3 +22,6 @@
 [submodule "lib/wormhole.git"]
 	path = lib/wormhole.git
 	url = https://github.com/wormhole-foundation/wormhole.git
+[submodule "lib/safe-contracts"]
+	path = lib/safe-contracts
+	url = https://github.com/protofire/safe-contracts
