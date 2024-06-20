@@ -70,6 +70,7 @@ contract HatsSignerGateFactory {
         address _moduleProxyFactory,
         string memory _version
     ) {
+		// TODO remove single ton, create2 deploy from factory
         hatsSignerGateSingleton = _hatsSignerGateSingleton;
         multiHatsSignerGateSingleton = _multiHatsSignerGateSingleton;
         hatsAddress = _hatsAddress;
@@ -172,8 +173,22 @@ contract HatsSignerGateFactory {
         //hsg = moduleProxyFactory.deployModule(
         //    hatsSignerGateSingleton, abi.encodeWithSignature("setUp(bytes)", initializeParams), ++nonce
         //);
+        // bytes memory args = abi.encodePacked(_hatId, _hat, _initData);
+		// Match in factory/ModuleProxyFactory.sol
+		bytes32 salt = keccak256(abi.encodePacked(keccak256(abi.encodeWithSignature("setUp(bytes)", initializeParams)), ++nonce));
+        HatsSignerGate instance = new HatsSignerGate{ salt: salt }();
+        instance.setUp(initializeParams);
+        // bytes32 salt = _calculateSalt(args, _saltNonce);
+        // If exists throw error
+        // emit event
+        // TODO: Add method to send create2 address
+        // emit HatsModuleFactory_ModuleDeployed(
+        //   address(instance), address(instance), _hatId, abi.encodePacked(_hat, _initData), _initData, _saltNonce
+        // return address(instance);
+
 
         emit HatsSignerGateSetup(hsg, _ownerHatId, _signersHatId, _safe, _minThreshold, _targetThreshold, _maxSigners);
+		return address(instance);
     }
 
     function _generateMultisendAction(address _hatsSignerGate, address _safe)
@@ -289,18 +304,23 @@ contract HatsSignerGateFactory {
         uint256 _minThreshold,
         uint256 _targetThreshold,
         uint256 _maxSigners
-    ) internal returns (address mhsg) {
+    ) internal returns (address) {
         bytes memory initializeParams = abi.encode(
             _ownerHatId, _signersHatIds, _safe, hatsAddress, _minThreshold, _targetThreshold, _maxSigners, version
         );
 
+
+		bytes32 salt = keccak256(abi.encodePacked(keccak256(abi.encodeWithSignature("setUp(bytes)", initializeParams)), ++nonce));
+        MultiHatsSignerGate instance = new MultiHatsSignerGate{ salt: salt }();
+        instance.setUp(initializeParams);
 		// Remove zodiac as dependency
         // mhsg = moduleProxyFactory.deployModule(
         //     multiHatsSignerGateSingleton, abi.encodeWithSignature("setUp(bytes)", initializeParams), ++nonce
         // );
 
         emit MultiHatsSignerGateSetup(
-            mhsg, _ownerHatId, _signersHatIds, _safe, _minThreshold, _targetThreshold, _maxSigners
+            address(instance), _ownerHatId, _signersHatIds, _safe, _minThreshold, _targetThreshold, _maxSigners
         );
+		return address(instance);
     }
 }

@@ -40,8 +40,8 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
     bytes32 internal constant GUARD_STORAGE_SLOT = 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
 
     /// @dev Makes the singleton unusable by setting its owner to the 1-address
-    constructor() payable initializer {
-        _HatsOwned_init(1, address(0x1));
+    constructor() payable {
+        // _HatsOwned_init(1, address(0x1));
     }
 
     /// @notice Initializes a new instance
