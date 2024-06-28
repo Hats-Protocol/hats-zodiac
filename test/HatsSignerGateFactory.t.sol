@@ -10,22 +10,17 @@ contract HatsSignerGateFactoryTest is HSGFactoryTestSetup {
         version = "1.0";
 
         factory = new HatsSignerGateFactory(
-            address(singletonHatsSignerGate),
-            address(singletonMultiHatsSignerGate),
             HATS,
             address(singletonSafe),
             gnosisFallbackLibrary,
             gnosisMultisendLibrary,
             address(safeFactory),
-            address(moduleProxyFactory),
             version
         );
     }
 
     function testDeployFactory() public {
         assertEq(factory.version(), version);
-        assertEq(factory.hatsSignerGateSingleton(), address(singletonHatsSignerGate));
-        assertEq(factory.multiHatsSignerGateSingleton(), address(singletonMultiHatsSignerGate));
         assertEq(address(factory.safeSingleton()), address(singletonSafe));
         assertEq(factory.gnosisFallbackLibrary(), gnosisFallbackLibrary);
         assertEq(factory.gnosisMultisendLibrary(), gnosisMultisendLibrary);

@@ -7,16 +7,12 @@ import "./MultiHatsSignerGate.sol";
 import "@gnosis.pm/safe-contracts/contracts/GnosisSafe.sol";
 import "@gnosis.pm/safe-contracts/contracts/libraries/MultiSend.sol";
 import "@gnosis.pm/safe-contracts/contracts/proxies/GnosisSafeProxyFactory.sol";
-// import "@gnosis.pm/zodiac/factory/ModuleProxyFactory.sol";
 
 contract HatsSignerGateFactory {
     /// @notice (Multi)HatsSignerGates cannot be used with other modules
     error NoOtherModulesAllowed();
 
     address public immutable hatsAddress;
-
-    address public immutable hatsSignerGateSingleton;
-    address public immutable multiHatsSignerGateSingleton;
 
     // address public immutable hatsSignerGatesingleton;
     address public immutable safeSingleton;
@@ -28,8 +24,6 @@ contract HatsSignerGateFactory {
     address public immutable gnosisMultisendLibrary;
 
     GnosisSafeProxyFactory public immutable gnosisSafeProxyFactory;
-
-    // ModuleProxyFactory public immutable moduleProxyFactory;
 
     string public version;
 
@@ -60,26 +54,18 @@ contract HatsSignerGateFactory {
     );
 
     constructor(
-        address _hatsSignerGateSingleton,
-        address _multiHatsSignerGateSingleton,
         address _hatsAddress,
         address _safeSingleton,
         address _gnosisFallbackLibrary,
         address _gnosisMultisendLibrary,
         address _gnosisSafeProxyFactory,
-        address _moduleProxyFactory,
         string memory _version
     ) {
-		// TODO remove single ton, create2 deploy from factory
-        hatsSignerGateSingleton = _hatsSignerGateSingleton;
-        multiHatsSignerGateSingleton = _multiHatsSignerGateSingleton;
         hatsAddress = _hatsAddress;
         safeSingleton = _safeSingleton;
         gnosisFallbackLibrary = _gnosisFallbackLibrary;
         gnosisMultisendLibrary = _gnosisMultisendLibrary;
         gnosisSafeProxyFactory = GnosisSafeProxyFactory(_gnosisSafeProxyFactory);
-		// TODO Deploy the HatsSignerGate
-        // moduleProxyFactory = ModuleProxyFactory(_moduleProxyFactory);
         version = _version;
     }
 
@@ -169,24 +155,9 @@ contract HatsSignerGateFactory {
             _ownerHatId, _signersHatId, _safe, hatsAddress, _minThreshold, _targetThreshold, _maxSigners, version
         );
 
-		// TODO replace
-        //hsg = moduleProxyFactory.deployModule(
-        //    hatsSignerGateSingleton, abi.encodeWithSignature("setUp(bytes)", initializeParams), ++nonce
-        //);
-        // bytes memory args = abi.encodePacked(_hatId, _hat, _initData);
-		// Match in factory/ModuleProxyFactory.sol
 		bytes32 salt = keccak256(abi.encodePacked(keccak256(abi.encodeWithSignature("setUp(bytes)", initializeParams)), ++nonce));
         HatsSignerGate instance = new HatsSignerGate{ salt: salt }();
         instance.setUp(initializeParams);
-        // bytes32 salt = _calculateSalt(args, _saltNonce);
-        // If exists throw error
-        // emit event
-        // TODO: Add method to send create2 address
-        // emit HatsModuleFactory_ModuleDeployed(
-        //   address(instance), address(instance), _hatId, abi.encodePacked(_hat, _initData), _initData, _saltNonce
-        // return address(instance);
-
-
         emit HatsSignerGateSetup(hsg, _ownerHatId, _signersHatId, _safe, _minThreshold, _targetThreshold, _maxSigners);
 		return address(instance);
     }
@@ -313,10 +284,6 @@ contract HatsSignerGateFactory {
 		bytes32 salt = keccak256(abi.encodePacked(keccak256(abi.encodeWithSignature("setUp(bytes)", initializeParams)), ++nonce));
         MultiHatsSignerGate instance = new MultiHatsSignerGate{ salt: salt }();
         instance.setUp(initializeParams);
-		// Remove zodiac as dependency
-        // mhsg = moduleProxyFactory.deployModule(
-        //     multiHatsSignerGateSingleton, abi.encodeWithSignature("setUp(bytes)", initializeParams), ++nonce
-        // );
 
         emit MultiHatsSignerGateSetup(
             address(instance), _ownerHatId, _signersHatIds, _safe, _minThreshold, _targetThreshold, _maxSigners

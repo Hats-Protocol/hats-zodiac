@@ -64,14 +64,11 @@ contract DeployHatsSignerGateFactory is Script {
 
         // deploy factory
         factory = new HatsSignerGateFactory{ salt: SALT }(
-            address(hsgSingleton),
-            address(mhsgSingleton),
             hats,
             safeSingleton,
             gnosisFallbackLibrary,
             gnosisMultisendLibrary,
             gnosisSafeProxyFactory,
-            moduleProxyFactory,
             version
         );
 
