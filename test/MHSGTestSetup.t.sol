@@ -27,14 +27,11 @@ contract MHSGTestSetup is HSGTestSetup {
         version = "1.0";
 
         factory = new HatsSignerGateFactory(
-            address(singletonHatsSignerGate),
-            address(singletonMultiHatsSignerGate),
             HATS,
             address(singletonSafe),
             gnosisFallbackLibrary,
             gnosisMultisendLibrary,
             address(safeFactory),
-            address(moduleProxyFactory),
             version
         );
 

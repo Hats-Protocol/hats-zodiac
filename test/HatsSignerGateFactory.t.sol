@@ -10,22 +10,17 @@ contract HatsSignerGateFactoryTest is HSGFactoryTestSetup {
         version = "1.0";
 
         factory = new HatsSignerGateFactory(
-            address(singletonHatsSignerGate),
-            address(singletonMultiHatsSignerGate),
             HATS,
             address(singletonSafe),
             gnosisFallbackLibrary,
             gnosisMultisendLibrary,
             address(safeFactory),
-            address(moduleProxyFactory),
             version
         );
     }
 
     function testDeployFactory() public {
         assertEq(factory.version(), version);
-        assertEq(factory.hatsSignerGateSingleton(), address(singletonHatsSignerGate));
-        assertEq(factory.multiHatsSignerGateSingleton(), address(singletonMultiHatsSignerGate));
         assertEq(address(factory.safeSingleton()), address(singletonSafe));
         assertEq(factory.gnosisFallbackLibrary(), gnosisFallbackLibrary);
         assertEq(factory.gnosisMultisendLibrary(), gnosisMultisendLibrary);
@@ -101,6 +96,7 @@ contract HatsSignerGateFactoryTest is HSGFactoryTestSetup {
     function testCannotReinitializeHSGSingleton() public {
         bytes memory initializeParams =
             abi.encode(ownerHat, signerHat, address(safe), HATS, minThreshold, targetThreshold, maxSigners, version, 0);
+        singletonHatsSignerGate.setUp(initializeParams);
         vm.expectRevert("Initializable: contract is already initialized");
         singletonHatsSignerGate.setUp(initializeParams);
     }
@@ -170,6 +166,7 @@ contract HatsSignerGateFactoryTest is HSGFactoryTestSetup {
 
         bytes memory initializeParams =
             abi.encode(ownerHat, signerHats, address(safe), HATS, minThreshold, targetThreshold, maxSigners, version, 0);
+        singletonMultiHatsSignerGate.setUp(initializeParams);
         vm.expectRevert("Initializable: contract is already initialized");
         singletonMultiHatsSignerGate.setUp(initializeParams);
     }
