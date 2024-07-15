@@ -32,7 +32,8 @@ async function main() {
 
   const tx = await hatsSignerGateFactory.deployHatsSignerGate(OWNER_HAT_ID, SIGNER_HAT_ID, SAFE, MIN_THRESHOLD, TARGET_THRESHOLD, MAX_SIGNERS);
   const tr = await tx.wait();
-	console.log(tr)
+	console.log("Hats signer gate deployed at " + tr.contractAddress)
+
 }
 
 main().catch((error) => {
