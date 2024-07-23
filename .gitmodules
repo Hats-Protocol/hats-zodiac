@@ -7,9 +7,6 @@
 [submodule "lib/hats-auth"]
 	path = lib/hats-auth
 	url = https://github.com/Hats-Protocol/hats-auth
-[submodule "lib/safe-contracts"]
-	path = lib/safe-contracts
-	url = https://github.com/Hats-Protocol/safe-contracts
 [submodule "lib/openzeppelin-contracts"]
 	path = lib/openzeppelin-contracts
 	url = https://github.com/Openzeppelin/openzeppelin-contracts
@@ -19,3 +16,6 @@
 [submodule "lib/hats-protocol"]
 	path = lib/hats-protocol
 	url = https://github.com/hats-protocol/hats-protocol
+[submodule "lib/safe-contracts"]
+	path = lib/safe-contracts
+	url = https://github.com/protofire/safe-contracts

@@ -7,16 +7,12 @@ import "./MultiHatsSignerGate.sol";
 import "@gnosis.pm/safe-contracts/contracts/GnosisSafe.sol";
 import "@gnosis.pm/safe-contracts/contracts/libraries/MultiSend.sol";
 import "@gnosis.pm/safe-contracts/contracts/proxies/GnosisSafeProxyFactory.sol";
-import "@gnosis.pm/zodiac/factory/ModuleProxyFactory.sol";
 
 contract HatsSignerGateFactory {
     /// @notice (Multi)HatsSignerGates cannot be used with other modules
     error NoOtherModulesAllowed();
 
     address public immutable hatsAddress;
-
-    address public immutable hatsSignerGateSingleton;
-    address public immutable multiHatsSignerGateSingleton;
 
     // address public immutable hatsSignerGatesingleton;
     address public immutable safeSingleton;
@@ -28,8 +24,6 @@ contract HatsSignerGateFactory {
     address public immutable gnosisMultisendLibrary;
 
     GnosisSafeProxyFactory public immutable gnosisSafeProxyFactory;
-
-    ModuleProxyFactory public immutable moduleProxyFactory;
 
     string public version;
 
@@ -60,24 +54,18 @@ contract HatsSignerGateFactory {
     );
 
     constructor(
-        address _hatsSignerGateSingleton,
-        address _multiHatsSignerGateSingleton,
         address _hatsAddress,
         address _safeSingleton,
         address _gnosisFallbackLibrary,
         address _gnosisMultisendLibrary,
         address _gnosisSafeProxyFactory,
-        address _moduleProxyFactory,
         string memory _version
     ) {
-        hatsSignerGateSingleton = _hatsSignerGateSingleton;
-        multiHatsSignerGateSingleton = _multiHatsSignerGateSingleton;
         hatsAddress = _hatsAddress;
         safeSingleton = _safeSingleton;
         gnosisFallbackLibrary = _gnosisFallbackLibrary;
         gnosisMultisendLibrary = _gnosisMultisendLibrary;
         gnosisSafeProxyFactory = GnosisSafeProxyFactory(_gnosisSafeProxyFactory);
-        moduleProxyFactory = ModuleProxyFactory(_moduleProxyFactory);
         version = _version;
     }
 
@@ -167,11 +155,11 @@ contract HatsSignerGateFactory {
             _ownerHatId, _signersHatId, _safe, hatsAddress, _minThreshold, _targetThreshold, _maxSigners, version
         );
 
-        hsg = moduleProxyFactory.deployModule(
-            hatsSignerGateSingleton, abi.encodeWithSignature("setUp(bytes)", initializeParams), ++nonce
-        );
-
+		bytes32 salt = keccak256(abi.encodePacked(keccak256(abi.encodeWithSignature("setUp(bytes)", initializeParams)), ++nonce));
+        HatsSignerGate instance = new HatsSignerGate{ salt: salt }();
+        instance.setUp(initializeParams);
         emit HatsSignerGateSetup(hsg, _ownerHatId, _signersHatId, _safe, _minThreshold, _targetThreshold, _maxSigners);
+		return address(instance);
     }
 
     function _generateMultisendAction(address _hatsSignerGate, address _safe)
@@ -287,17 +275,19 @@ contract HatsSignerGateFactory {
         uint256 _minThreshold,
         uint256 _targetThreshold,
         uint256 _maxSigners
-    ) internal returns (address mhsg) {
+    ) internal returns (address) {
         bytes memory initializeParams = abi.encode(
             _ownerHatId, _signersHatIds, _safe, hatsAddress, _minThreshold, _targetThreshold, _maxSigners, version
         );
 
-        mhsg = moduleProxyFactory.deployModule(
-            multiHatsSignerGateSingleton, abi.encodeWithSignature("setUp(bytes)", initializeParams), ++nonce
-        );
+
+		bytes32 salt = keccak256(abi.encodePacked(keccak256(abi.encodeWithSignature("setUp(bytes)", initializeParams)), ++nonce));
+        MultiHatsSignerGate instance = new MultiHatsSignerGate{ salt: salt }();
+        instance.setUp(initializeParams);
 
         emit MultiHatsSignerGateSetup(
-            mhsg, _ownerHatId, _signersHatIds, _safe, _minThreshold, _targetThreshold, _maxSigners
+            address(instance), _ownerHatId, _signersHatIds, _safe, _minThreshold, _targetThreshold, _maxSigners
         );
+		return address(instance);
     }
 }
