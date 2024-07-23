@@ -10,11 +10,11 @@ const HatsSignerGateFactory = require("../artifacts-zk/src/HatsSignerGateFactory
 // produced by running the scripts.
 const contractName = "HatsSignerGate";
 const OWNER_HAT_ID = 1;
-const SIGNER_HAT_ID = 1;
-const MIN_THRESHOLD = 1;
-const TARGET_THRESHOLD = 1;
-const MAX_SIGNERS = 1;
-const SAFE = "";
+const SIGNER_HAT_ID = 2;
+const MIN_THRESHOLD = 2;
+const TARGET_THRESHOLD = 2;
+const MAX_SIGNERS = 5;
+const FACTORY_ADDRESS = "0xAa5ECbAE5D3874A5b0CFD1c24bd4E2c0Fb305c32"
 
 async function main() {
   dotEnvConfig();
@@ -30,7 +30,7 @@ async function main() {
   const deployer = new Deployer(hre, zkWallet);
   const hatsSignerGateFactory = await new Contract(FACTORY_ADDRESS, HatsSignerGateFactory.abi, deployer.zkWallet);
 
-  const tx = await hatsSignerGateFactory.deployHatsSignerGate(OWNER_HAT_ID, SIGNER_HAT_ID, SAFE, MIN_THRESHOLD, TARGET_THRESHOLD, MAX_SIGNERS);
+  const tx = await hatsSignerGateFactory.deployHatsSignerGateAndSafe(OWNER_HAT_ID, SIGNER_HAT_ID, MIN_THRESHOLD, TARGET_THRESHOLD, MAX_SIGNERS);
   const tr = await tx.wait();
 	console.log("Hats signer gate deployed at " + tr.contractAddress)
 
