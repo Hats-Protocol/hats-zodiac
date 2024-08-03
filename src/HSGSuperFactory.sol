@@ -72,6 +72,7 @@ contract HSGSuperFactory {
     function deployHSGSuperModAndSafeWithTimelock(
         uint256 _ownerHatId,
         uint256 _signersHatId,
+        address _canceller,
         uint256 _minThreshold,
         uint256 _targetThreshold,
         uint256 _maxSigners,
@@ -88,8 +89,9 @@ contract HSGSuperFactory {
         // add this (which should be the governor contract) as the canceller and add the hsg as proposer, canceller, and anyone can execute (should look into this later)
         timelock.grantRole(timelock.PROPOSER_ROLE(), hsg);
         timelock.grantRole(timelock.EXECUTOR_ROLE(), hsg);
-        timelock.grantRole(timelock.CANCELLER_ROLE(), hsg);
-        timelock.grantRole(timelock.CANCELLER_ROLE(), msg.sender);
+        timelock.grantRole(timelock.CANCELLER_ROLE(), _canceller);
+        timelock.grantRole(timelock.TIMELOCK_ADMIN_ROLE(), hsg);
+        // timelock.revokeRole(timelock.TIMELOCK_ADMIN_ROLE(), address(timelock)); // take away self-administration 
         timelock.renounceRole(timelock.TIMELOCK_ADMIN_ROLE(), address(this));
 
         // Generate delegate call so the safe calls enableModule on itself during setup

@@ -138,6 +138,15 @@ contract HSGSuperMod is HatsSignerGateBase {
         );
     }
 
+    /// @notice allow the owner hat to set the canceller role
+    function setCanceller(address _newCanceller) external onlyOwner {
+        timelock.grantRole(timelock.CANCELLER_ROLE(), _newCanceller);
+    }
+
+    function removeCanceller(address _remove) external onlyOwner {
+        timelock.revokeRole(timelock.CANCELLER_ROLE(), _remove);
+    }
+
     // there should be a better way to execute the final transaction than this
     function executeTimelockTransaction(
         address to,

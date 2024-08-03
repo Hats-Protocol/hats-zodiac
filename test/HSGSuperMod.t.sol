@@ -6,6 +6,141 @@ import "./HSGSMTestSetup.t.sol";
 import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
 
 contract HSGSuperModTest is HSGSMTestSetup {
+    // test canceller cancels transaction
+    function testCancellerCancelsTx() public {
+        mockIsWearerCall(address(this), ownerHat, true);
+        addSigners(3);
+        TimelockController timelock = hsgsuper.timelock();
+        
+        uint256 preValue = 1 ether;
+        uint256 transferValue = 0.2 ether;
+        address destAddress = addresses[3];
+        // give the safe some eth
+        hoax(address(safe), preValue);
+
+        // create the tx
+        bytes32 txHash = getTxHash(destAddress, transferValue, hex"00", safe);
+
+        // have 3 signers sign it
+        bytes memory signatures = createNSigsForTx(txHash, 3);
+
+        // have one of the signers submit/exec the tx
+        vm.prank(addresses[0]);
+        bytes32 id = hsgsuper.scheduleTransaction(
+            destAddress,
+            transferValue,
+            hex"00",
+            Enum.Operation.Call,
+            // not using the refunder
+            0,
+            0,
+            0,
+            address(0),
+            payable(address(0)),
+            signatures
+        );
+        
+        // confirm proposal is in the timelock
+        assertEq(timelock.isOperation(id), true);
+        vm.prank(canceller);
+        timelock.cancel(id);
+
+        assertEq(timelock.isOperation(id), false);
+    }
+    // test non-canceller cancels transaction
+    function testNonCancellerCancelsTx() public {
+        mockIsWearerCall(address(this), ownerHat, true);
+        addSigners(3);
+        TimelockController timelock = hsgsuper.timelock();
+        
+        uint256 preValue = 1 ether;
+        uint256 transferValue = 0.2 ether;
+        address destAddress = addresses[3];
+        // give the safe some eth
+        hoax(address(safe), preValue);
+
+        // create the tx
+        bytes32 txHash = getTxHash(destAddress, transferValue, hex"00", safe);
+
+        // have 3 signers sign it
+        bytes memory signatures = createNSigsForTx(txHash, 3);
+
+        // have one of the signers submit/exec the tx
+        vm.prank(addresses[0]);
+        bytes32 id = hsgsuper.scheduleTransaction(
+            destAddress,
+            transferValue,
+            hex"00",
+            Enum.Operation.Call,
+            // not using the refunder
+            0,
+            0,
+            0,
+            address(0),
+            payable(address(0)),
+            signatures
+        );
+        
+        // confirm proposal is in the timelock
+        assertEq(timelock.isOperation(id), true);
+        vm.prank(addresses[0]);
+        vm.expectRevert();
+        timelock.cancel(id);
+
+        assertEq(timelock.isOperation(id), true);
+    }
+    // test signers try revoking canceller
+    // function testSafeCantRevokeCanceller() public {
+    //     mockIsWearerCall(address(this), ownerHat, true);
+    //     addSigners(3);
+    //     TimelockController timelock = hsgsuper.timelock();
+        
+    //     uint256 transferValue = 0 ether;
+    //     address destAddress = address(timelock);
+    //     bytes memory input = abi.encodeCall(timelock.revokeRole, (timelock.CANCELLER_ROLE(), canceller));
+
+    //     // create the tx
+    //     bytes32 txHash = getTxHash(destAddress, transferValue, input, safe);
+
+    //     // have 3 signers sign it
+    //     bytes memory signatures = createNSigsForTx(txHash, 3);
+
+    //     // have one of the signers submit/exec the tx
+    //     vm.startPrank(addresses[0]);
+    //     bytes32 id = hsgsuper.scheduleTransaction(
+    //         destAddress,
+    //         transferValue,
+    //         input,
+    //         Enum.Operation.Call,
+    //         // not using the refunder
+    //         0,
+    //         0,
+    //         0,
+    //         address(0),
+    //         payable(address(0)),
+    //         signatures
+    //     );
+        
+    //     // confirm proposal is in the timelock
+    //     assertEq(timelock.isOperation(id), true);
+    //     vm.warp(block.timestamp+MIN_DELAY);
+    //     // vm.expectRevert("Something");
+    //     hsgsuper.executeTimelockTransaction(
+    //         destAddress,
+    //         transferValue,
+    //         input,
+    //         Enum.Operation.Call,
+    //         // not using the refunder
+    //         0,
+    //         0,
+    //         0,
+    //         address(0),
+    //         payable(address(0)),
+    //         signatures
+    //     );
+    //     vm.stopPrank();
+    // }
+    // test authority adds new canceller
     function testAdminTriesClawback() public {
         addSigners(1);
         mockIsWearerCall(address(this), ownerHat, true);

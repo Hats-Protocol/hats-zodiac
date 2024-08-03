@@ -12,6 +12,7 @@ contract HSGSMTestSetup is HSGSMFactoryTestSetup, SignatureDecoder {
 
     uint256[] public pks;
     address[] public addresses;
+    address public canceller;
 
     mapping(address => bytes) public walletSigs;
 
@@ -42,7 +43,9 @@ contract HSGSMTestSetup is HSGSMFactoryTestSetup, SignatureDecoder {
             version
         );
 
-        (hsgsuper, safe) = deployHSGSMAndSafe(ownerHat, signerHat, minThreshold, targetThreshold, maxSigners);
+        // addresses[9] is the canceller role
+        canceller = addresses[9];
+        (hsgsuper, safe) = deployHSGSMAndSafe(ownerHat, signerHat, canceller, minThreshold, targetThreshold, maxSigners);
         mockIsWearerCall(address(hsgsuper), signerHat, false);
     }
 

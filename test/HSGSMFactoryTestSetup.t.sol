@@ -60,6 +60,7 @@ contract HSGSMFactoryTestSetup is Test {
     function deployHSGSMAndSafe(
         uint256 _ownerHat,
         uint256 _signerHat,
+        address _canceller,
         uint256 _minThreshold,
         uint256 _targetThreshold,
         uint256 _maxSigners
@@ -67,7 +68,7 @@ contract HSGSMFactoryTestSetup is Test {
         address hsg;
         address safe_;
         (hsg, safe_) =
-             factory.deployHSGSuperModAndSafeWithTimelock(_ownerHat, _signerHat, _minThreshold, _targetThreshold, _maxSigners, MIN_DELAY);
+             factory.deployHSGSuperModAndSafeWithTimelock(_ownerHat, _signerHat, _canceller, _minThreshold, _targetThreshold, _maxSigners, MIN_DELAY);
 
         _hatsSignerGate = HSGSuperMod(hsg);
         _safe = GnosisSafe(payable(safe_));
