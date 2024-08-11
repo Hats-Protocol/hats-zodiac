@@ -4,9 +4,10 @@ pragma solidity >=0.8.13;
 // import { Test, console2 } from "forge-std/Test.sol"; // remove after testing
 import { HatsSignerGateBase, IGnosisSafe, Enum } from "./HatsSignerGateBase.sol";
 import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
+import { InternalGuardManager, Guard } from "./Extensions/InternalGuardManager.sol";
 import "./HSGLib.sol";
 
-contract HSGSuperMod is HatsSignerGateBase {
+contract HSGSuperMod is HatsSignerGateBase, InternalGuardManager {
     uint256 public signersHatId;
     TimelockController public timelock; // should probably switch the access to this later
 
@@ -82,6 +83,19 @@ contract HSGSuperMod is HatsSignerGateBase {
 
     // Chase's edits (yay)
 
+    /// @notice allow the owner hat to set the canceller role
+    function setCanceller(address _newCanceller) external onlyOwner {
+        timelock.grantRole(timelock.CANCELLER_ROLE(), _newCanceller);
+    }
+
+    function removeCanceller(address _remove) external onlyOwner {
+        timelock.revokeRole(timelock.CANCELLER_ROLE(), _remove);
+    }
+
+    function changeGuard(address guard) external onlyOwner {
+        setGuard(guard);
+    }
+
     /// @notice Allows admin to send value back to itself
     function clawback(uint256 amount, address dummy) external {
         if (!HATS.isAdminOfHat(msg.sender, signersHatId)) revert("Not admin");
@@ -108,6 +122,29 @@ contract HSGSuperMod is HatsSignerGateBase {
         address payable refundReceiver,
         bytes calldata signatures
     ) public payable returns (bytes32) {
+        // might want to call the pre-check here
+        // from GnosisSafe
+        address guard = getGuard();
+        {
+            if (guard != address(0)) {
+                Guard(guard).checkTransaction(
+                    // Transaction info
+                    to,
+                    value,
+                    data,
+                    operation,
+                    safeTxGas,
+                    // Payment info
+                    baseGas,
+                    gasPrice,
+                    gasToken,
+                    refundReceiver,
+                    // Signature info
+                    signatures,
+                    msg.sender
+                );
+            }
+        }
         bytes memory call = abi.encodeWithSignature(
             "execTransaction(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,bytes)",
             to,
@@ -136,15 +173,6 @@ contract HSGSuperMod is HatsSignerGateBase {
             bytes32(0), // predecessor
             bytes32(0) // salt
         );
-    }
-
-    /// @notice allow the owner hat to set the canceller role
-    function setCanceller(address _newCanceller) external onlyOwner {
-        timelock.grantRole(timelock.CANCELLER_ROLE(), _newCanceller);
-    }
-
-    function removeCanceller(address _remove) external onlyOwner {
-        timelock.revokeRole(timelock.CANCELLER_ROLE(), _remove);
     }
 
     // there should be a better way to execute the final transaction than this
@@ -198,5 +226,15 @@ contract HSGSuperMod is HatsSignerGateBase {
     ) override internal view {
         // requires regular transactions to go through the timelock
         if (msgSender != address(timelock)) require(to == address(timelock), "Transactions must go through the timelock.");
+    }
+
+    function _additionalCheckAfterExecution(
+        bytes32 txHash, bool success
+    ) override internal {
+        // from GnosisSafe
+        address guard = getGuard();
+        if (guard != address(0)) {
+            Guard(guard).checkAfterExecution(txHash, success);
+        }
     }
 }

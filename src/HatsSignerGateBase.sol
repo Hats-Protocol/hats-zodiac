@@ -483,22 +483,6 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         if (_guardEntries > 1) revert NoReentryAllowed();
     }
 
-    function _additionalCheckTransaction(
-        address to,
-        uint256 value,
-        bytes calldata data,
-        Enum.Operation operation,
-        uint256 safeTxGas,
-        uint256 baseGas,
-        uint256 gasPrice,
-        address gasToken,
-        address payable refundReceiver,
-        bytes memory signatures,
-        address msgSender
-    ) internal virtual {
-
-    }
-
     /**
      * @notice Post-flight check to prevent `safe` signers from performing any of the following actions:
      *         1. removing this contract guard
@@ -509,7 +493,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
      *     then in some cases protections (3) and (4) may not hold. Proceed with caution if considering granting such authority to the safe.
      * @dev Modified from https://github.com/gnosis/zodiac-guard-mod/blob/988ebc7b71e352f121a0be5f6ae37e79e47a4541/contracts/ModGuard.sol#L86
      */
-    function checkAfterExecution(bytes32, bool) external override {
+    function checkAfterExecution(bytes32 txHash, bool success) external override {
         if (msg.sender != address(safe)) revert NotCalledFromSafe();
         // prevent signers from disabling this guard
         if (
@@ -544,8 +528,31 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         else if (modulesWith1[0] != address(this)) {
             revert SignersCannotChangeModules();
         }
+        _additionalCheckAfterExecution(txHash, success); // any additional checks
         // leave checked to catch underflows triggered by re-entry attempts
         --_guardEntries;
+    }
+
+    function _additionalCheckTransaction(
+        address to,
+        uint256 value,
+        bytes calldata data,
+        Enum.Operation operation,
+        uint256 safeTxGas,
+        uint256 baseGas,
+        uint256 gasPrice,
+        address gasToken,
+        address payable refundReceiver,
+        bytes memory signatures,
+        address msgSender
+    ) internal virtual {
+
+    }
+
+    function _additionalCheckAfterExecution(
+        bytes32 txHash, bool success
+    ) internal virtual {
+
     }
 
     /// @notice Internal function to calculate the threshold that `safe` should have, given the correct `signerCount`, `minThreshold`, and `targetThreshold`
