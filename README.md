@@ -1,4 +1,4 @@
-# hats-zodiac
+# Hats Signer Gate
 
 This repo holds several [Hats Protocol](https://github.com/Hats-Protocol/hats-protocol)-enabled [Zodiac](https://github.com/gnosis/zodiac) contracts. Currently, this repo contains the following, referred to collectively as Hats Signer Gate (HSG):
 
@@ -6,7 +6,7 @@ This repo holds several [Hats Protocol](https://github.com/Hats-Protocol/hats-pr
 - [Multi-Hats Signer Gate](#multi-hats-signer-gate)
 - [Hats Signer Gate Factory](#hats-signer-gate-factory)
 
-## Hats Signer Gate
+## Hats Signer Gate v1
 
 A contract that grants multisig signing rights to addresses wearing a given Hat, enabling on-chain organizations (such as DAOs) to revocably delegate constrained signing authority and responsibility to individuals.
 
