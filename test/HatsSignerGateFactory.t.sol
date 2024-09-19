@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "./HSGFactoryTestSetup.t.sol";
+import "./HSGTestSetup.t.sol";
 
-contract HatsSignerGateFactoryTest is HSGFactoryTestSetup {
+contract HatsSignerGateFactoryTest is HSGTestSetup {
     error NoOtherModulesAllowed();
 
-    function setUp() public {
+    function setUp() public override {
         version = "1.0";
 
         factory = new HatsSignerGateFactory(
@@ -43,9 +43,7 @@ contract HatsSignerGateFactoryTest is HSGFactoryTestSetup {
         safe = deploySafe(initSafeOwners, 1);
 
         hatsSignerGate = HatsSignerGate(
-            factory.deployHatsSignerGate(
-                ownerHat, signerHats, address(safe), minThreshold, targetThreshold, maxSigners
-            )
+            factory.deployHatsSignerGate(ownerHat, signerHats, address(safe), minThreshold, targetThreshold, maxSigners)
         );
 
         assertEq(safe.getOwners()[0], address(this));
@@ -117,9 +115,7 @@ contract HatsSignerGateFactoryTest is HSGFactoryTestSetup {
 
         // attempt to deploy HSG, should revert
         vm.expectRevert(NoOtherModulesAllowed.selector);
-        factory.deployHatsSignerGate(
-            ownerHat, signerHats, address(safe), minThreshold, targetThreshold, maxSigners
-        );
+        factory.deployHatsSignerGate(ownerHat, signerHats, address(safe), minThreshold, targetThreshold, maxSigners);
     }
 
     function testCanAttachHSGToSafeReturnsFalseWithModule() public {
@@ -136,9 +132,8 @@ contract HatsSignerGateFactoryTest is HSGFactoryTestSetup {
         safe = deploySafe(initSafeOwners, 1);
 
         // deploy HSG
-        address hsg = factory.deployHatsSignerGate(
-            ownerHat, signerHats, address(safe), minThreshold, targetThreshold, maxSigners
-        );
+        address hsg =
+            factory.deployHatsSignerGate(ownerHat, signerHats, address(safe), minThreshold, targetThreshold, maxSigners);
 
         // enable a module
         bytes memory enableModuleData = abi.encodeWithSignature("enableModule(address)", address(0xf00baa)); // some devs are from Boston
@@ -164,9 +159,7 @@ contract HatsSignerGateFactoryTest is HSGFactoryTestSetup {
 
         // deploy HSG
         HatsSignerGate hsg = HatsSignerGate(
-            factory.deployHatsSignerGate(
-                ownerHat, signerHats, address(safe), minThreshold, targetThreshold, maxSigners
-            )
+            factory.deployHatsSignerGate(ownerHat, signerHats, address(safe), minThreshold, targetThreshold, maxSigners)
         );
 
         // add 2 owners and make them valid
@@ -199,9 +192,8 @@ contract HatsSignerGateFactoryTest is HSGFactoryTestSetup {
         safe = deploySafe(initSafeOwners, 1);
 
         // deploy HSG
-        address hsg = factory.deployHatsSignerGate(
-            ownerHat, signerHats, address(safe), minThreshold, targetThreshold, maxSigners
-        );
+        address hsg =
+            factory.deployHatsSignerGate(ownerHat, signerHats, address(safe), minThreshold, targetThreshold, maxSigners);
 
         // canAttachHSGToSafe should return true
         assertTrue(factory.canAttachHSGToSafe(HatsSignerGate(hsg)));
