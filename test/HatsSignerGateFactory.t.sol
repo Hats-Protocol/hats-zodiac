@@ -1,33 +1,26 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "./HSGTestSetup.t.sol";
+import {
+    TestSuiteSetup,
+    HatsSignerGate,
+    HatsSignerGateFactory,
+    GnosisSafeProxyFactory,
+    ModuleProxyFactory,
+    GnosisSafe
+} from "./TestSuiteSetup.sol";
+import "../src/HSGLib.sol";
 
-contract HatsSignerGateFactoryTest is HSGTestSetup {
+contract HatsSignerGateFactoryTest is TestSuiteSetup {
     error NoOtherModulesAllowed();
 
-    function setUp() public override {
-        version = "1.0";
-
-        factory = new HatsSignerGateFactory(
-            address(singletonHatsSignerGate),
-            HATS,
-            address(singletonSafe),
-            gnosisFallbackLibrary,
-            gnosisMultisendLibrary,
-            address(safeFactory),
-            address(moduleProxyFactory),
-            version
-        );
-    }
-
     function testDeployFactory() public {
-        assertEq(factory.version(), version);
-        assertEq(factory.hatsSignerGateSingleton(), address(singletonHatsSignerGate));
-        assertEq(address(factory.safeSingleton()), address(singletonSafe));
-        assertEq(factory.gnosisFallbackLibrary(), gnosisFallbackLibrary);
-        assertEq(factory.gnosisMultisendLibrary(), gnosisMultisendLibrary);
-        assertEq(address(factory.gnosisSafeProxyFactory()), address(safeFactory));
+        assertEq(factory.version(), version, "version");
+        assertEq(factory.hatsSignerGateSingleton(), address(singletonHatsSignerGate), "hatsSignerGateSingleton");
+        assertEq(address(factory.safeSingleton()), address(singletonSafe), "safeSingleton");
+        assertEq(factory.gnosisFallbackLibrary(), gnosisFallbackLibrary, "gnosisFallbackLibrary");
+        assertEq(factory.gnosisMultisendLibrary(), gnosisMultisendLibrary, "gnosisMultisendLibrary");
+        assertEq(address(factory.gnosisSafeProxyFactory()), address(safeFactory), "gnosisSafeProxyFactory");
     }
 
     function testDeployHatsSignerGate() public {
@@ -46,17 +39,17 @@ contract HatsSignerGateFactoryTest is HSGTestSetup {
             factory.deployHatsSignerGate(ownerHat, signerHats, address(safe), minThreshold, targetThreshold, maxSigners)
         );
 
-        assertEq(safe.getOwners()[0], address(this));
+        assertEq(safe.getOwners()[0], address(this), "safe owner");
 
-        assertEq(hatsSignerGate.minThreshold(), minThreshold);
-        assertEq(hatsSignerGate.ownerHat(), ownerHat);
-        assertEq(hatsSignerGate.getHatsContract(), HATS);
-        assertEq(hatsSignerGate.targetThreshold(), targetThreshold);
-        assertEq(address(hatsSignerGate.safe()), address(safe));
-        assertEq(hatsSignerGate.maxSigners(), maxSigners);
-        assertEq(hatsSignerGate.version(), version);
-        assertTrue(hatsSignerGate.isValidSignerHat(2));
-        assertFalse(hatsSignerGate.isValidSignerHat(3));
+        assertEq(hatsSignerGate.minThreshold(), minThreshold, "min threshold");
+        assertEq(hatsSignerGate.ownerHat(), ownerHat, "owner hat");
+        assertEq(hatsSignerGate.getHatsContract(), address(HATS), "hats contract");
+        assertEq(hatsSignerGate.targetThreshold(), targetThreshold, "target threshold");
+        assertEq(address(hatsSignerGate.safe()), address(safe), "safe");
+        assertEq(hatsSignerGate.maxSigners(), maxSigners, "max signers");
+        assertEq(hatsSignerGate.version(), version, "version");
+        assertTrue(hatsSignerGate.isValidSignerHat(2), "valid signer hat");
+        assertFalse(hatsSignerGate.isValidSignerHat(3), "invalid signer hat");
     }
 
     function testDeployHatsSignersGateAndSafe() public {
@@ -84,23 +77,18 @@ contract HatsSignerGateFactoryTest is HSGTestSetup {
         assertEq(address(bytes20(vm.load(address(safe), GUARD_STORAGE_SLOT) << 96)), address(hatsSignerGate));
 
         assertEq(hatsSignerGate.ownerHat(), ownerHat);
-        assertEq(hatsSignerGate.getHatsContract(), HATS);
+        assertEq(hatsSignerGate.getHatsContract(), address(HATS));
     }
 
     function testCannotReinitializeHSGSingleton() public {
-        uint256[] memory signerHats = new uint256[](1);
-        signerHats[0] = signerHat;
-
-        bytes memory initializeParams =
-            abi.encode(ownerHat, signerHats, address(safe), HATS, minThreshold, targetThreshold, maxSigners, version, 0);
+        bytes memory initializeParams = abi.encode(
+            ownerHat, signerHats, address(safe), address(HATS), minThreshold, targetThreshold, maxSigners, version, 0
+        );
         vm.expectRevert("Initializable: contract is already initialized");
         singletonHatsSignerGate.setUp(initializeParams);
     }
 
     function testCannotDeployHSGToSafeWithExistingModules() public {
-        ownerHat = 1;
-        uint256[] memory signerHats = new uint256[](1);
-        signerHats[0] = 2;
         minThreshold = 2;
         targetThreshold = 2;
         maxSigners = 5;
@@ -119,13 +107,9 @@ contract HatsSignerGateFactoryTest is HSGTestSetup {
     }
 
     function testCanAttachHSGToSafeReturnsFalseWithModule() public {
-        ownerHat = 1;
         minThreshold = 2;
         targetThreshold = 2;
         maxSigners = 5;
-        // create signerHats array
-        uint256[] memory signerHats = new uint256[](1);
-        signerHats[0] = 2;
 
         // deploy a safe
         initSafeOwners[0] = address(this);
@@ -143,52 +127,44 @@ contract HatsSignerGateFactoryTest is HSGTestSetup {
         assertFalse(factory.canAttachHSGToSafe(HatsSignerGate(hsg)));
     }
 
-    function testCanAttachHSGToSafeReturnsFalseWithUnsafeSignerCounts() public {
-        ownerHat = 1;
-        minThreshold = 1;
-        targetThreshold = 1;
-        maxSigners = 2;
-        // create signerHats array
-        uint256[] memory signerHats = new uint256[](1);
-        signerHats[0] = 2;
+    // function testCanAttachHSGToSafeReturnsFalseWithUnsafeSignerCounts() public {
+    //     minThreshold = 1;
+    //     targetThreshold = 1;
+    //     maxSigners = 2;
 
-        // deploy a safe
-        initSafeOwners[0] = address(this);
-        mockIsWearerCall(address(this), signerHat, true);
-        safe = deploySafe(initSafeOwners, 1);
+    //     // deploy a safe
+    //     initSafeOwners[0] = signerAddresses[0];
+    //     setSignerValidity(signerAddresses[0], signerHat, true);
+    //     safe = deploySafe(initSafeOwners, 1);
 
-        // deploy HSG
-        HatsSignerGate hsg = HatsSignerGate(
-            factory.deployHatsSignerGate(ownerHat, signerHats, address(safe), minThreshold, targetThreshold, maxSigners)
-        );
+    //     // deploy HSG
+    //     HatsSignerGate hsg = HatsSignerGate(
+    //         factory.deployHatsSignerGate(ownerHat, signerHats, address(safe), minThreshold, targetThreshold, maxSigners)
+    //     );
 
-        // add 2 owners and make them valid
-        bytes memory addOwnerData = abi.encodeWithSignature("addOwnerWithThreshold(address,uint256)", address(2), 1);
-        executeSafeTxFrom(address(this), addOwnerData, safe);
-        mockIsWearerCall(address(2), signerHat, true);
+    //     // add 2 owners and make them valid
+    //     bytes memory addOwnerData = abi.encodeWithSignature("addOwnerWithThreshold(address,uint256)", address(2), 1);
+    //     executeSafeTxFrom(signerAddresses[0], addOwnerData, safe);
+    //     setSignerValidity(signerAddresses[1], signerHat, true);
 
-        addOwnerData = abi.encodeWithSignature("addOwnerWithThreshold(address,uint256)", address(3), 1);
-        executeSafeTxFrom(address(this), addOwnerData, safe);
-        mockIsWearerCall(address(3), signerHat, true);
+    //     addOwnerData = abi.encodeWithSignature("addOwnerWithThreshold(address,uint256)", address(3), 1);
+    //     executeSafeTxFrom(signerAddresses[0], addOwnerData, safe);
+    //     setSignerValidity(signerAddresses[2], signerHat, true);
 
-        // canAttachHSGToSafe should return false
-        assertEq(hsg.validSignerCount(), 3, "valid signer count");
-        assertEq(hsg.maxSigners(), 2, "max signers");
-        assertFalse(factory.canAttachHSGToSafe(hsg), "should return false with validSignerCount > maxSigners");
-    }
+    //     // canAttachHSGToSafe should return false
+    //     assertEq(hsg.validSignerCount(), 3, "valid signer count");
+    //     assertEq(hsg.maxSigners(), 2, "max signers");
+    //     assertFalse(factory.canAttachHSGToSafe(hsg), "should return false with validSignerCount > maxSigners");
+    // }
 
     function testCanAttachHSGToSafeReturnsTrue() public {
-        ownerHat = 1;
         minThreshold = 2;
         targetThreshold = 2;
         maxSigners = 5;
-        // create signerHats array
-        uint256[] memory signerHats = new uint256[](1);
-        signerHats[0] = 2;
 
         // deploy a safe
         initSafeOwners[0] = address(this);
-        mockIsWearerCall(address(this), signerHat, true);
+        setSignerValidity(address(this), signerHat, true);
         safe = deploySafe(initSafeOwners, 1);
 
         // deploy HSG

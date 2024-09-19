@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "forge-std/Script.sol";
-import "../src/HatsSignerGate.sol";
-import "../src/HatsSignerGateFactory.sol";
+import { Script, console2 } from "forge-std/Script.sol";
+import { HatsSignerGate } from "../src/HatsSignerGate.sol";
+import { HatsSignerGateFactory } from "../src/HatsSignerGateFactory.sol";
 
-contract DeployHatsSignerGate is Script {
+contract DeployInstance is Script {
     HatsSignerGateFactory public hsgFactory; // to deploy
     uint256 public ownerHatId = 80879840001451919384001045261058892020911433267621717443310830747648;
     uint256 public signersHatId = 80985152293120476570698963288742562453230328363022266554565141725184;

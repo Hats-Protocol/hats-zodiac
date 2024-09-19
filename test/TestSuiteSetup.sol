@@ -1,47 +1,54 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "forge-std/Test.sol";
-import "./HSGFactoryTestSetup.t.sol";
-import "../src/HSGLib.sol";
-import { HatsSignerGate, HatsSignerGateBase } from "../src/HatsSignerGate.sol";
+import { Test, console2 } from "forge-std/Test.sol";
+import { IHats } from "hats-protocol/Interfaces/IHats.sol";
+import { HatsSignerGate } from "../src/HatsSignerGate.sol";
 import { HatsSignerGateFactory } from "../src/HatsSignerGateFactory.sol";
-import "@gnosis.pm/safe-contracts/contracts/GnosisSafe.sol";
-import "@gnosis.pm/safe-contracts/contracts/proxies/GnosisSafeProxyFactory.sol";
-import "@gnosis.pm/safe-contracts/contracts/common/Enum.sol";
-import "@gnosis.pm/safe-contracts/contracts/common/SignatureDecoder.sol";
-import "@gnosis.pm/safe-contracts/contracts/libraries/MultiSend.sol";
-import "@gnosis.pm/zodiac/factory/ModuleProxyFactory.sol";
+import { GnosisSafe } from "@gnosis.pm/safe-contracts/contracts/GnosisSafe.sol";
+import { GnosisSafeProxyFactory } from "@gnosis.pm/safe-contracts/contracts/proxies/GnosisSafeProxyFactory.sol";
+import { Enum } from "@gnosis.pm/safe-contracts/contracts/common/Enum.sol";
+import { ModuleProxyFactory } from "@gnosis.pm/zodiac/factory/ModuleProxyFactory.sol";
+import { DeployHatsSignerGateFactory } from "../script/HatsSignerGateFactory.s.sol";
 
-contract HSGTestSetup is Test {
+contract TestSuiteSetup is Test {
     address public constant SENTINELS = address(0x1);
+    IHats public constant HATS = IHats(0x3bc1A0Ad72417f2d411118085256fC53CBdDd137);
+    bytes32 public constant GUARD_STORAGE_SLOT = 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
+
+    uint256 public MAINNET_FORK_BLOCK = 20786857;
+
+    bytes32 public SALT = bytes32(abi.encode(0x1));
 
     uint256[] public pks;
-    address[] public addresses;
+    address[] public signerAddresses;
+    address public org = makeAddr("org");
+    address public owner = makeAddr("owner");
 
     mapping(address => bytes) public walletSigs;
 
     uint256[] public signerHats;
+    uint256 public signerHat;
 
-    address public gnosisFallbackLibrary = address(bytes20("fallback"));
-    address public gnosisMultisendLibrary = address(new MultiSend());
+    address public gnosisFallbackLibrary;
+    address public gnosisMultisendLibrary;
 
     HatsSignerGateFactory public factory;
-    GnosisSafe public singletonSafe = new GnosisSafe();
-    GnosisSafeProxyFactory public safeFactory = new GnosisSafeProxyFactory();
-    ModuleProxyFactory public moduleProxyFactory = new ModuleProxyFactory();
+    GnosisSafe public singletonSafe;
+    GnosisSafeProxyFactory public safeFactory;
+    ModuleProxyFactory public moduleProxyFactory;
     GnosisSafe public safe;
     address FIRST_ADDRESS = address(0x1);
 
-    HatsSignerGate public singletonHatsSignerGate = new HatsSignerGate();
+    address public eligibility = makeAddr("eligibility");
+    address public toggle = makeAddr("toggle");
+
+    HatsSignerGate public singletonHatsSignerGate;
     HatsSignerGate public hatsSignerGate;
 
-    address public constant HATS = address(0x4a15);
-
-    bytes32 public constant GUARD_STORAGE_SLOT = 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
-
+    uint256 public tophat;
     uint256 public ownerHat;
-    uint256 public signerHat;
+
     uint256 public minThreshold;
     uint256 public targetThreshold;
     uint256 public maxSigners;
@@ -50,53 +57,64 @@ contract HSGTestSetup is Test {
     address[] initSafeOwners = new address[](1);
 
     function setUp() public virtual {
-        // set up variables
-        ownerHat = 1;
-        signerHats = new uint256[](5);
-        signerHats[0] = 2;
-        signerHats[1] = 3;
-        signerHats[2] = 4;
-        signerHats[3] = 5;
-        signerHats[4] = 6;
+        // Fork mainnet
+        vm.createSelectFork("mainnet", MAINNET_FORK_BLOCK);
+
+        // deploy the implementation with a salt
+        singletonHatsSignerGate = new HatsSignerGate{ salt: SALT }();
+
+        // set up hats
+        uint256 signerHatCount = 5;
+        signerHats = new uint256[](signerHatCount);
+
+        vm.startPrank(org);
+        tophat = HATS.mintTopHat(org, "tophat", "https://hats.com");
+        ownerHat = HATS.createHat(tophat, "owner", 10, eligibility, toggle, true, "");
+
+        for (uint256 i = 0; i < signerHatCount; i++) {
+            signerHats[i] = HATS.createHat(
+                tophat, string.concat("signerHat", vm.toString(i)), 100, eligibility, toggle, true, "image"
+            );
+        }
+        vm.stopPrank();
+
+        signerHat = signerHats[0];
+
+        (pks, signerAddresses) = createAddressesFromPks(10);
+
+        // set up other params
         minThreshold = 2;
         targetThreshold = 2;
         maxSigners = 5;
 
-        signerHat = signerHats[0];
+        version = "test";
 
-        (pks, addresses) = createAddressesFromPks(10);
+        // deploy the HSG factory
+        DeployHatsSignerGateFactory factoryDeployer = new DeployHatsSignerGateFactory();
+        factoryDeployer.prepare(singletonHatsSignerGate, version);
+        factoryDeployer.run();
 
-        version = "1.0";
-
-        factory = new HatsSignerGateFactory(
-            address(singletonHatsSignerGate),
-            HATS,
-            address(singletonSafe),
-            gnosisFallbackLibrary,
-            gnosisMultisendLibrary,
-            address(safeFactory),
-            address(moduleProxyFactory),
-            version
-        );
-
-        (hatsSignerGate, safe) = deployHSGAndSafe(ownerHat, signerHats, minThreshold, targetThreshold, maxSigners);
-        mockIsWearerCall(address(hatsSignerGate), signerHat, false);
-
-        mockIsWearerCall(address(hatsSignerGate), 0, false);
+        // cache the deploy params and factory address
+        factory = HatsSignerGateFactory(factoryDeployer.factory());
+        gnosisFallbackLibrary = factoryDeployer.gnosisFallbackLibrary();
+        gnosisMultisendLibrary = factoryDeployer.gnosisMultisendLibrary();
+        safeFactory = GnosisSafeProxyFactory(factoryDeployer.gnosisSafeProxyFactory());
+        moduleProxyFactory = ModuleProxyFactory(factoryDeployer.moduleProxyFactory());
+        singletonSafe = GnosisSafe(payable(factoryDeployer.safeSingleton()));
     }
 
     function addSignersOneHat(uint256 count, uint256 hat) internal {
         for (uint256 i = 0; i < count; i++) {
-            mockIsWearerCall(addresses[i], hat, true);
-            vm.prank(addresses[i]);
+            setSignerValidity(signerAddresses[i], hat, true);
+            vm.prank(signerAddresses[i]);
             hatsSignerGate.claimSigner(hat);
         }
     }
 
     function addSignersMultipleHats(uint256 count, uint256[] memory hats) internal {
         for (uint256 i = 0; i < count; i++) {
-            mockIsWearerCall(addresses[i], hats[i], true);
-            vm.prank(addresses[i]);
+            setSignerValidity(signerAddresses[i], hats[i], true);
+            vm.prank(signerAddresses[i]);
             hatsSignerGate.claimSigner(hats[i]);
         }
     }
@@ -201,14 +219,14 @@ contract HSGTestSetup is Test {
     function createAddressesFromPks(uint256 count)
         public
         pure
-        returns (uint256[] memory pks_, address[] memory addresses_)
+        returns (uint256[] memory pks_, address[] memory signerAddresses_)
     {
         pks_ = new uint256[](count);
-        addresses_ = new address[](count);
+        signerAddresses_ = new address[](count);
 
         for (uint256 i = 0; i < count; ++i) {
             pks_[i] = 100 * (i + 1);
-            addresses_[i] = vm.addr(pks_[i]);
+            signerAddresses_[i] = vm.addr(pks_[i]);
         }
     }
 
@@ -315,8 +333,16 @@ contract HSGTestSetup is Test {
         );
     }
 
-    function mockIsWearerCall(address wearer, uint256 hat, bool result) public {
-        bytes memory data = abi.encodeWithSignature("isWearerOfHat(address,uint256)", wearer, hat);
-        vm.mockCall(HATS, data, abi.encode(result));
+    function setSignerValidity(address wearer, uint256 hat, bool result) public {
+        if (result) {
+            if (HATS.isWearerOfHat(wearer, hat)) return;
+            // mint the hat to the wearer
+            vm.prank(org);
+            HATS.mintHat(hat, wearer);
+        } else {
+            // revoke the wearer's hat
+            vm.prank(eligibility);
+            HATS.setHatWearerStatus(hat, wearer, false, true);
+        }
     }
 }

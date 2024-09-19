@@ -18,16 +18,14 @@ contract DeployHatsSignerGateFactory is Script {
     address public moduleProxyFactory;
     address public safeSingleton;
 
+    HatsSignerGate public hsgSingleton;
     HatsSignerGateFactory public factory;
 
     /// ===========================================
     /// @dev deployment params to be set manually
     string public version = "1.2-beta";
-    bytes32 public SALT = bytes32(abi.encode(0x4a75)); // ~ H(4) A(a) T(7) S(5)
+    bytes32 public SALT = bytes32(abi.encode(0x4a76)); // ~ H(4) A(a) T(7) S(6)
 
-    /// @dev set to true to deploy singletons, false to use existing deployments below
-    bool public deploySingletones = true;
-    HatsSignerGate public hsgSingleton = HatsSignerGate(0xca9d698Adb4052Ac7751019D69582950B1E42b43);
     /// ===========================================
 
     function getChainKey() public view returns (string memory) {
@@ -47,6 +45,11 @@ contract DeployHatsSignerGateFactory is Script {
         = abi.decode(params, (address, address, address, address, address, address));
     }
 
+    function prepare(HatsSignerGate _hatsSignerGateSingleton, string memory _version) public {
+        hsgSingleton = _hatsSignerGateSingleton;
+        version = _version;
+    }
+
     function run() external {
         setDeployParams();
         uint256 privKey = vm.envUint("PRIVATE_KEY");
@@ -55,7 +58,7 @@ contract DeployHatsSignerGateFactory is Script {
         console2.log("deployer balance (wei):", deployer.balance);
         vm.startBroadcast(deployer);
 
-        if (deploySingletones) {
+        if (address(hsgSingleton) == address(0)) {
             // deploy singletons
             hsgSingleton = new HatsSignerGate{ salt: SALT }();
         }
