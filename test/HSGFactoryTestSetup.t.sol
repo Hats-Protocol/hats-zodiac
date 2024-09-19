@@ -3,7 +3,6 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 import { HatsSignerGate, HatsSignerGateBase } from "../src/HatsSignerGate.sol";
-import { MultiHatsSignerGate } from "../src/MultiHatsSignerGate.sol";
 import { HatsSignerGateFactory } from "../src/HatsSignerGateFactory.sol";
 import "@gnosis.pm/safe-contracts/contracts/GnosisSafe.sol";
 import "@gnosis.pm/safe-contracts/contracts/proxies/GnosisSafeProxyFactory.sol";
@@ -23,8 +22,6 @@ contract HSGFactoryTestSetup is Test {
 
     HatsSignerGate public singletonHatsSignerGate = new HatsSignerGate();
     HatsSignerGate public hatsSignerGate;
-    MultiHatsSignerGate public singletonMultiHatsSignerGate = new MultiHatsSignerGate();
-    MultiHatsSignerGate public multiHatsSignerGate;
 
     address public constant HATS = address(0x4a15);
 
@@ -59,34 +56,18 @@ contract HSGFactoryTestSetup is Test {
 
     function deployHSGAndSafe(
         uint256 _ownerHat,
-        uint256 _signerHat,
-        uint256 _minThreshold,
-        uint256 _targetThreshold,
-        uint256 _maxSigners
-    ) public returns (HatsSignerGate _hatsSignerGate, GnosisSafe _safe) {
-        address hsg;
-        address safe_;
-        (hsg, safe_) =
-            factory.deployHatsSignerGateAndSafe(_ownerHat, _signerHat, _minThreshold, _targetThreshold, _maxSigners);
-
-        _hatsSignerGate = HatsSignerGate(hsg);
-        _safe = GnosisSafe(payable(safe_));
-    }
-
-    function deployMHSGAndSafe(
-        uint256 _ownerHat,
         uint256[] memory _signerHats,
         uint256 _minThreshold,
         uint256 _targetThreshold,
         uint256 _maxSigners
-    ) public returns (MultiHatsSignerGate _multiHatsSignerGate, GnosisSafe _safe) {
+    ) public returns (HatsSignerGate _hatsSignerGate, GnosisSafe _safe) {
         address mhsg;
         address safe_;
-        (mhsg, safe_) = factory.deployMultiHatsSignerGateAndSafe(
+        (mhsg, safe_) = factory.deployHatsSignerGateAndSafe(
             _ownerHat, _signerHats, _minThreshold, _targetThreshold, _maxSigners
         );
 
-        _multiHatsSignerGate = MultiHatsSignerGate(mhsg);
+        _hatsSignerGate = HatsSignerGate(mhsg);
         _safe = GnosisSafe(payable(safe_));
     }
 

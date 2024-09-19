@@ -2,12 +2,11 @@
 pragma solidity ^0.8.13;
 
 import "./HSGFactoryTestSetup.t.sol";
-import "./HatsSignerGateFactory.t.sol";
 import "../src/HSGLib.sol";
 import "@gnosis.pm/safe-contracts/contracts/common/SignatureDecoder.sol";
 import "@gnosis.pm/safe-contracts/contracts/common/Enum.sol";
 
-contract HSGTestSetup is HSGFactoryTestSetup, SignatureDecoder {
+contract HSGTestSetup is HSGFactoryTestSetup {
     address public constant SENTINELS = address(0x1);
 
     uint256[] public pks;
@@ -15,17 +14,22 @@ contract HSGTestSetup is HSGFactoryTestSetup, SignatureDecoder {
 
     mapping(address => bytes) public walletSigs;
 
-    //// SETUP FUNCTION ////
+    uint256[] public signerHats;
 
     function setUp() public virtual {
         // set up variables
-        ownerHat = uint256(1);
-        signerHat = uint256(2);
+        ownerHat = 1;
+        signerHats = new uint256[](5);
+        signerHats[0] = 2;
+        signerHats[1] = 3;
+        signerHats[2] = 4;
+        signerHats[3] = 5;
+        signerHats[4] = 6;
         minThreshold = 2;
         targetThreshold = 2;
         maxSigners = 5;
 
-        // initSafeOwners[0] = address(this);
+        signerHat = signerHats[0];
 
         (pks, addresses) = createAddressesFromPks(10);
 
@@ -33,7 +37,6 @@ contract HSGTestSetup is HSGFactoryTestSetup, SignatureDecoder {
 
         factory = new HatsSignerGateFactory(
             address(singletonHatsSignerGate),
-            address(singletonMultiHatsSignerGate),
             HATS,
             address(singletonSafe),
             gnosisFallbackLibrary,
@@ -43,20 +46,25 @@ contract HSGTestSetup is HSGFactoryTestSetup, SignatureDecoder {
             version
         );
 
-        (hatsSignerGate, safe) = deployHSGAndSafe(ownerHat, signerHat, minThreshold, targetThreshold, maxSigners);
+        (hatsSignerGate, safe) = deployHSGAndSafe(ownerHat, signerHats, minThreshold, targetThreshold, maxSigners);
         mockIsWearerCall(address(hatsSignerGate), signerHat, false);
+
+        mockIsWearerCall(address(hatsSignerGate), 0, false);
     }
 
-    //// HELPER FUNCTIONS ////
-
-    function addSigners(uint256 signerCount) public {
-        for (uint256 i = 0; i < signerCount; ++i) {
-            // mock mint the signerHat
-            mockIsWearerCall(addresses[i], signerHat, true);
-
-            // add as signer
+    function addSignersOneHat(uint256 count, uint256 hat) internal {
+        for (uint256 i = 0; i < count; i++) {
+            mockIsWearerCall(addresses[i], hat, true);
             vm.prank(addresses[i]);
-            hatsSignerGate.claimSigner();
+            hatsSignerGate.claimSigner(hat);
+        }
+    }
+
+    function addSignersMultipleHats(uint256 count, uint256[] memory hats) internal {
+        for (uint256 i = 0; i < count; i++) {
+            mockIsWearerCall(addresses[i], hats[i], true);
+            vm.prank(addresses[i]);
+            hatsSignerGate.claimSigner(hats[i]);
         }
     }
 

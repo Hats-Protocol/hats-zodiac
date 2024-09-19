@@ -27,8 +27,7 @@ contract DeployHatsSignerGateFactory is Script {
 
     /// @dev set to true to deploy singletons, false to use existing deployments below
     bool public deploySingletones = true;
-    HatsSignerGate public hsgSingleton = HatsSignerGate(0x844b3c7781338D3308Eb8D64727033893fcE1432);
-    MultiHatsSignerGate public mhsgSingleton = MultiHatsSignerGate(0xca9d698Adb4052Ac7751019D69582950B1E42b43);
+    HatsSignerGate public hsgSingleton = HatsSignerGate(0xca9d698Adb4052Ac7751019D69582950B1E42b43);
     /// ===========================================
 
     function getChainKey() public view returns (string memory) {
@@ -59,13 +58,11 @@ contract DeployHatsSignerGateFactory is Script {
         if (deploySingletones) {
             // deploy singletons
             hsgSingleton = new HatsSignerGate{ salt: SALT }();
-            mhsgSingleton = new MultiHatsSignerGate{ salt: SALT }();
         }
 
         // deploy factory
         factory = new HatsSignerGateFactory{ salt: SALT }(
             address(hsgSingleton),
-            address(mhsgSingleton),
             hats,
             safeSingleton,
             gnosisFallbackLibrary,
@@ -79,7 +76,6 @@ contract DeployHatsSignerGateFactory is Script {
 
         console.log("factory address", address(factory));
         console.log("hsg address", address(hsgSingleton));
-        console.log("mhsg address", address(mhsgSingleton));
 
         // uncomment to check if its working correctly when simulating
         // (address hsg, address safe) = factory.deployHatsSignerGateAndSafe(1, 2, 3, 4, 5);
