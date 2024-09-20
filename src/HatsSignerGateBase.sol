@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import { Test, console2 } from "forge-std/Test.sol"; // remove after testing
+// import { Test, console2 } from "forge-std/Test.sol"; // remove after testing
 import "./HSGLib.sol";
 import { HatsOwnedInitializable } from "hats-auth/HatsOwnedInitializable.sol";
 import { BaseGuard } from "zodiac/guard/BaseGuard.sol";

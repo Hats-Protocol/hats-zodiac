@@ -126,7 +126,6 @@ contract SettingMinThreshold is WithHSGInstanceTest {
 
 contract AddingSigners is WithHSGInstanceTest {
     function testAddSingleSigner() public {
-        console2.log("signerHat", signerHat);
         _addSignersSameHat(1, signerHat);
 
         assertEq(safe.getOwners().length, 1);
@@ -471,7 +470,6 @@ contract ExecutingTransactions is WithHSGInstanceTest {
         // confirm it was not executed by checking ETH balance changes
         assertEq(destAddress.balance, 0);
         assertEq(safe.nonce(), preNonce);
-        emit log_uint(address(safe).balance);
     }
 
     function testExecByLessThanMinThresholdReverts() public {

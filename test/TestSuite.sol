@@ -257,7 +257,7 @@ contract TestSuite is SafeTestHelpers {
 
         // Deploy the HSG factory
         DeployHatsSignerGateFactory factoryDeployer = new DeployHatsSignerGateFactory();
-        factoryDeployer.prepare(singletonHatsSignerGate, version);
+        factoryDeployer.prepare({ _verbose: false, _hatsSignerGateSingleton: singletonHatsSignerGate, _version: version });
         factoryDeployer.run();
 
         // Cache the deploy params and factory address

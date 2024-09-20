@@ -50,7 +50,7 @@ contract AttacksScenarios is WithHSGInstanceTest {
 
         // 3) reconcile is called, signerCount=x-3
         hatsSignerGate.reconcileSignerCount();
-        console2.log("A");
+
         assertEq(hatsSignerGate.validSignerCount(), 2, "first valid signer count");
 
         // 4) 3 more signers can be added with claimSigner()
@@ -64,9 +64,7 @@ contract AttacksScenarios is WithHSGInstanceTest {
         vm.prank(signerAddresses[7]);
         hatsSignerGate.claimSigner(signerHat);
 
-        console2.log("B");
         assertEq(hatsSignerGate.validSignerCount(), 5, "second valid signer count");
-        console2.log("C");
         assertEq(safe.getOwners().length, 5, "first owners length");
 
         // 5) the 3 signers from (2) regain their validity
@@ -75,13 +73,8 @@ contract AttacksScenarios is WithHSGInstanceTest {
         _setSignerValidity(signerAddresses[4], signerHat, true);
 
         // but we still only have 5 owners and 5 signers
-        console2.log("D");
         assertEq(hatsSignerGate.validSignerCount(), 5, "third valid signer count");
-
-        console2.log("E");
         assertEq(safe.getOwners().length, 5, "second owners length");
-
-        console2.log("F");
         hatsSignerGate.reconcileSignerCount();
         assertEq(hatsSignerGate.validSignerCount(), 5, "fourth valid signer count");
 
@@ -126,8 +119,6 @@ contract AttacksScenarios is WithHSGInstanceTest {
 
     function testSignersCannotAddNewModules() public {
         (address[] memory modules,) = safe.getModulesPaginated(SENTINELS, 5);
-        console2.log(modules.length);
-        // console2.log(modules[1]);
 
         bytes memory addModuleData = abi.encodeWithSignature("enableModule(address)", address(0xf00baa)); // some devs are from Boston
 
