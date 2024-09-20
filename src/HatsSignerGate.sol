@@ -2,7 +2,7 @@
 pragma solidity >=0.8.13;
 
 // import { Test, console2 } from "forge-std/Test.sol"; // remove after testing
-import { HatsSignerGateBase, IGnosisSafe, Enum } from "./HatsSignerGateBase.sol";
+import { HatsSignerGateBase, ISafe, Enum } from "./HatsSignerGateBase.sol";
 import "./HSGLib.sol";
 
 contract HatsSignerGate is HatsSignerGateBase {

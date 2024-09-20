@@ -3,11 +3,10 @@ pragma solidity >=0.8.13;
 
 // import { console2 } from "forge-std/Test.sol"; // remove after testing
 import "./HatsSignerGate.sol";
-import "./HatsSignerGate.sol";
-import "@gnosis.pm/safe-contracts/contracts/GnosisSafe.sol";
-import "@gnosis.pm/safe-contracts/contracts/libraries/MultiSend.sol";
-import "@gnosis.pm/safe-contracts/contracts/proxies/GnosisSafeProxyFactory.sol";
+import { MultiSend } from "../lib/safe-smart-account/contracts/libraries/MultiSend.sol";
+import { SafeProxyFactory } from "../lib/safe-smart-account/contracts/proxies/SafeProxyFactory.sol";
 import "@gnosis.pm/zodiac/factory/ModuleProxyFactory.sol";
+import { ISafe } from "./lib/safe-interfaces/ISafe.sol";
 
 contract HatsSignerGateFactory {
     /// @notice (Multi)HatsSignerGates cannot be used with other modules
@@ -21,14 +20,14 @@ contract HatsSignerGateFactory {
     address public immutable safeSingleton;
 
     // Library to use for EIP1271 compatability
-    address public immutable gnosisFallbackLibrary;
+    address public immutable safeFallbackLibrary;
 
     // Library to use for all safe transaction executions
-    address public immutable gnosisMultisendLibrary;
+    address public immutable safeMultisendLibrary;
 
-    GnosisSafeProxyFactory public immutable gnosisSafeProxyFactory;
+    SafeProxyFactory public immutable safeProxyFactory;
 
-    ModuleProxyFactory public immutable moduleProxyFactory;
+    ModuleProxyFactory public immutable zodiacModuleFactory;
 
     string public version;
 
@@ -52,19 +51,19 @@ contract HatsSignerGateFactory {
         address _hatsSignerGateSingleton,
         address _hatsAddress,
         address _safeSingleton,
-        address _gnosisFallbackLibrary,
-        address _gnosisMultisendLibrary,
-        address _gnosisSafeProxyFactory,
-        address _moduleProxyFactory,
+        address _safeFallbackLibrary,
+        address _safeMultisendLibrary,
+        address _safeProxyFactory,
+        address _zodiacModuleFactory,
         string memory _version
     ) {
         hatsSignerGateSingleton = _hatsSignerGateSingleton;
         hatsAddress = _hatsAddress;
         safeSingleton = _safeSingleton;
-        gnosisFallbackLibrary = _gnosisFallbackLibrary;
-        gnosisMultisendLibrary = _gnosisMultisendLibrary;
-        gnosisSafeProxyFactory = GnosisSafeProxyFactory(_gnosisSafeProxyFactory);
-        moduleProxyFactory = ModuleProxyFactory(_moduleProxyFactory);
+        safeFallbackLibrary = _safeFallbackLibrary;
+        safeMultisendLibrary = _safeMultisendLibrary;
+        safeProxyFactory = SafeProxyFactory(_safeProxyFactory);
+        zodiacModuleFactory = ModuleProxyFactory(_zodiacModuleFactory);
         version = _version;
     }
 
@@ -105,11 +104,10 @@ contract HatsSignerGateFactory {
         uint256 _maxSigners
     ) public returns (address hsg, address payable safe) {
         // Deploy new safe but do not set it up yet
-        safe = payable(gnosisSafeProxyFactory.createProxy(safeSingleton, hex"00"));
+        safe = payable(safeProxyFactory.createProxyWithNonce(safeSingleton, hex"00", 0));
 
         // Deploy new hats signer gate
-        hsg =
-            _deployHatsSignerGate(_ownerHatId, _signersHatIds, safe, _minThreshold, _targetThreshold, _maxSigners);
+        hsg = _deployHatsSignerGate(_ownerHatId, _signersHatIds, safe, _minThreshold, _targetThreshold, _maxSigners);
 
         // Generate delegate call so the safe calls enableModule on itself during setup
         bytes memory multisendAction = _generateMultisendAction(hsg, safe);
@@ -119,20 +117,18 @@ contract HatsSignerGateFactory {
         owners[0] = hsg;
 
         // Call setup on safe to enable our new module/guard and set it as the sole initial owner
-        GnosisSafe(safe).setup(
+        ISafe(safe).setup(
             owners,
             1,
-            gnosisMultisendLibrary,
+            safeMultisendLibrary,
             multisendAction, // set hsg as module and guard
-            gnosisFallbackLibrary,
+            safeFallbackLibrary,
             address(0),
             0,
             payable(address(0))
         );
 
-        emit HatsSignerGateSetup(
-            hsg, _ownerHatId, _signersHatIds, safe, _minThreshold, _targetThreshold, _maxSigners
-        );
+        emit HatsSignerGateSetup(hsg, _ownerHatId, _signersHatIds, safe, _minThreshold, _targetThreshold, _maxSigners);
 
         return (hsg, safe);
     }
@@ -154,11 +150,10 @@ contract HatsSignerGateFactory {
         uint256 _maxSigners
     ) public returns (address hsg) {
         // // disallow attaching to a safe with existing modules
-        (address[] memory modulesWith1,) = GnosisSafe(payable(_safe)).getModulesPaginated(SENTINEL_MODULES, 1);
+        (address[] memory modulesWith1,) = ISafe(payable(_safe)).getModulesPaginated(SENTINEL_MODULES, 1);
         if (modulesWith1.length > 0) revert NoOtherModulesAllowed();
 
-        return
-            _deployHatsSignerGate(_ownerHatId, _signersHatIds, _safe, _minThreshold, _targetThreshold, _maxSigners);
+        return _deployHatsSignerGate(_ownerHatId, _signersHatIds, _safe, _minThreshold, _targetThreshold, _maxSigners);
     }
 
     /**
@@ -186,12 +181,10 @@ contract HatsSignerGateFactory {
             _ownerHatId, _signersHatIds, _safe, hatsAddress, _minThreshold, _targetThreshold, _maxSigners, version
         );
 
-        hsg = moduleProxyFactory.deployModule(
+        hsg = zodiacModuleFactory.deployModule(
             hatsSignerGateSingleton, abi.encodeWithSignature("setUp(bytes)", initializeParams), ++nonce
         );
 
-        emit HatsSignerGateSetup(
-            hsg, _ownerHatId, _signersHatIds, _safe, _minThreshold, _targetThreshold, _maxSigners
-        );
+        emit HatsSignerGateSetup(hsg, _ownerHatId, _signersHatIds, _safe, _minThreshold, _targetThreshold, _maxSigners);
     }
 }

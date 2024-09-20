@@ -1,15 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import {
-    TestSuite,
-    HatsSignerGate,
-    HatsSignerGateFactory,
-    GnosisSafeProxyFactory,
-    ModuleProxyFactory,
-    GnosisSafe
-} from "./TestSuite.sol";
-// import "../src/HSGLib.sol";
+import { TestSuite, HatsSignerGate } from "./TestSuite.sol";
 
 contract HatsSignerGateFactoryTest is TestSuite {
     error NoOtherModulesAllowed();
@@ -18,9 +10,9 @@ contract HatsSignerGateFactoryTest is TestSuite {
         assertEq(factory.version(), version, "version");
         assertEq(factory.hatsSignerGateSingleton(), address(singletonHatsSignerGate), "hatsSignerGateSingleton");
         assertEq(address(factory.safeSingleton()), address(singletonSafe), "safeSingleton");
-        assertEq(factory.gnosisFallbackLibrary(), gnosisFallbackLibrary, "gnosisFallbackLibrary");
-        assertEq(factory.gnosisMultisendLibrary(), gnosisMultisendLibrary, "gnosisMultisendLibrary");
-        assertEq(address(factory.gnosisSafeProxyFactory()), address(safeFactory), "gnosisSafeProxyFactory");
+        assertEq(factory.safeFallbackLibrary(), safeFallbackLibrary, "safeFallbackLibrary");
+        assertEq(factory.safeMultisendLibrary(), safeMultisendLibrary, "safeMultisendLibrary");
+        assertEq(address(factory.safeProxyFactory()), address(safeFactory), "safeProxyFactory");
     }
 
     function testDeployHatsSignerGate() public {

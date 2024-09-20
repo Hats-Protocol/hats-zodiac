@@ -118,7 +118,7 @@ contract AttacksScenarios is WithHSGInstanceTest {
     }
 
     function testSignersCannotAddNewModules() public {
-        (address[] memory modules,) = safe.getModulesPaginated(SENTINELS, 5);
+        // (address[] memory modules,) = safe.getModulesPaginated(SENTINELS, 5);
 
         bytes memory addModuleData = abi.encodeWithSignature("enableModule(address)", address(0xf00baa)); // some devs are from Boston
 
@@ -476,7 +476,7 @@ contract AttacksScenarios is WithHSGInstanceTest {
 
         // now get the safe tx hash and have attacker sign it with a collaborator
         bytes32 safeTxHash = safe.getTransactionHash(
-            gnosisMultisendLibrary, // to
+            safeMultisendLibrary, // to
             0, // value
             multisend, // data
             Enum.Operation.DelegateCall, // operation
@@ -500,7 +500,7 @@ contract AttacksScenarios is WithHSGInstanceTest {
         */
         vm.expectRevert(bytes("GS013"));
         safe.execTransaction(
-            gnosisMultisendLibrary,
+            safeMultisendLibrary,
             0,
             multisend,
             Enum.Operation.DelegateCall,

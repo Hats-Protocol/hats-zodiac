@@ -15,11 +15,13 @@ remappings = [
   "ERC1155/=lib/ERC1155/",
   "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
   "@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts",
-  "@gnosis.pm/safe-contracts/contracts/=lib/safe-contracts/contracts/",
+  "safe-smart-account/safe-contracts/contracts/=lib/safe-contracts/contracts/",
+  "@gnosis.pm/safe-contracts/contracts=lib/safe-smart-account/contracts/",
   "@gnosis.pm/zodiac/=lib/zodiac/contracts/",
   "solbase/=lib/solbase/src/",
   "zodiac/=lib/zodiac/contracts/",
-  "hats-protocol/=lib/hats-protocol/src/"
+  "hats-protocol/=lib/hats-protocol/src/",
+  "hats-auth/=lib/hats-auth/src/"
 ]
 
 [fmt]

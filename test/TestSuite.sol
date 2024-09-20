@@ -5,9 +5,10 @@ import { Test, console2 } from "forge-std/Test.sol";
 import { IHats } from "hats-protocol/Interfaces/IHats.sol";
 import { HatsSignerGate } from "../src/HatsSignerGate.sol";
 import { HatsSignerGateFactory } from "../src/HatsSignerGateFactory.sol";
-import { GnosisSafe } from "@gnosis.pm/safe-contracts/contracts/GnosisSafe.sol";
-import { GnosisSafeProxyFactory } from "@gnosis.pm/safe-contracts/contracts/proxies/GnosisSafeProxyFactory.sol";
-import { Enum } from "@gnosis.pm/safe-contracts/contracts/common/Enum.sol";
+// import { SafeL2 as ISafe } from "../lib/safe-smart-account/contracts/SafeL2.sol";
+import { ISafe } from "../src/lib/safe-interfaces/ISafe.sol";
+import { SafeProxyFactory } from "../lib/safe-smart-account/contracts/proxies/SafeProxyFactory.sol";
+import { Enum } from "../lib/safe-smart-account/contracts/common/Enum.sol";
 import { ModuleProxyFactory } from "@gnosis.pm/zodiac/factory/ModuleProxyFactory.sol";
 import { DeployHatsSignerGateFactory } from "../script/HatsSignerGateFactory.s.sol";
 
@@ -20,7 +21,7 @@ abstract contract SafeTestHelpers is Test {
                               SAFE TEST HELPERS
     //////////////////////////////////////////////////////////////*/
 
-    function _getEthTransferSafeTxHash(address _to, uint256 _value, GnosisSafe _safe)
+    function _getEthTransferSafeTxHash(address _to, uint256 _value, ISafe _safe)
         internal
         view
         returns (bytes32 txHash)
@@ -40,7 +41,7 @@ abstract contract SafeTestHelpers is Test {
         );
     }
 
-    function _getTxHash(address _to, uint256 _value, bytes memory _data, GnosisSafe _safe)
+    function _getTxHash(address _to, uint256 _value, bytes memory _data, ISafe _safe)
         internal
         view
         returns (bytes32 txHash)
@@ -85,7 +86,7 @@ abstract contract SafeTestHelpers is Test {
         }
     }
 
-    function _signaturesForEthTransferTx(address _to, uint256 _value, uint256 _signerCount, GnosisSafe _safe)
+    function _signaturesForEthTransferTx(address _to, uint256 _value, uint256 _signerCount, ISafe _safe)
         internal
         returns (bytes memory signatures)
     {
@@ -166,7 +167,7 @@ abstract contract SafeTestHelpers is Test {
     }
 
     // borrowed from Orca (https://github.com/orcaprotocol/contracts/blob/main/contracts/utils/SafeTxHelper.sol)
-    function _getSafeTxHash(address _to, bytes memory _data, GnosisSafe _safe) public view returns (bytes32 txHash) {
+    function _getSafeTxHash(address _to, bytes memory _data, ISafe _safe) public view returns (bytes32 txHash) {
         return _safe.getTransactionHash(
             _to,
             0,
@@ -183,7 +184,7 @@ abstract contract SafeTestHelpers is Test {
     }
 
     // modified from Orca (https://github.com/orcaprotocol/contracts/blob/main/contracts/utils/SafeTxHelper.sol)
-    function _executeSafeTxFrom(address _from, bytes memory _data, GnosisSafe _safe) public {
+    function _executeSafeTxFrom(address _from, bytes memory _data, ISafe _safe) public {
         _safe.execTransaction(
             address(_safe),
             0,
@@ -226,12 +227,12 @@ contract TestSuite is SafeTestHelpers {
     // Dependency contract addresses
     IHats public hats;
     HatsSignerGateFactory public factory;
-    GnosisSafe public singletonSafe;
-    GnosisSafeProxyFactory public safeFactory;
-    ModuleProxyFactory public moduleProxyFactory;
-    GnosisSafe public safe;
-    address public gnosisFallbackLibrary;
-    address public gnosisMultisendLibrary;
+    ISafe public singletonSafe;
+    SafeProxyFactory public safeFactory;
+    ModuleProxyFactory public zodiacModuleFactory;
+    ISafe public safe;
+    address public safeFallbackLibrary;
+    address public safeMultisendLibrary;
 
     // Contracts under test
     HatsSignerGate public singletonHatsSignerGate;
@@ -262,11 +263,11 @@ contract TestSuite is SafeTestHelpers {
 
         // Cache the deploy params and factory address
         factory = HatsSignerGateFactory(factoryDeployer.factory());
-        gnosisFallbackLibrary = factoryDeployer.gnosisFallbackLibrary();
-        gnosisMultisendLibrary = factoryDeployer.gnosisMultisendLibrary();
-        safeFactory = GnosisSafeProxyFactory(factoryDeployer.gnosisSafeProxyFactory());
-        moduleProxyFactory = ModuleProxyFactory(factoryDeployer.moduleProxyFactory());
-        singletonSafe = GnosisSafe(payable(factoryDeployer.safeSingleton()));
+        safeFallbackLibrary = factoryDeployer.safeFallbackLibrary();
+        safeMultisendLibrary = factoryDeployer.safeMultisendLibrary();
+        safeFactory = SafeProxyFactory(factoryDeployer.safeProxyFactory());
+        zodiacModuleFactory = ModuleProxyFactory(factoryDeployer.zodiacModuleFactory());
+        singletonSafe = ISafe(payable(factoryDeployer.safeSingleton()));
         hats = IHats(factoryDeployer.hats());
 
         // Create test signer addresses
@@ -299,7 +300,7 @@ contract TestSuite is SafeTestHelpers {
                               DEPLOYMENT HELPERS
     //////////////////////////////////////////////////////////////*/
 
-    function _deploySafe(address[] memory _owners, uint256 _threshold) public returns (GnosisSafe) {
+    function _deploySafe(address[] memory _owners, uint256 _threshold) public returns (ISafe) {
         // encode safe setup parameters
         bytes memory params = abi.encodeWithSignature(
             "setup(address[],uint256,address,bytes,address,address,uint256,address)",
@@ -314,7 +315,7 @@ contract TestSuite is SafeTestHelpers {
         );
 
         // deploy proxy of singleton from factory
-        return GnosisSafe(payable(safeFactory.createProxyWithNonce(address(singletonSafe), params, 1)));
+        return ISafe(payable(safeFactory.createProxyWithNonce(address(singletonSafe), params, 1)));
     }
 
     function _deployHSGAndSafe(
@@ -323,14 +324,14 @@ contract TestSuite is SafeTestHelpers {
         uint256 _minThreshold,
         uint256 _targetThreshold,
         uint256 _maxSigners
-    ) public returns (HatsSignerGate _hatsSignerGate, GnosisSafe _safe) {
+    ) public returns (HatsSignerGate _hatsSignerGate, ISafe _safe) {
         address hsg;
         address safe_;
         (hsg, safe_) =
             factory.deployHatsSignerGateAndSafe(_ownerHat, _signerHats, _minThreshold, _targetThreshold, _maxSigners);
 
         _hatsSignerGate = HatsSignerGate(hsg);
-        _safe = GnosisSafe(payable(safe_));
+        _safe = ISafe(payable(safe_));
     }
 
     /*//////////////////////////////////////////////////////////////
