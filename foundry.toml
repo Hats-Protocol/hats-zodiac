@@ -33,18 +33,22 @@ tab_width = 4
 wrap_comments = false
 
 [rpc_endpoints]
-arbitrum = "${ARBITRUM_RPC}"
-ethereum = "${ETHEREUM_RPC}"
-optimism = "${OPTIMISM_RPC}"
-goerli = "${GOERLI_RPC}"
+arbitrum = "https://arbitrum-mainnet.infura.io/v3/${INFURA_KEY}"
+base = "https://base-mainnet.infura.io/v3/${INFURA_KEY}"
+celo = "https://celo-mainnet.infura.io/v3/${INFURA_KEY}"
 gnosis = "${GC_RPC}"
-polygon = "${POLYGON_RPC}"
-sepolia = "${SEPOLIA_RPC}"
+local = "http://localhost:8545"
+mainnet = "https://mainnet.infura.io/v3/${INFURA_KEY}"
+optimism = "https://optimism-mainnet.infura.io/v3/${INFURA_KEY}"
+polygon = "https://polygon-mainnet.infura.io/v3/${INFURA_KEY}"
+sepolia = "https://sepolia.infura.io/v3/${INFURA_KEY}"
 
 [etherscan]
 arbitrum = {key = "${ARBISCAN_KEY}", url = "https://api.arbiscan.io/api"}
+base = {key = "${BASESCAN_KEY}", url = "https://api.basescan.org/api"}
+celo = {key = "${CELOSCAN_KEY}", url = "https://api.celoscan.org/api"}
 goerli = {key = "${ETHERSCAN_KEY}", url = "https://api-goerli.etherscan.io/api"}
-ethereum = {key = "${ETHERSCAN_KEY}", url = "https://api.etherscan.io/api"}
+mainnet = {key = "${ETHERSCAN_KEY}", url = "https://api.etherscan.io/api"}
 optimism = {key = "${OPTIMISM_ETHERSCAN_KEY}", url = "https://api-optimistic.etherscan.io/api"}
 polygon = {key = "${POLYGONSCAN_KEY}", url = "https://api.polygonscan.com/api"}
 gnosis = {key = "${GNOSISSCAN_KEY}", url = "https://api.gnosisscan.io/api"}

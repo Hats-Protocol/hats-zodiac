@@ -6,35 +6,39 @@ import { HatsSignerGateBase, IGnosisSafe, Enum } from "./HatsSignerGateBase.sol"
 import "./HSGLib.sol";
 
 contract HatsSignerGate is HatsSignerGateBase {
-    uint256 public signersHatId;
+    /// @notice Append-only tracker of approved signer hats
+    mapping(uint256 => bool) public validSignerHats;
 
-    /// @notice Initializes a new instance of HatsSignerGate
+    /// @notice Tracks the hat ids worn by users who have "claimed signer"
+    mapping(address => uint256) public claimedSignerHats;
+
+    /// @notice Initializes a new instance of MultiHatsSignerGate
     /// @dev Can only be called once
     /// @param initializeParams ABI-encoded bytes with initialization parameters
     function setUp(bytes calldata initializeParams) public payable override initializer {
         (
             uint256 _ownerHatId,
-            uint256 _signersHatId,
+            uint256[] memory _signerHats,
             address _safe,
             address _hats,
             uint256 _minThreshold,
             uint256 _targetThreshold,
             uint256 _maxSigners,
-            string memory _version,
-        ) = abi.decode(
-            initializeParams, (uint256, uint256, address, address, uint256, uint256, uint256, string, uint256)
-        );
+            string memory _version
+        ) = abi.decode(initializeParams, (uint256, uint256[], address, address, uint256, uint256, uint256, string));
 
         _setUp(_ownerHatId, _safe, _hats, _minThreshold, _targetThreshold, _maxSigners, _version);
 
-        signersHatId = _signersHatId;
+        _addSignerHats(_signerHats);
     }
 
-    /// @notice Function to become an owner on the safe if you are wearing the signers hat
+    /// @notice Function to become an owner on the safe if you are wearing `_hatId` and `_hatId` is a valid signer hat
     /// @dev Reverts if `maxSigners` has been reached, the caller is either invalid or has already claimed. Swaps caller with existing invalid owner if relevant.
-    function claimSigner() public virtual {
+    /// @param _hatId The hat id to claim signer rights for
+    function claimSigner(uint256 _hatId) public {
         uint256 maxSigs = maxSigners; // save SLOADs
         address[] memory owners = safe.getOwners();
+
         uint256 currentSignerCount = _countValidSigners(owners);
 
         if (currentSignerCount >= maxSigs) {
@@ -45,16 +49,21 @@ contract HatsSignerGate is HatsSignerGateBase {
             revert SignerAlreadyClaimed(msg.sender);
         }
 
-        if (!isValidSigner(msg.sender)) {
+        if (!isValidSignerHat(_hatId)) {
+            revert InvalidSignerHat(_hatId);
+        }
+
+        if (!HATS.isWearerOfHat(msg.sender, _hatId)) {
             revert NotSignerHatWearer(msg.sender);
         }
 
-        /*
-        We check the safe owner count in case there are existing owners who are no longer valid signers.
+        /* 
+        We check the safe owner count in case there are existing owners who are no longer valid signers. 
         If we're already at maxSigners, we'll replace one of the invalid owners by swapping the signer.
         Otherwise, we'll simply add the new signer.
         */
         uint256 ownerCount = owners.length;
+
         if (ownerCount >= maxSigs) {
             bool swapped = _swapSigner(owners, ownerCount, msg.sender);
             if (!swapped) {
@@ -64,6 +73,9 @@ contract HatsSignerGate is HatsSignerGateBase {
         } else {
             _grantSigner(owners, currentSignerCount, msg.sender);
         }
+
+        // register the hat used to claim. This will be the hat checked in `checkTransaction()` for this signer
+        claimedSignerHats[msg.sender] = _hatId;
     }
 
     /// @notice Checks if `_account` is a valid signer, ie is wearing the signer hat
@@ -71,6 +83,35 @@ contract HatsSignerGate is HatsSignerGateBase {
     /// @param _account The address to check
     /// @return valid Whether `_account` is a valid signer
     function isValidSigner(address _account) public view override returns (bool valid) {
-        valid = HATS.isWearerOfHat(_account, signersHatId);
+        /// @dev existing `claimedSignerHats` are always valid, since `validSignerHats` is append-only
+        valid = HATS.isWearerOfHat(_account, claimedSignerHats[_account]);
+    }
+
+    /// @notice Adds new approved signer hats
+    /// @param _newSignerHats Array of hat ids to add as approved signer hats
+    function addSignerHats(uint256[] calldata _newSignerHats) external onlyOwner {
+        _addSignerHats(_newSignerHats);
+
+        emit HSGLib.SignerHatsAdded(_newSignerHats);
+    }
+
+    /// @notice Internal function to approve new signer hats
+    /// @param _newSignerHats Array of hat ids to add as approved signer hats
+    function _addSignerHats(uint256[] memory _newSignerHats) internal {
+        for (uint256 i = 0; i < _newSignerHats.length;) {
+            validSignerHats[_newSignerHats[i]] = true;
+
+            // should not overflow with feasible array length
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
+    /// @notice A `_hatId` is valid if it is included in the `validSignerHats` mapping
+    /// @param _hatId The hat id to check
+    /// @return valid Whether `_hatId` is a valid signer hat
+    function isValidSignerHat(uint256 _hatId) public view returns (bool valid) {
+        valid = validSignerHats[_hatId];
     }
 }

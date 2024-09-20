@@ -18,17 +18,14 @@ contract DeployHatsSignerGateFactory is Script {
     address public moduleProxyFactory;
     address public safeSingleton;
 
+    HatsSignerGate public hsgSingleton;
     HatsSignerGateFactory public factory;
 
     /// ===========================================
     /// @dev deployment params to be set manually
     string public version = "1.2-beta";
-    bytes32 public SALT = bytes32(abi.encode(0x4a75)); // ~ H(4) A(a) T(7) S(5)
-
-    /// @dev set to true to deploy singletons, false to use existing deployments below
-    bool public deploySingletones = true;
-    HatsSignerGate public hsgSingleton = HatsSignerGate(0x844b3c7781338D3308Eb8D64727033893fcE1432);
-    MultiHatsSignerGate public mhsgSingleton = MultiHatsSignerGate(0xca9d698Adb4052Ac7751019D69582950B1E42b43);
+    bytes32 public SALT = bytes32(abi.encode(0x4a76)); // ~ H(4) A(a) T(7) S(6)
+    bool public verbose = true;
     /// ===========================================
 
     function getChainKey() public view returns (string memory) {
@@ -48,24 +45,26 @@ contract DeployHatsSignerGateFactory is Script {
         = abi.decode(params, (address, address, address, address, address, address));
     }
 
+    function prepare(bool _verbose, HatsSignerGate _hatsSignerGateSingleton, string memory _version) public {
+        verbose = _verbose;
+        hsgSingleton = _hatsSignerGateSingleton;
+        version = _version;
+    }
+
     function run() external {
         setDeployParams();
         uint256 privKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.rememberKey(privKey);
-        // console2.log("deployer", deployer);
-        console2.log("deployer balance (wei):", deployer.balance);
         vm.startBroadcast(deployer);
 
-        if (deploySingletones) {
+        if (address(hsgSingleton) == address(0)) {
             // deploy singletons
             hsgSingleton = new HatsSignerGate{ salt: SALT }();
-            mhsgSingleton = new MultiHatsSignerGate{ salt: SALT }();
         }
 
         // deploy factory
         factory = new HatsSignerGateFactory{ salt: SALT }(
             address(hsgSingleton),
-            address(mhsgSingleton),
             hats,
             safeSingleton,
             gnosisFallbackLibrary,
@@ -77,9 +76,10 @@ contract DeployHatsSignerGateFactory is Script {
 
         vm.stopBroadcast();
 
-        console.log("factory address", address(factory));
-        console.log("hsg address", address(hsgSingleton));
-        console.log("mhsg address", address(mhsgSingleton));
+        if (verbose) {
+            console.log("hsg singleton address", address(hsgSingleton));
+            console.log("factory address", address(factory));
+        }
 
         // uncomment to check if its working correctly when simulating
         // (address hsg, address safe) = factory.deployHatsSignerGateAndSafe(1, 2, 3, 4, 5);
