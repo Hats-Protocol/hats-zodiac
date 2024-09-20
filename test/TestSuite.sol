@@ -5,11 +5,10 @@ import { Test, console2 } from "forge-std/Test.sol";
 import { IHats } from "hats-protocol/Interfaces/IHats.sol";
 import { HatsSignerGate } from "../src/HatsSignerGate.sol";
 import { HatsSignerGateFactory } from "../src/HatsSignerGateFactory.sol";
-// import { SafeL2 as ISafe } from "../lib/safe-smart-account/contracts/SafeL2.sol";
 import { ISafe } from "../src/lib/safe-interfaces/ISafe.sol";
 import { SafeProxyFactory } from "../lib/safe-smart-account/contracts/proxies/SafeProxyFactory.sol";
 import { Enum } from "../lib/safe-smart-account/contracts/common/Enum.sol";
-import { ModuleProxyFactory } from "@gnosis.pm/zodiac/factory/ModuleProxyFactory.sol";
+import { ModuleProxyFactory } from "../lib/zodiac/contracts/factory/ModuleProxyFactory.sol";
 import { DeployHatsSignerGateFactory } from "../script/HatsSignerGateFactory.s.sol";
 
 abstract contract SafeTestHelpers is Test {

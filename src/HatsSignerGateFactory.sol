@@ -5,7 +5,7 @@ pragma solidity >=0.8.13;
 import "./HatsSignerGate.sol";
 import { MultiSend } from "../lib/safe-smart-account/contracts/libraries/MultiSend.sol";
 import { SafeProxyFactory } from "../lib/safe-smart-account/contracts/proxies/SafeProxyFactory.sol";
-import "@gnosis.pm/zodiac/factory/ModuleProxyFactory.sol";
+import { ModuleProxyFactory } from "../lib/zodiac/contracts/factory/ModuleProxyFactory.sol";
 import { ISafe } from "./lib/safe-interfaces/ISafe.sol";
 
 contract HatsSignerGateFactory {
