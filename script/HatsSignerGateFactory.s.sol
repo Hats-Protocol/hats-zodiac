@@ -1,21 +1,20 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "forge-std/Script.sol";
+import { Script, console2 } from "forge-std/Script.sol";
 import "forge-std/StdJson.sol";
-import "forge-std/Test.sol";
+// import "forge-std/Test.sol";
 import "../src/HatsSignerGateFactory.sol";
-import "@gnosis.pm/safe-contracts/contracts/GnosisSafe.sol";
 
 contract DeployHatsSignerGateFactory is Script {
     using stdJson for string;
     // deployment params to be read from DeployParams.json
 
-    address public gnosisFallbackLibrary;
-    address public gnosisMultisendLibrary;
-    address public gnosisSafeProxyFactory;
+    address public safeFallbackLibrary;
+    address public safeMultisendLibrary;
     address public hats;
-    address public moduleProxyFactory;
+    address public zodiacModuleFactory;
+    address public safeProxyFactory;
     address public safeSingleton;
 
     HatsSignerGate public hsgSingleton;
@@ -41,8 +40,8 @@ contract DeployHatsSignerGateFactory is Script {
         bytes memory params = json.parseRaw(chain);
 
         // the json is parsed in alphabetical order, so we decode it that way too
-        (gnosisFallbackLibrary, gnosisMultisendLibrary, gnosisSafeProxyFactory, hats, moduleProxyFactory, safeSingleton)
-        = abi.decode(params, (address, address, address, address, address, address));
+        (hats, safeFallbackLibrary, safeMultisendLibrary, safeProxyFactory, safeSingleton, zodiacModuleFactory) =
+            abi.decode(params, (address, address, address, address, address, address));
     }
 
     function prepare(bool _verbose, HatsSignerGate _hatsSignerGateSingleton, string memory _version) public {
@@ -67,23 +66,23 @@ contract DeployHatsSignerGateFactory is Script {
             address(hsgSingleton),
             hats,
             safeSingleton,
-            gnosisFallbackLibrary,
-            gnosisMultisendLibrary,
-            gnosisSafeProxyFactory,
-            moduleProxyFactory,
+            safeFallbackLibrary,
+            safeMultisendLibrary,
+            safeProxyFactory,
+            zodiacModuleFactory,
             version
         );
 
         vm.stopBroadcast();
 
         if (verbose) {
-            console.log("hsg singleton address", address(hsgSingleton));
-            console.log("factory address", address(factory));
+            console2.log("hsg singleton address", address(hsgSingleton));
+            console2.log("factory address", address(factory));
         }
 
         // uncomment to check if its working correctly when simulating
         // (address hsg, address safe) = factory.deployHatsSignerGateAndSafe(1, 2, 3, 4, 5);
-        // GnosisSafe _safe = GnosisSafe(payable(safe));
+        // Safe _safe = Safe(payable(safe));
         // console2.log("safe threshold", _safe.getThreshold());
         // console2.log("hsg is module", _safe.isModuleEnabled(hsg));
     }

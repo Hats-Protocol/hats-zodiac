@@ -3,16 +3,16 @@ pragma solidity >=0.8.13;
 
 // import { Test, console2 } from "forge-std/Test.sol"; // remove after testing
 import "./HSGLib.sol";
-import { HatsOwnedInitializable } from "hats-auth/HatsOwnedInitializable.sol";
-import { BaseGuard } from "zodiac/guard/BaseGuard.sol";
-import { IAvatar } from "zodiac/interfaces/IAvatar.sol";
-import { StorageAccessible } from "@gnosis.pm/safe-contracts/contracts/common/StorageAccessible.sol";
-import { IGnosisSafe, Enum } from "./Interfaces/IGnosisSafe.sol";
-import { SignatureDecoder } from "@gnosis.pm/safe-contracts/contracts/common/SignatureDecoder.sol";
+import { HatsOwnedInitializable } from "lib/hats-auth/src/HatsOwnedInitializable.sol";
+import { BaseGuard } from "lib/zodiac/contracts/guard/BaseGuard.sol";
+import { IAvatar } from "lib/zodiac/contracts/interfaces/IAvatar.sol";
+import { StorageAccessible } from "lib/safe-smart-account/contracts/common/StorageAccessible.sol";
+import { SignatureDecoder } from "lib/safe-smart-account/contracts/common/SignatureDecoder.sol";
+import { ISafe, Enum } from "./lib/safe-interfaces/ISafe.sol";
 
 abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedInitializable {
     /// @notice The multisig to which this contract is attached
-    IGnosisSafe public safe;
+    ISafe public safe;
 
     /// @notice The minimum signature threshold for the `safe`
     uint256 public minThreshold;
@@ -32,10 +32,10 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
     /// @dev A simple re-entrency guard
     uint256 internal _guardEntries;
 
-    /// @dev The head pointer used in the GnosisSafe owners linked list, as well as the module linked list
+    /// @dev The head pointer used in the Safe owners linked list, as well as the module linked list
     address internal constant SENTINEL_OWNERS = address(0x1);
 
-    /// @dev The storage slot used by GnosisSafe to store the guard address
+    /// @dev The storage slot used by Safe to store the guard address
     ///      keccak256("guard_manager.guard.address")
     bytes32 internal constant GUARD_STORAGE_SLOT = 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
 
@@ -68,7 +68,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
     ) internal {
         _HatsOwned_init(_ownerHatId, _hats);
         maxSigners = _maxSigners;
-        safe = IGnosisSafe(_safe);
+        safe = ISafe(_safe);
 
         _setTargetThreshold(_targetThreshold);
         _setMinThreshold(_minThreshold);
@@ -501,10 +501,9 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         if (
             // if the length is 0, we know this module has been removed
             // forgefmt: disable-next-line
-            modulesWith1.length == 0
             /* per Safe ModuleManager.sol#137, "If all entries fit into a single page, the next pointer will be 0x1", ie SENTINEL_OWNERS.
             Therefore, if `next` is not SENTINEL_OWNERS, we know another module has been added. */
-            || next != SENTINEL_OWNERS
+            modulesWith1.length == 0 || next != SENTINEL_OWNERS
         ) {
             revert SignersCannotChangeModules();
         } // ...and that the only module is this contract
@@ -527,7 +526,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
     }
 
     /// @notice Counts the number of hats-valid signatures within a set of `signatures`
-    /// @dev modified from https://github.com/safe-global/safe-contracts/blob/c36bcab46578a442862d043e12a83fec41143dec/contracts/GnosisSafe.sol#L240
+    /// @dev modified from https://github.com/safe-global/safe-contracts/blob/c36bcab46578a442862d043e12a83fec41143dec/contracts/Safe.sol#L240
     /// @param dataHash The signed data
     /// @param signatures The set of signatures to check
     /// @return validSigCount The number of hats-valid signatures

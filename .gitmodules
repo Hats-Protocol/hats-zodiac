@@ -1,15 +1,9 @@
 [submodule "lib/forge-std"]
 	path = lib/forge-std
 	url = https://github.com/foundry-rs/forge-std
-[submodule "lib/zodiac"]
-	path = lib/zodiac
-	url = https://github.com/gnosis/zodiac
 [submodule "lib/hats-auth"]
 	path = lib/hats-auth
 	url = https://github.com/Hats-Protocol/hats-auth
-[submodule "lib/safe-contracts"]
-	path = lib/safe-contracts
-	url = https://github.com/Hats-Protocol/safe-contracts
 [submodule "lib/openzeppelin-contracts"]
 	path = lib/openzeppelin-contracts
 	url = https://github.com/Openzeppelin/openzeppelin-contracts
@@ -19,3 +13,9 @@
 [submodule "lib/hats-protocol"]
 	path = lib/hats-protocol
 	url = https://github.com/hats-protocol/hats-protocol
+[submodule "lib/safe-smart-account"]
+	path = lib/safe-smart-account
+	url = https://github.com/safe-global/safe-smart-account
+[submodule "lib/zodiac"]
+	path = lib/zodiac
+	url = https://github.com/gnosisguild/zodiac
