@@ -238,6 +238,7 @@ contract TestSuite is SafeTestHelpers {
   uint256 public minThreshold;
   uint256 public targetThreshold;
   uint256 public maxSigners;
+  bool public locked;
   string public version;
 
   // Utility variables
@@ -318,6 +319,7 @@ contract TestSuite is SafeTestHelpers {
     uint256 _targetThreshold,
     uint256 _maxSigners,
     address _safe,
+    bool _locked,
     bytes4 _expectedError,
     bool _verbose
   ) internal returns (HatsSignerGate) {
@@ -332,6 +334,7 @@ contract TestSuite is SafeTestHelpers {
       _targetThreshold,
       _maxSigners,
       _safe,
+      _locked,
       TEST_SALT_NONCE
     );
 
@@ -349,6 +352,7 @@ contract TestSuite is SafeTestHelpers {
     uint256 _minThreshold,
     uint256 _targetThreshold,
     uint256 _maxSigners,
+    bool _locked,
     bool _verbose
   ) internal returns (HatsSignerGate _hatsSignerGate, ISafe _safe) {
     // create the instance deployer
@@ -362,6 +366,7 @@ contract TestSuite is SafeTestHelpers {
       _targetThreshold,
       _maxSigners,
       address(0),
+      _locked,
       TEST_SALT_NONCE
     );
     _hatsSignerGate = instanceDeployer.run();
@@ -416,6 +421,14 @@ contract WithHSGInstanceTest is TestSuite {
   function setUp() public override {
     super.setUp();
 
-    (hatsSignerGate, safe) = _deployHSGAndSafe(ownerHat, signerHats, minThreshold, targetThreshold, maxSigners, false);
+    (hatsSignerGate, safe) = _deployHSGAndSafe({
+      _ownerHat: ownerHat,
+      _signerHats: signerHats,
+      _minThreshold: minThreshold,
+      _targetThreshold: targetThreshold,
+      _maxSigners: maxSigners,
+      _locked: false,
+      _verbose: false
+    });
   }
 }

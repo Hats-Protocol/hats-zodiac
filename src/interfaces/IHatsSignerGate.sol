@@ -16,6 +16,9 @@ library HSGEvents {
 
   /// @notice Emitted when the owner hat is updated
   event OwnerHatUpdated(uint256 ownerHat);
+
+  /// @notice Emitted when the contract is locked, preventing any further changes to settings
+  event Locked();
 }
 
 /// @notice Interface for the HatsSignerGate contract
@@ -96,6 +99,9 @@ interface IHatsSignerGate {
 
   /// @notice Cannot attach to a Safe with existing modules
   error CannotAttachToSafe();
+
+  /// @notice Owner cannot change settings once the contract is locked
+  error Locked();
 
   /*//////////////////////////////////////////////////////////////
                               FUNCTIONS

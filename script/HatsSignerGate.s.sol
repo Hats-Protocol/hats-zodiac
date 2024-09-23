@@ -89,7 +89,7 @@ contract DeployInstance is BaseScript {
   uint256 public targetThreshold;
   uint256 public maxSigners;
   address public safe;
-  string public version;
+  bool public locked;
 
   function prepare(
     bool _verbose,
@@ -100,7 +100,7 @@ contract DeployInstance is BaseScript {
     uint256 _targetThreshold,
     uint256 _maxSigners,
     address _safe,
-    // string memory _version,
+    bool _locked,
     uint256 _saltNonce
   ) public {
     verbose = _verbose;
@@ -111,7 +111,7 @@ contract DeployInstance is BaseScript {
     targetThreshold = _targetThreshold;
     maxSigners = _maxSigners;
     safe = _safe;
-    // version = _version;
+    locked = _locked;
     saltNonce = _saltNonce;
   }
 
@@ -128,7 +128,7 @@ contract DeployInstance is BaseScript {
   }
 
   function createDeployParams() public view returns (bytes memory) {
-    return abi.encode(ownerHat, signersHats, safe, minThreshold, targetThreshold, maxSigners, implementation);
+    return abi.encode(ownerHat, signersHats, safe, minThreshold, targetThreshold, maxSigners, locked, implementation);
   }
 
   function run() external returns (HatsSignerGate) {
