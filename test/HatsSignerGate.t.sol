@@ -6,8 +6,8 @@ import { Enum, ISafe, ModuleProxyFactory, TestSuite, WithHSGInstanceTest, HatsSi
 import { IHatsSignerGate, HSGEvents } from "../src/interfaces/IHatsSignerGate.sol";
 
 contract Deployment is TestSuite {
-    // errors from dependencies
-    error InvalidInitialization();
+  // errors from dependencies
+  error InvalidInitialization();
 
   function test_onlyHSG() public {
     // deploy safe with this contract as the single owner
@@ -35,6 +35,7 @@ contract Deployment is TestSuite {
     assertEq(address(hatsSignerGate.HATS()), address(hats));
     assertEq(address(hatsSignerGate.safe()), address(testSafe));
     assertEq(hatsSignerGate.version(), version);
+    assertEq(address(hatsSignerGate.implementation()), address(singletonHatsSignerGate));
   }
 
   function test_andSafe() public {
@@ -48,6 +49,7 @@ contract Deployment is TestSuite {
     assertEq(address(hatsSignerGate.HATS()), address(hats));
     assertEq(address(hatsSignerGate.safe()), address(safe));
     assertEq(hatsSignerGate.version(), version);
+    assertEq(address(hatsSignerGate.implementation()), address(singletonHatsSignerGate));
     assertEq(_getSafeGuard(address(safe)), address(hatsSignerGate));
     assertTrue(safe.isModuleEnabled(address(hatsSignerGate)));
     assertEq(safe.getOwners()[0], address(hatsSignerGate));

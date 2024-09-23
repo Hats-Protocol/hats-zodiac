@@ -332,7 +332,6 @@ contract TestSuite is SafeTestHelpers {
       _targetThreshold,
       _maxSigners,
       _safe,
-      version,
       TEST_SALT_NONCE
     );
 
@@ -363,7 +362,6 @@ contract TestSuite is SafeTestHelpers {
       _targetThreshold,
       _maxSigners,
       address(0),
-      version,
       TEST_SALT_NONCE
     );
     _hatsSignerGate = instanceDeployer.run();

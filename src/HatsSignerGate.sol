@@ -13,7 +13,7 @@ import { ISafe, Enum } from "./lib/safe-interfaces/ISafe.sol";
 
 contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDecoder, Initializable {
   /*//////////////////////////////////////////////////////////////
-                           CONSTANTS
+                            CONSTANTS
   //////////////////////////////////////////////////////////////*/
 
   IHats public immutable HATS;
@@ -50,6 +50,9 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
   /// @notice The maximum number of signers allowed for the `safe`
   uint256 public maxSigners;
 
+  /// @notice The implementation address of this contract
+  address public implementation;
+
   /// @notice The version of HatsSignerGate used in this contract
   string public version;
 
@@ -79,12 +82,15 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
     address _safeSingleton,
     address _safeFallbackLibrary,
     address _safeMultisendLibrary,
-    address _safeProxyFactory
+    address _safeProxyFactory,
+    string memory _version
   ) SafeDeployer(_safeSingleton, _safeFallbackLibrary, _safeMultisendLibrary, _safeProxyFactory) initializer {
     HATS = IHats(_hats);
 
     // set the implementation's owner hat to a nonexistent hat to prevent state changes to the implementation
     ownerHat = 1;
+
+    version = _version;
   }
 
   /*//////////////////////////////////////////////////////////////
@@ -101,7 +107,7 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
    * @custom:field _minThreshold The minimum signature threshold
    * @custom:field _targetThreshold The target signature threshold
    * @custom:field _maxSigners The maximum number of signers
-   * @custom:field _version The version of the contract
+   * @custom:field _implementation The HatsSignerGate implementation address
    */
   function setUp(bytes calldata initializeParams) public payable initializer {
     (
@@ -111,8 +117,8 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
       uint256 _minThreshold,
       uint256 _targetThreshold,
       uint256 _maxSigners,
-      string memory _version
-    ) = abi.decode(initializeParams, (uint256, uint256[], address, uint256, uint256, uint256, string));
+      address _implementation
+    ) = abi.decode(initializeParams, (uint256, uint256[], address, uint256, uint256, uint256, address));
 
     bool emptySafe = _safe == address(0);
 
@@ -120,7 +126,7 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
       _safe = _deploySafeAndAttachHSG();
     }
 
-    _setUpHSG(_ownerHatId, _safe, _minThreshold, _targetThreshold, _maxSigners, _version);
+    _setUpHSG(_ownerHatId, _safe, _minThreshold, _targetThreshold, _maxSigners, _implementation);
 
     _addSignerHats(_signerHats);
 
@@ -485,14 +491,14 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
   /// @param _minThreshold The minimum threshold for the `_safe`
   /// @param _targetThreshold The maxium threshold for the `_safe`
   /// @param _maxSigners The maximum number of signers allowed on the `_safe`
-  /// @param _version The current version of HatsSignerGate
+  /// @param _implementation The implementation address of this contract
   function _setUpHSG(
     uint256 _ownerHatId,
     address _safe,
     uint256 _minThreshold,
     uint256 _targetThreshold,
     uint256 _maxSigners,
-    string memory _version
+    address _implementation
   ) internal {
     ownerHat = _ownerHatId;
 
@@ -501,7 +507,8 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
 
     _setTargetThreshold(_targetThreshold);
     _setMinThreshold(_minThreshold);
-    version = _version;
+    version = HatsSignerGate(_implementation).version();
+    implementation = _implementation;
 
     emit HSGEvents.OwnerHatUpdated(_ownerHatId);
   }

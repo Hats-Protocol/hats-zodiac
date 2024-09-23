@@ -57,7 +57,7 @@ contract DeployImplementation is BaseScript {
     vm.startBroadcast(deployer);
 
     implementation =
-      new HatsSignerGate(hats, safeSingleton, safeFallbackLibrary, safeMultisendLibrary, safeProxyFactory);
+      new HatsSignerGate(hats, safeSingleton, safeFallbackLibrary, safeMultisendLibrary, safeProxyFactory, version);
 
     vm.stopBroadcast();
 
@@ -100,7 +100,7 @@ contract DeployInstance is BaseScript {
     uint256 _targetThreshold,
     uint256 _maxSigners,
     address _safe,
-    string memory _version,
+    // string memory _version,
     uint256 _saltNonce
   ) public {
     verbose = _verbose;
@@ -111,7 +111,7 @@ contract DeployInstance is BaseScript {
     targetThreshold = _targetThreshold;
     maxSigners = _maxSigners;
     safe = _safe;
-    version = _version;
+    // version = _version;
     saltNonce = _saltNonce;
   }
 
@@ -128,7 +128,7 @@ contract DeployInstance is BaseScript {
   }
 
   function createDeployParams() public view returns (bytes memory) {
-    return abi.encode(ownerHat, signersHats, safe, minThreshold, targetThreshold, maxSigners, version);
+    return abi.encode(ownerHat, signersHats, safe, minThreshold, targetThreshold, maxSigners, implementation);
   }
 
   function run() external returns (HatsSignerGate) {
