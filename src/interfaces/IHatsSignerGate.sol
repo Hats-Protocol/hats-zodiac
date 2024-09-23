@@ -13,6 +13,9 @@ library HSGEvents {
 
   /// @notice Emitted when new approved signer hats are added
   event SignerHatsAdded(uint256[] newSignerHats);
+
+  /// @notice Emitted when the owner hat is updated
+  event OwnerHatUpdated(uint256 ownerHat);
 }
 
 /// @notice Interface for the HatsSignerGate contract
@@ -25,7 +28,7 @@ interface IHatsSignerGate {
   error CannotDisableThisGuard(address guard);
 
   /// @notice Only the wearer of the owner Hat can make changes to this contract
-  error NotOwnerHatWearer(address user);
+  error NotOwnerHatWearer();
 
   /// @notice Only wearers of a valid signer hat can become signers
   error NotSignerHatWearer(address user);
@@ -97,6 +100,8 @@ interface IHatsSignerGate {
   /*//////////////////////////////////////////////////////////////
                               FUNCTIONS
   //////////////////////////////////////////////////////////////*/
+
+  // TODO make sure all functions implemented in HatsSignerGate are included here
 
   function setUp(bytes calldata initializeParams) external payable;
   function claimSigner(uint256 _hatId) external;

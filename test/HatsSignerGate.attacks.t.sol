@@ -148,7 +148,7 @@ contract AttacksScenarios is WithHSGInstanceTest {
 
   function testTargetSigAttackFails() public {
     // set target threshold to 5
-    _setSignerValidity(address(this), ownerHat, true);
+    vm.prank(owner);
     hatsSignerGate.setTargetThreshold(5);
     // initially there are 5 signers
     _addSignersSameHat(5, signerHat);
@@ -260,13 +260,14 @@ contract AttacksScenarios is WithHSGInstanceTest {
 
   function testSetTargetThresholdUpdatesThresholdCorrectly() public {
     // set target threshold to 5
-    _setSignerValidity(address(this), ownerHat, true);
+    vm.prank(owner);
     hatsSignerGate.setTargetThreshold(5);
     // add 5 valid signers
     _addSignersSameHat(5, signerHat);
     // one loses their hat
     _setSignerValidity(signerAddresses[4], signerHat, false);
     // lower target threshold to 4
+    vm.prank(owner);
     hatsSignerGate.setTargetThreshold(4);
     // since hatsSignerGate.validSignerCount() is also 4, the threshold should also be 4
     assertEq(safe.getThreshold(), 4, "threshold");
@@ -277,7 +278,7 @@ contract AttacksScenarios is WithHSGInstanceTest {
     assertEq(hatsSignerGate.targetThreshold(), 2, "target threshold");
 
     // set target threshold to 1 — should fail
-    _setSignerValidity(address(this), ownerHat, true);
+    vm.prank(owner);
     vm.expectRevert(IHatsSignerGate.InvalidTargetThreshold.selector);
     hatsSignerGate.setTargetThreshold(1);
   }
@@ -338,7 +339,7 @@ contract AttacksScenarios is WithHSGInstanceTest {
     // start with 4 valid signers
     _addSignersSameHat(4, signerHat);
     // set target threshold (and therefore actual threshold) to 3
-    _setSignerValidity(address(this), ownerHat, true);
+    vm.prank(owner);
     hatsSignerGate.setTargetThreshold(3);
     assertEq(safe.getThreshold(), 3, "initial threshold");
     assertEq(safe.nonce(), 0, "pre nonce");

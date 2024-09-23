@@ -212,6 +212,7 @@ contract TestSuite is SafeTestHelpers {
   address public owner = makeAddr("owner");
   address public eligibility = makeAddr("eligibility");
   address public toggle = makeAddr("toggle");
+  address public other = makeAddr("other");
   address[] public signerAddresses;
 
   // Test hats
@@ -276,6 +277,8 @@ contract TestSuite is SafeTestHelpers {
       signerHats[i] =
         hats.createHat(tophat, string.concat("signerHat", vm.toString(i)), 100, eligibility, toggle, true, "image");
     }
+
+    hats.mintHat(ownerHat, owner);
     vm.stopPrank();
 
     signerHat = signerHats[0];

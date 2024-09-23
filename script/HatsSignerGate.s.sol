@@ -56,7 +56,8 @@ contract DeployImplementation is BaseScript {
     address deployer = vm.rememberKey(privKey);
     vm.startBroadcast(deployer);
 
-    implementation = new HatsSignerGate(safeSingleton, safeFallbackLibrary, safeMultisendLibrary, safeProxyFactory);
+    implementation =
+      new HatsSignerGate(hats, safeSingleton, safeFallbackLibrary, safeMultisendLibrary, safeProxyFactory);
 
     vm.stopBroadcast();
 
@@ -123,11 +124,11 @@ contract DeployInstance is BaseScript {
     bytes memory params = json.parseRaw(chain);
 
     // the json is parsed in alphabetical order, so we decode it that way too
-    (hats,,,,, zodiacModuleFactory) = abi.decode(params, (address, address, address, address, address, address));
+    (,,,,, zodiacModuleFactory) = abi.decode(params, (address, address, address, address, address, address));
   }
 
   function createDeployParams() public view returns (bytes memory) {
-    return abi.encode(ownerHat, signersHats, safe, hats, minThreshold, targetThreshold, maxSigners, version);
+    return abi.encode(ownerHat, signersHats, safe, minThreshold, targetThreshold, maxSigners, version);
   }
 
   function run() external returns (HatsSignerGate) {

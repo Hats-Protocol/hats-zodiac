@@ -2,18 +2,21 @@
 pragma solidity >=0.8.13;
 
 // import { Test, console2 } from "forge-std/Test.sol"; // comment out after testing
+import { IHats } from "../lib/hats-protocol/src/Interfaces/IHats.sol";
 import { SafeDeployer } from "./SafeDeployer.sol";
 import { IHatsSignerGate, HSGEvents } from "./interfaces/IHatsSignerGate.sol";
-import { HatsOwnedInitializable } from "lib/hats-auth/src/HatsOwnedInitializable.sol";
+import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { BaseGuard } from "lib/zodiac/contracts/guard/BaseGuard.sol";
 import { StorageAccessible } from "lib/safe-smart-account/contracts/common/StorageAccessible.sol";
 import { SignatureDecoder } from "lib/safe-smart-account/contracts/common/SignatureDecoder.sol";
 import { ISafe, Enum } from "./lib/safe-interfaces/ISafe.sol";
 
-contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDecoder, HatsOwnedInitializable {
+contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDecoder, Initializable {
   /*//////////////////////////////////////////////////////////////
                            CONSTANTS
   //////////////////////////////////////////////////////////////*/
+
+  IHats public immutable HATS;
 
   /// @dev The head pointer used in the Safe owners linked list, as well as the module linked list
   address internal constant SENTINELS = address(0x1);
@@ -31,6 +34,9 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
 
   /// @notice Tracks the hat ids worn by users who have "claimed signer"
   mapping(address => uint256) public claimedSignerHats;
+
+  /// @notice The id of the owner hat
+  uint256 public ownerHat;
 
   /// @notice The multisig to which this contract is attached
   ISafe public safe;
@@ -54,16 +60,31 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
   uint256 internal _guardEntries;
 
   /*//////////////////////////////////////////////////////////////
+                              MODIFIERS
+  //////////////////////////////////////////////////////////////*/
+
+  modifier onlyOwner() {
+    if (!HATS.isWearerOfHat(msg.sender, ownerHat)) {
+      revert NotOwnerHatWearer();
+    }
+    _;
+  }
+
+  /*//////////////////////////////////////////////////////////////
                               CONSTRUCTOR
   //////////////////////////////////////////////////////////////*/
 
   constructor(
+    address _hats,
     address _safeSingleton,
     address _safeFallbackLibrary,
     address _safeMultisendLibrary,
     address _safeProxyFactory
   ) SafeDeployer(_safeSingleton, _safeFallbackLibrary, _safeMultisendLibrary, _safeProxyFactory) initializer {
-    _HatsOwned_init(1, address(0x1));
+    HATS = IHats(_hats);
+
+    // set the implementation's owner hat to a nonexistent hat to prevent state changes to the implementation
+    ownerHat = 1;
   }
 
   /*//////////////////////////////////////////////////////////////
@@ -77,7 +98,6 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
    * @custom:field _ownerHatId The id of the owner hat
    * @custom:field _signerHats The ids of the signer hats
    * @custom:field _safe The address of the existing safe, or zero address to deploy a new safe
-   * @custom:field _hats The address of the Hats Protocol contract
    * @custom:field _minThreshold The minimum signature threshold
    * @custom:field _targetThreshold The target signature threshold
    * @custom:field _maxSigners The maximum number of signers
@@ -88,12 +108,11 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
       uint256 _ownerHatId,
       uint256[] memory _signerHats,
       address _safe,
-      address _hats,
       uint256 _minThreshold,
       uint256 _targetThreshold,
       uint256 _maxSigners,
       string memory _version
-    ) = abi.decode(initializeParams, (uint256, uint256[], address, address, uint256, uint256, uint256, string));
+    ) = abi.decode(initializeParams, (uint256, uint256[], address, uint256, uint256, uint256, string));
 
     bool emptySafe = _safe == address(0);
 
@@ -101,7 +120,7 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
       _safe = _deploySafeAndAttachHSG();
     }
 
-    _setUpHSG(_ownerHatId, _safe, _hats, _minThreshold, _targetThreshold, _maxSigners, _version);
+    _setUpHSG(_ownerHatId, _safe, _minThreshold, _targetThreshold, _maxSigners, _version);
 
     _addSignerHats(_signerHats);
 
@@ -210,6 +229,14 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
   /*//////////////////////////////////////////////////////////////
                         OWNER FUNCTIONS
   //////////////////////////////////////////////////////////////*/
+
+  /// @notice Sets the owner hat
+  /// @dev Only callable by a wearer of the current owner hat
+  /// @param _ownerHat The new owner hat
+  function setOwnerHat(uint256 _ownerHat) public onlyOwner {
+    ownerHat = _ownerHat;
+    emit HSGEvents.OwnerHatUpdated(_ownerHat);
+  }
 
   /// @notice Sets a new target threshold, and changes `safe`'s threshold if appropriate
   /// @dev Only callable by a wearer of the owner hat. Reverts if `_targetThreshold` is greater than `maxSigners`.
@@ -455,7 +482,6 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
   /// @notice Internal function to initialize a new instance
   /// @param _ownerHatId The hat id of the hat that owns this instance of HatsSignerGate
   /// @param _safe The multisig to which this instance of HatsSignerGate is attached
-  /// @param _hats The Hats Protocol address
   /// @param _minThreshold The minimum threshold for the `_safe`
   /// @param _targetThreshold The maxium threshold for the `_safe`
   /// @param _maxSigners The maximum number of signers allowed on the `_safe`
@@ -463,19 +489,21 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
   function _setUpHSG(
     uint256 _ownerHatId,
     address _safe,
-    address _hats,
     uint256 _minThreshold,
     uint256 _targetThreshold,
     uint256 _maxSigners,
     string memory _version
   ) internal {
-    _HatsOwned_init(_ownerHatId, _hats);
+    ownerHat = _ownerHatId;
+
     maxSigners = _maxSigners;
     safe = ISafe(_safe);
 
     _setTargetThreshold(_targetThreshold);
     _setMinThreshold(_minThreshold);
     version = _version;
+
+    emit HSGEvents.OwnerHatUpdated(_ownerHatId);
   }
 
   /**

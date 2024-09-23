@@ -29,7 +29,7 @@ contract Deployment is TestSuite {
     assertEq(hatsSignerGate.minThreshold(), minThreshold);
     assertEq(hatsSignerGate.targetThreshold(), targetThreshold);
     assertEq(hatsSignerGate.maxSigners(), maxSigners);
-    assertEq(hatsSignerGate.getHatsContract(), address(hats));
+    assertEq(address(hatsSignerGate.HATS()), address(hats));
     assertEq(address(hatsSignerGate.safe()), address(testSafe));
     assertEq(hatsSignerGate.version(), version);
   }
@@ -42,7 +42,7 @@ contract Deployment is TestSuite {
     assertEq(hatsSignerGate.minThreshold(), minThreshold);
     assertEq(hatsSignerGate.targetThreshold(), targetThreshold);
     assertEq(hatsSignerGate.maxSigners(), maxSigners);
-    assertEq(hatsSignerGate.getHatsContract(), address(hats));
+    assertEq(address(hatsSignerGate.HATS()), address(hats));
     assertEq(address(hatsSignerGate.safe()), address(safe));
     assertEq(hatsSignerGate.version(), version);
     assertEq(_getSafeGuard(address(safe)), address(hatsSignerGate));
@@ -76,6 +76,13 @@ contract Deployment is TestSuite {
     );
   }
 
+  function test_revert_reinitializeImplementation() public {
+    bytes memory initializeParams =
+      abi.encode(ownerHat, signerHats, address(safe), minThreshold, targetThreshold, maxSigners, version, 0);
+    vm.expectRevert("Initializable: contract is already initialized");
+    singletonHatsSignerGate.setUp(initializeParams);
+  }
+
   // TODO bring back this test?
   // function test_revert_onlyHSG_validSignerCountExceedsMaxSigners() public {
   //     // deploy safe with more owners than maxSigners, and mint hats to each owner so that they're valid signers
@@ -100,14 +107,6 @@ contract Deployment is TestSuite {
   //         false
   //     );
   // }
-
-  function test_revert_reinitializeImplementation() public {
-    bytes memory initializeParams = abi.encode(
-      ownerHat, signerHats, address(safe), address(hats), minThreshold, targetThreshold, maxSigners, version, 0
-    );
-    vm.expectRevert("Initializable: contract is already initialized");
-    singletonHatsSignerGate.setUp(initializeParams);
-  }
 }
 
 contract AddingSignerHats is WithHSGInstanceTest {
@@ -120,9 +119,7 @@ contract AddingSignerHats is WithHSGInstanceTest {
       hats[i] = i;
     }
 
-    _setSignerValidity(signerAddresses[0], hatsSignerGate.ownerHat(), true);
-    vm.prank(signerAddresses[0]);
-
+    vm.prank(owner);
     vm.expectEmit(false, false, false, true);
     emit HSGEvents.SignerHatsAdded(hats);
 
@@ -138,11 +135,8 @@ contract AddingSignerHats is WithHSGInstanceTest {
     uint256[] memory hats = new uint256[](1);
     hats[0] = 1;
 
-    _setSignerValidity(signerAddresses[0], hatsSignerGate.ownerHat(), false);
-    vm.prank(signerAddresses[0]);
-
-    vm.expectRevert("UNAUTHORIZED");
-
+    vm.prank(other);
+    vm.expectRevert(IHatsSignerGate.NotOwnerHatWearer.selector);
     hatsSignerGate.addSignerHats(hats);
   }
 }
@@ -150,8 +144,8 @@ contract AddingSignerHats is WithHSGInstanceTest {
 contract SettingTargetThreshold is WithHSGInstanceTest {
   function testSetTargetThreshold() public {
     _addSignersSameHat(1, signerHat);
-    _setSignerValidity(address(this), ownerHat, true);
 
+    vm.prank(owner);
     vm.expectEmit(false, false, false, true);
     emit HSGEvents.TargetThresholdSet(3);
     hatsSignerGate.setTargetThreshold(3);
@@ -162,8 +156,8 @@ contract SettingTargetThreshold is WithHSGInstanceTest {
 
   function testSetTargetThreshold3of4() public {
     _addSignersSameHat(4, signerHat);
-    _setSignerValidity(address(this), ownerHat, true);
 
+    vm.prank(owner);
     vm.expectEmit(false, false, false, true);
     emit HSGEvents.TargetThresholdSet(3);
 
@@ -175,8 +169,8 @@ contract SettingTargetThreshold is WithHSGInstanceTest {
 
   function testSetTargetThreshold4of4() public {
     _addSignersSameHat(4, signerHat);
-    _setSignerValidity(address(this), ownerHat, true);
 
+    vm.prank(owner);
     vm.expectEmit(false, false, false, true);
     emit HSGEvents.TargetThresholdSet(4);
 
@@ -187,10 +181,8 @@ contract SettingTargetThreshold is WithHSGInstanceTest {
   }
 
   function testNonOwnerHatWearerCannotSetTargetThreshold() public {
-    _setSignerValidity(address(this), ownerHat, false);
-
-    vm.expectRevert("UNAUTHORIZED");
-
+    vm.prank(other);
+    vm.expectRevert(IHatsSignerGate.NotOwnerHatWearer.selector);
     hatsSignerGate.setTargetThreshold(3);
 
     assertEq(hatsSignerGate.targetThreshold(), 2);
@@ -200,29 +192,27 @@ contract SettingTargetThreshold is WithHSGInstanceTest {
 
 contract SettingMinThreshold is WithHSGInstanceTest {
   function testSetMinThreshold() public {
-    _setSignerValidity(address(this), ownerHat, true);
+    vm.prank(owner);
     hatsSignerGate.setTargetThreshold(3);
 
     vm.expectEmit(false, false, false, true);
     emit HSGEvents.MinThresholdSet(3);
 
+    vm.prank(owner);
     hatsSignerGate.setMinThreshold(3);
 
     assertEq(hatsSignerGate.minThreshold(), 3);
   }
 
   function testSetInvalidMinThreshold() public {
-    _setSignerValidity(address(this), ownerHat, true);
-
+    vm.prank(owner);
     vm.expectRevert(IHatsSignerGate.InvalidMinThreshold.selector);
     hatsSignerGate.setMinThreshold(3);
   }
 
   function testNonOwnerCannotSetMinThreshold() public {
-    _setSignerValidity(address(this), ownerHat, false);
-
-    vm.expectRevert("UNAUTHORIZED");
-
+    vm.prank(other);
+    vm.expectRevert(IHatsSignerGate.NotOwnerHatWearer.selector);
     hatsSignerGate.setMinThreshold(1);
 
     assertEq(hatsSignerGate.minThreshold(), 2);
@@ -234,11 +224,8 @@ contract AddingSigners is WithHSGInstanceTest {
     _addSignersSameHat(1, signerHat);
 
     assertEq(safe.getOwners().length, 1);
-
     assertEq(hatsSignerGate.validSignerCount(), 1);
-
     assertEq(safe.getOwners()[0], signerAddresses[0]);
-
     assertEq(safe.getThreshold(), 1);
   }
 
@@ -250,7 +237,6 @@ contract AddingSigners is WithHSGInstanceTest {
     assertEq(safe.getOwners()[0], signerAddresses[2]);
     assertEq(safe.getOwners()[1], signerAddresses[1]);
     assertEq(safe.getOwners()[2], signerAddresses[0]);
-
     assertEq(safe.getThreshold(), 2);
   }
 
