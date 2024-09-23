@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-// import { Test, console2 } from "forge-std/Test.sol"; // remove after testing
+// import { Test, console2 } from "forge-std/Test.sol"; // comment out after testing
 import "./HSGLib.sol";
 import { HatsOwnedInitializable } from "lib/hats-auth/src/HatsOwnedInitializable.sol";
 import { BaseGuard } from "lib/zodiac/contracts/guard/BaseGuard.sol";
-import { IAvatar } from "lib/zodiac/contracts/interfaces/IAvatar.sol";
 import { StorageAccessible } from "lib/safe-smart-account/contracts/common/StorageAccessible.sol";
 import { SignatureDecoder } from "lib/safe-smart-account/contracts/common/SignatureDecoder.sol";
 import { ISafe, Enum } from "./lib/safe-interfaces/ISafe.sol";
@@ -33,7 +32,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
     uint256 internal _guardEntries;
 
     /// @dev The head pointer used in the Safe owners linked list, as well as the module linked list
-    address internal constant SENTINEL_OWNERS = address(0x1);
+    address internal constant SENTINELS = address(0x1);
 
     /// @dev The storage slot used by Safe to store the guard address
     ///      keccak256("guard_manager.guard.address")
@@ -44,11 +43,6 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
         _HatsOwned_init(1, address(0x1));
     }
 
-    /// @notice Initializes a new instance
-    /// @dev Can only be called once
-    /// @param initializeParams ABI-encoded bytes with initialization parameters
-    function setUp(bytes calldata initializeParams) public payable virtual initializer { }
-
     /// @notice Internal function to initialize a new instance
     /// @param _ownerHatId The hat id of the hat that owns this instance of HatsSignerGate
     /// @param _safe The multisig to which this instance of HatsSignerGate is attached
@@ -57,7 +51,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
     /// @param _targetThreshold The maxium threshold for the `_safe`
     /// @param _maxSigners The maximum number of signers allowed on the `_safe`
     /// @param _version The current version of HatsSignerGate
-    function _setUp(
+    function _setUpHSG(
         uint256 _ownerHatId,
         address _safe,
         address _hats,
@@ -237,7 +231,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
             // set up the swapOwner call
             addOwnerData = abi.encodeWithSignature(
                 "swapOwner(address,address,address)",
-                SENTINEL_OWNERS, // prevOwner
+                SENTINELS, // prevOwner
                 address(this), // oldOwner
                 _signer // newOwner
             );
@@ -344,7 +338,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
             // make address(this) the only owner
             removeOwnerData = abi.encodeWithSignature(
                 "swapOwner(address,address,address)",
-                SENTINEL_OWNERS, // prevOwner
+                SENTINELS, // prevOwner
                 _signer, // oldOwner
                 address(this) // newOwner
             );
@@ -382,7 +376,7 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
     /// @param _owner The address after the one to find
     /// @return prevOwner The owner previous to `_owner` in the `safe` linked list
     function _findPrevOwner(address[] memory _owners, address _owner) internal pure returns (address prevOwner) {
-        prevOwner = SENTINEL_OWNERS;
+        prevOwner = SENTINELS;
 
         for (uint256 i; i < _owners.length;) {
             if (_owners[i] == _owner) {
@@ -495,15 +489,15 @@ abstract contract HatsSignerGateBase is BaseGuard, SignatureDecoder, HatsOwnedIn
             revert SignersCannotChangeOwners();
         }
         // prevent signers from removing this module or adding any other modules
-        /// @dev SENTINEL_OWNERS and SENTINEL_MODULES are both address(0x1)
-        (address[] memory modulesWith1, address next) = safe.getModulesPaginated(SENTINEL_OWNERS, 1);
+        /// @dev SENTINELS and SENTINEL_MODULES are both address(0x1)
+        (address[] memory modulesWith1, address next) = safe.getModulesPaginated(SENTINELS, 1);
         // ensure that there is only one module...
         if (
             // if the length is 0, we know this module has been removed
             // forgefmt: disable-next-line
-            /* per Safe ModuleManager.sol#137, "If all entries fit into a single page, the next pointer will be 0x1", ie SENTINEL_OWNERS.
-            Therefore, if `next` is not SENTINEL_OWNERS, we know another module has been added. */
-            modulesWith1.length == 0 || next != SENTINEL_OWNERS
+            /* per Safe ModuleManager.sol#137, "If all entries fit into a single page, the next pointer will be 0x1", ie SENTINELS.
+            Therefore, if `next` is not SENTINELS, we know another module has been added. */
+            modulesWith1.length == 0 || next != SENTINELS
         ) {
             revert SignersCannotChangeModules();
         } // ...and that the only module is this contract

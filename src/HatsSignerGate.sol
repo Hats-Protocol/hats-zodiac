@@ -1,21 +1,47 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-// import { Test, console2 } from "forge-std/Test.sol"; // remove after testing
-import { HatsSignerGateBase, ISafe, Enum } from "./HatsSignerGateBase.sol";
+// import { Test, console2 } from "forge-std/Test.sol"; // comment out after testing
+import { HatsSignerGateBase, ISafe } from "./HatsSignerGateBase.sol";
+import { SafeDeployer } from "./SafeDeployer.sol";
 import "./HSGLib.sol";
 
-contract HatsSignerGate is HatsSignerGateBase {
+contract HatsSignerGate is HatsSignerGateBase, SafeDeployer {
     /// @notice Append-only tracker of approved signer hats
     mapping(uint256 => bool) public validSignerHats;
 
     /// @notice Tracks the hat ids worn by users who have "claimed signer"
     mapping(address => uint256) public claimedSignerHats;
 
-    /// @notice Initializes a new instance of MultiHatsSignerGate
-    /// @dev Can only be called once
-    /// @param initializeParams ABI-encoded bytes with initialization parameters
-    function setUp(bytes calldata initializeParams) public payable override initializer {
+    /*//////////////////////////////////////////////////////////////
+                              CONSTRUCTOR
+    //////////////////////////////////////////////////////////////*/
+
+    constructor(
+        address _safeSingleton,
+        address _safeFallbackLibrary,
+        address _safeMultisendLibrary,
+        address _safeProxyFactory
+    ) SafeDeployer(_safeSingleton, _safeFallbackLibrary, _safeMultisendLibrary, _safeProxyFactory) { }
+
+    /*//////////////////////////////////////////////////////////////
+                              INITIALIZER
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Initializes a new instance of MultiHatsSignerGate
+     * @dev Can only be called once
+     * @param initializeParams ABI-encoded bytes with initialization parameters
+     * @custom:field _ownerHatId The id of the owner hat
+     * @custom:field _signerHats The ids of the signer hats
+     * @custom:field _safe The address of the existing safe, or zero address to deploy a new safe
+     * @custom:field _hats The address of the Hats Protocol contract
+     * @custom:field _minThreshold The minimum signature threshold
+     * @custom:field _targetThreshold The target signature threshold
+     * @custom:field _maxSigners The maximum number of signers
+     * @custom:field _version The version of the contract
+     */
+    function setUp(bytes calldata initializeParams) public payable initializer {
         (
             uint256 _ownerHatId,
             uint256[] memory _signerHats,
@@ -27,10 +53,25 @@ contract HatsSignerGate is HatsSignerGateBase {
             string memory _version
         ) = abi.decode(initializeParams, (uint256, uint256[], address, address, uint256, uint256, uint256, string));
 
-        _setUp(_ownerHatId, _safe, _hats, _minThreshold, _targetThreshold, _maxSigners, _version);
+        bool emptySafe = _safe == address(0);
+
+        if (emptySafe) {
+            _safe = _deploySafeAndAttachHSG();
+        }
+
+        _setUpHSG(_ownerHatId, _safe, _hats, _minThreshold, _targetThreshold, _maxSigners, _version);
 
         _addSignerHats(_signerHats);
+
+        // TODO optimize this so that we don't have to do another if statement here
+        if (!emptySafe) {
+            if (!_canAttachToSafe(ISafe(_safe))) revert CannotAttachToSafe();
+        }
     }
+
+    /*//////////////////////////////////////////////////////////////
+                              PUBLIC FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
 
     /// @notice Function to become an owner on the safe if you are wearing `_hatId` and `_hatId` is a valid signer hat
     /// @dev Reverts if `maxSigners` has been reached, the caller is either invalid or has already claimed. Swaps caller with existing invalid owner if relevant.
@@ -113,5 +154,30 @@ contract HatsSignerGate is HatsSignerGateBase {
     /// @return valid Whether `_hatId` is a valid signer hat
     function isValidSignerHat(uint256 _hatId) public view returns (bool valid) {
         valid = validSignerHats[_hatId];
+    }
+
+    /**
+     * @notice Checks if a HatsSignerGate can be safely attached to a Safe
+     * @dev There must be...
+     *      1) No existing modules on the Safe
+     *      2) HatsSignerGate's `validSignerCount()` must be <= `_maxSigners`
+     */
+    function _canAttachToSafe(ISafe _safe) internal view returns (bool) {
+        (address[] memory modulesWith1,) = _safe.getModulesPaginated(SENTINELS, 1);
+
+        return (modulesWith1.length == 0);
+
+        // QUESTION: do we need to bring back the valid signer count <= maxSigners check?
+        // return (modulesWith1.length == 0 && _countValidSigners(_safe.getOwners()) <= maxSigners);
+    }
+
+    /**
+     * @notice Checks if a HatsSignerGate can be safely attached to a Safe
+     * @dev There must be...
+     *      1) No existing modules on the Safe
+     *      2) HatsSignerGate's `validSignerCount()` must be <= `_maxSigners`
+     */
+    function canAttachToSafe() public view returns (bool) {
+        return _canAttachToSafe(safe);
     }
 }
