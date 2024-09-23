@@ -109,52 +109,36 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
   /**
    * @notice Initializes a new instance of MultiHatsSignerGate
    * @dev Can only be called once
-   * @param initializeParams ABI-encoded bytes with initialization parameters
-   * @custom:field _ownerHat The id of the owner hat
-   * @custom:field _signerHats The ids of the signer hats
-   * @custom:field _safe The address of the existing safe, or zero address to deploy a new safe
-   * @custom:field _minThreshold The minimum signature threshold
-   * @custom:field _targetThreshold The target signature threshold
-   * @custom:field _maxSigners The maximum number of signers
-   * @custom:field _locked Whether the contract is locked
-   * @custom:field _implementation The HatsSignerGate implementation address
+   * @param initializeParams ABI-encoded bytes with initialization parameters, as defined in
+   * {IHatsSignerGate.SetupParams}
    */
   function setUp(bytes calldata initializeParams) public payable initializer {
-    (
-      uint256 _ownerHat,
-      uint256[] memory _signerHats,
-      address _safe,
-      uint256 _minThreshold,
-      uint256 _targetThreshold,
-      uint256 _maxSigners,
-      bool _locked,
-      address _implementation
-    ) = abi.decode(initializeParams, (uint256, uint256[], address, uint256, uint256, uint256, bool, address));
+    SetupParams memory params = abi.decode(initializeParams, (SetupParams));
 
     // deploy a new safe if there is no provided safe
-    if (_safe == address(0)) {
-      _safe = _deploySafeAndAttachHSG();
+    if (params.safe == address(0)) {
+      params.safe = _deploySafeAndAttachHSG();
     } else {
       // otherwise, assert that HSG can attach to the existing safe before proceeding
-      if (!_canAttachToSafe(ISafe(_safe))) revert CannotAttachToSafe();
+      if (!_canAttachToSafe(ISafe(params.safe))) revert CannotAttachToSafe();
     }
 
     // set the instance's owner hat
-    _setOwnerHat(_ownerHat);
+    _setOwnerHat(params.ownerHat);
 
     // lock the instance if configured as such
-    if (_locked) _lock();
+    if (params.locked) _lock();
 
     // set the instance's safe and signer parameters
-    safe = ISafe(_safe);
-    _addSignerHats(_signerHats);
-    maxSigners = _maxSigners;
-    _setTargetThreshold(_targetThreshold);
-    _setMinThreshold(_minThreshold);
+    safe = ISafe(params.safe);
+    _addSignerHats(params.signerHats);
+    maxSigners = params.maxSigners;
+    _setTargetThreshold(params.targetThreshold);
+    _setMinThreshold(params.minThreshold);
 
     // set the instance's metadata
-    version = HatsSignerGate(_implementation).version();
-    implementation = _implementation;
+    version = HatsSignerGate(params.implementation).version();
+    implementation = params.implementation;
   }
 
   /*//////////////////////////////////////////////////////////////

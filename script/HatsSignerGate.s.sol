@@ -4,6 +4,7 @@ pragma solidity ^0.8.13;
 import { Script, console2 } from "forge-std/Script.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { HatsSignerGate } from "../src/HatsSignerGate.sol";
+import { IHatsSignerGate } from "../src/interfaces/IHatsSignerGate.sol";
 import { ModuleProxyFactory } from "../lib/zodiac/contracts/factory/ModuleProxyFactory.sol";
 
 contract BaseScript is Script {
@@ -127,8 +128,18 @@ contract DeployInstance is BaseScript {
     (,,,,, zodiacModuleFactory) = abi.decode(params, (address, address, address, address, address, address));
   }
 
-  function createDeployParams() public view returns (bytes memory) {
-    return abi.encode(ownerHat, signersHats, safe, minThreshold, targetThreshold, maxSigners, locked, implementation);
+  function setupParams() public view returns (IHatsSignerGate.SetupParams memory params) {
+    params = IHatsSignerGate.SetupParams({
+      ownerHat: ownerHat,
+      signerHats: signersHats,
+      safe: safe,
+      minThreshold: minThreshold,
+      targetThreshold: targetThreshold,
+      maxSigners: maxSigners,
+      locked: locked,
+      implementation: implementation
+    });
+    return params;
   }
 
   function run() external returns (HatsSignerGate) {
@@ -139,7 +150,7 @@ contract DeployInstance is BaseScript {
     vm.startBroadcast(deployer);
 
     instance = ModuleProxyFactory(zodiacModuleFactory).deployModule(
-      address(implementation), abi.encodeWithSignature("setUp(bytes)", createDeployParams()), saltNonce
+      address(implementation), abi.encodeWithSignature("setUp(bytes)", abi.encode(setupParams())), saltNonce
     );
 
     vm.stopBroadcast();

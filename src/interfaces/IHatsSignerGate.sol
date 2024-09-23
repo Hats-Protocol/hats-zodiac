@@ -24,6 +24,30 @@ library HSGEvents {
 /// @notice Interface for the HatsSignerGate contract
 interface IHatsSignerGate {
   /*//////////////////////////////////////////////////////////////
+                            STRUCTS
+  //////////////////////////////////////////////////////////////*/
+
+  /// @notice Struct for the parameters passed to the `setUp` function
+  /// @param ownerHat The ID of the owner hat
+  /// @param signerHats The IDs of the signer hats
+  /// @param safe The address of the safe
+  /// @param minThreshold The minimum signature threshold
+  /// @param targetThreshold The target signature threshold
+  /// @param maxSigners The maximum number of signers
+  /// @param locked Whether the contract is locked
+  /// @param implementation The address of the HatsSignerGate implementation
+  struct SetupParams {
+    uint256 ownerHat;
+    uint256[] signerHats;
+    address safe;
+    uint256 minThreshold;
+    uint256 targetThreshold;
+    uint256 maxSigners;
+    bool locked;
+    address implementation;
+  }
+
+  /*//////////////////////////////////////////////////////////////
                             CUSTOM ERRORS
   //////////////////////////////////////////////////////////////*/
 
@@ -113,6 +137,8 @@ interface IHatsSignerGate {
   function claimSigner(uint256 _hatId) external;
   function removeSigner(address _signer) external;
   function reconcileSignerCount() external;
+  function lock() external;
+  function setOwnerHat(uint256 _ownerHat) external;
   function setTargetThreshold(uint256 _targetThreshold) external;
   function setMinThreshold(uint256 _minThreshold) external;
   function addSignerHats(uint256[] calldata _newSignerHats) external;

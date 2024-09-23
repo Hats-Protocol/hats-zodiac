@@ -9,7 +9,7 @@ contract Deployment is TestSuite {
   // errors from dependencies
   error InvalidInitialization();
 
-  function test_onlyHSG() public {
+  function test_onlyHSG(bool _locked) public {
     // deploy safe with this contract as the single owner
     address[] memory owners = new address[](1);
     owners[0] = address(this);
@@ -23,7 +23,7 @@ contract Deployment is TestSuite {
       _maxSigners: maxSigners,
       _safe: address(testSafe),
       _expectedError: bytes4(0), // no expected error
-      _locked: false,
+      _locked: _locked,
       _verbose: false
     });
 
@@ -36,16 +36,17 @@ contract Deployment is TestSuite {
     assertEq(address(hatsSignerGate.safe()), address(testSafe));
     assertEq(hatsSignerGate.version(), version);
     assertEq(address(hatsSignerGate.implementation()), address(singletonHatsSignerGate));
+    assertEq(hatsSignerGate.locked(), _locked);
   }
 
-  function test_andSafe() public {
+  function test_andSafe(bool _locked) public {
     (hatsSignerGate, safe) = _deployHSGAndSafe({
       _ownerHat: ownerHat,
       _signerHats: signerHats,
       _minThreshold: minThreshold,
       _targetThreshold: targetThreshold,
       _maxSigners: maxSigners,
-      _locked: false,
+      _locked: _locked,
       _verbose: false
     });
 
@@ -61,6 +62,7 @@ contract Deployment is TestSuite {
     assertEq(_getSafeGuard(address(safe)), address(hatsSignerGate));
     assertTrue(safe.isModuleEnabled(address(hatsSignerGate)));
     assertEq(safe.getOwners()[0], address(hatsSignerGate));
+    assertEq(hatsSignerGate.locked(), _locked);
   }
 
   function test_revert_onlyHSG_existingSafeHasModules() public {
@@ -90,8 +92,16 @@ contract Deployment is TestSuite {
   }
 
   function test_revert_reinitializeImplementation() public {
-    bytes memory initializeParams =
-      abi.encode(ownerHat, signerHats, address(safe), minThreshold, targetThreshold, maxSigners, version, 0);
+    bytes memory initializeParams = abi.encode(
+      ownerHat,
+      signerHats,
+      address(safe),
+      minThreshold,
+      targetThreshold,
+      maxSigners,
+      false,
+      address(singletonHatsSignerGate)
+    );
     vm.expectRevert(InvalidInitialization.selector);
     singletonHatsSignerGate.setUp(initializeParams);
   }
