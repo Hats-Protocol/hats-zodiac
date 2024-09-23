@@ -6,6 +6,9 @@ import { Enum, ISafe, ModuleProxyFactory, TestSuite, WithHSGInstanceTest, HatsSi
 import { IHatsSignerGate, HSGEvents } from "../src/interfaces/IHatsSignerGate.sol";
 
 contract Deployment is TestSuite {
+    // errors from dependencies
+    error InvalidInitialization();
+
   function test_onlyHSG() public {
     // deploy safe with this contract as the single owner
     address[] memory owners = new address[](1);
@@ -79,7 +82,7 @@ contract Deployment is TestSuite {
   function test_revert_reinitializeImplementation() public {
     bytes memory initializeParams =
       abi.encode(ownerHat, signerHats, address(safe), minThreshold, targetThreshold, maxSigners, version, 0);
-    vm.expectRevert("Initializable: contract is already initialized");
+    vm.expectRevert(InvalidInitialization.selector);
     singletonHatsSignerGate.setUp(initializeParams);
   }
 
