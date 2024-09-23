@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import { Test, console2 } from "forge-std/Test.sol";
 import { WithHSGInstanceTest, Enum } from "./TestSuite.sol";
-import "../src/HSGLib.sol";
+import { IHatsSignerGate } from "../src/interfaces/IHatsSignerGate.sol";
 
 contract AttacksScenarios is WithHSGInstanceTest {
   function testAttackOnMaxSignerFails() public {
@@ -28,7 +28,7 @@ contract AttacksScenarios is WithHSGInstanceTest {
     _setSignerValidity(signerAddresses[3], signerHat, true);
 
     // reoncile is called again and signerCount stays at 5
-    // vm.expectRevert(MaxSignersReached.selector);
+    // vm.expectRevert(IHatsSignerGate.MaxSignersReached.selector);
     hatsSignerGate.reconcileSignerCount();
     assertEq(hatsSignerGate.validSignerCount(), 5);
 
@@ -128,7 +128,7 @@ contract AttacksScenarios is WithHSGInstanceTest {
 
     bytes memory signatures = _createNSigsForTx(txHash, 2);
 
-    vm.expectRevert(SignersCannotChangeModules.selector);
+    vm.expectRevert(IHatsSignerGate.SignersCannotChangeModules.selector);
 
     // execute tx
     safe.execTransaction(
@@ -218,7 +218,7 @@ contract AttacksScenarios is WithHSGInstanceTest {
     // new valid signer tries to claim, but can't because we're already at max signers
     _setSignerValidity(signerAddresses[5], signerHat, true);
     vm.prank(signerAddresses[5]);
-    vm.expectRevert(MaxSignersReached.selector);
+    vm.expectRevert(IHatsSignerGate.MaxSignersReached.selector);
     hatsSignerGate.claimSigner(signerHat);
   }
 
@@ -278,7 +278,7 @@ contract AttacksScenarios is WithHSGInstanceTest {
 
     // set target threshold to 1 — should fail
     _setSignerValidity(address(this), ownerHat, true);
-    vm.expectRevert(InvalidTargetThreshold.selector);
+    vm.expectRevert(IHatsSignerGate.InvalidTargetThreshold.selector);
     hatsSignerGate.setTargetThreshold(1);
   }
 
@@ -372,7 +372,7 @@ contract AttacksScenarios is WithHSGInstanceTest {
     // mock the maliciousTx so it would succeed if it were to be executed
     vm.mockCall(maliciousContract, maliciousTx, abi.encode(true));
     // attacker submits the tx to the safe, but it should fail
-    vm.expectRevert(InvalidSigners.selector);
+    vm.expectRevert(IHatsSignerGate.InvalidSigners.selector);
     vm.prank(attacker);
     safe.execTransaction(
       address(safe),

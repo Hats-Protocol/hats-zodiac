@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import { Test, console2 } from "forge-std/Test.sol";
 import { Enum, ISafe, ModuleProxyFactory, TestSuite, WithHSGInstanceTest, HatsSignerGate } from "./TestSuite.sol";
-import "../src/HSGLib.sol";
+import { IHatsSignerGate, HSGEvents } from "../src/interfaces/IHatsSignerGate.sol";
 
 contract Deployment is TestSuite {
   function test_onlyHSG() public {
@@ -124,7 +124,7 @@ contract AddingSignerHats is WithHSGInstanceTest {
     vm.prank(signerAddresses[0]);
 
     vm.expectEmit(false, false, false, true);
-    emit HSGLib.SignerHatsAdded(hats);
+    emit HSGEvents.SignerHatsAdded(hats);
 
     hatsSignerGate.addSignerHats(hats);
   }
@@ -153,7 +153,7 @@ contract SettingTargetThreshold is WithHSGInstanceTest {
     _setSignerValidity(address(this), ownerHat, true);
 
     vm.expectEmit(false, false, false, true);
-    emit HSGLib.TargetThresholdSet(3);
+    emit HSGEvents.TargetThresholdSet(3);
     hatsSignerGate.setTargetThreshold(3);
 
     assertEq(hatsSignerGate.targetThreshold(), 3);
@@ -165,7 +165,7 @@ contract SettingTargetThreshold is WithHSGInstanceTest {
     _setSignerValidity(address(this), ownerHat, true);
 
     vm.expectEmit(false, false, false, true);
-    emit HSGLib.TargetThresholdSet(3);
+    emit HSGEvents.TargetThresholdSet(3);
 
     hatsSignerGate.setTargetThreshold(3);
 
@@ -178,7 +178,7 @@ contract SettingTargetThreshold is WithHSGInstanceTest {
     _setSignerValidity(address(this), ownerHat, true);
 
     vm.expectEmit(false, false, false, true);
-    emit HSGLib.TargetThresholdSet(4);
+    emit HSGEvents.TargetThresholdSet(4);
 
     hatsSignerGate.setTargetThreshold(4);
 
@@ -204,7 +204,7 @@ contract SettingMinThreshold is WithHSGInstanceTest {
     hatsSignerGate.setTargetThreshold(3);
 
     vm.expectEmit(false, false, false, true);
-    emit HSGLib.MinThresholdSet(3);
+    emit HSGEvents.MinThresholdSet(3);
 
     hatsSignerGate.setMinThreshold(3);
 
@@ -214,7 +214,7 @@ contract SettingMinThreshold is WithHSGInstanceTest {
   function testSetInvalidMinThreshold() public {
     _setSignerValidity(address(this), ownerHat, true);
 
-    vm.expectRevert(InvalidMinThreshold.selector);
+    vm.expectRevert(IHatsSignerGate.InvalidMinThreshold.selector);
     hatsSignerGate.setMinThreshold(3);
   }
 
@@ -258,7 +258,7 @@ contract AddingSigners is WithHSGInstanceTest {
     _addSignersSameHat(5, signerHat);
 
     _setSignerValidity(signerAddresses[5], signerHat, true);
-    vm.expectRevert(MaxSignersReached.selector);
+    vm.expectRevert(IHatsSignerGate.MaxSignersReached.selector);
     vm.prank(signerAddresses[5]);
     // this call should fail
     hatsSignerGate.claimSigner(signerHat);
@@ -308,7 +308,7 @@ contract ClaimingSigners is WithHSGInstanceTest {
 
     vm.prank(signerAddresses[1]);
 
-    vm.expectRevert(abi.encodeWithSelector(SignerAlreadyClaimed.selector, signerAddresses[1]));
+    vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.SignerAlreadyClaimed.selector, signerAddresses[1]));
 
     hatsSignerGate.claimSigner(signerHat);
 
@@ -320,7 +320,7 @@ contract ClaimingSigners is WithHSGInstanceTest {
 
     vm.prank(signerAddresses[3]);
 
-    vm.expectRevert(abi.encodeWithSelector(NotSignerHatWearer.selector, signerAddresses[3]));
+    vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.NotSignerHatWearer.selector, signerAddresses[3]));
     hatsSignerGate.claimSigner(signerHat);
   }
 
@@ -330,7 +330,7 @@ contract ClaimingSigners is WithHSGInstanceTest {
 
     vm.prank(signerAddresses[3]);
 
-    vm.expectRevert(abi.encodeWithSelector(NotSignerHatWearer.selector, signerAddresses[3]));
+    vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.NotSignerHatWearer.selector, signerAddresses[3]));
     hatsSignerGate.claimSigner(signerHats[i]);
   }
 }
@@ -404,7 +404,7 @@ contract RemovingSigners is WithHSGInstanceTest {
   function testCannotRemoveValidSigner() public {
     _addSignersSameHat(1, signerHat);
 
-    vm.expectRevert(abi.encodeWithSelector(StillWearsSignerHat.selector, signerAddresses[0]));
+    vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.StillWearsSignerHat.selector, signerAddresses[0]));
 
     hatsSignerGate.removeSigner(signerAddresses[0]);
 
@@ -431,7 +431,7 @@ contract RemovingSigners is WithHSGInstanceTest {
   function test_Multi_CannotRemoveValidSigner() public {
     _addSignersDifferentHats(1, signerHats);
 
-    vm.expectRevert(abi.encodeWithSelector(StillWearsSignerHat.selector, signerAddresses[0]));
+    vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.StillWearsSignerHat.selector, signerAddresses[0]));
 
     hatsSignerGate.removeSigner(signerAddresses[0]);
 
@@ -510,7 +510,7 @@ contract ExecutingTransactions is WithHSGInstanceTest {
     vm.prank(signerAddresses[0]);
 
     // vm.expectRevert(abi.encodeWithSelector(BelowMinThreshold.selector, minThreshold, 1));
-    vm.expectRevert(InvalidSigners.selector);
+    vm.expectRevert(IHatsSignerGate.InvalidSigners.selector);
 
     safe.execTransaction(
       destAddress,
@@ -555,7 +555,9 @@ contract ExecutingTransactions is WithHSGInstanceTest {
     vm.prank(signerAddresses[0]);
 
     vm.expectRevert(
-      abi.encodeWithSelector(BelowMinThreshold.selector, hatsSignerGate.minThreshold(), safe.getOwners().length)
+      abi.encodeWithSelector(
+        IHatsSignerGate.BelowMinThreshold.selector, hatsSignerGate.minThreshold(), safe.getOwners().length
+      )
     );
 
     safe.execTransaction(
@@ -602,7 +604,7 @@ contract ExecutingTransactions is WithHSGInstanceTest {
     assertEq(safe.getThreshold(), 1);
 
     // vm.expectRevert(abi.encodeWithSelector(BelowMinThreshold.selector, minThreshold, 1));
-    vm.expectRevert(InvalidSigners.selector);
+    vm.expectRevert(IHatsSignerGate.InvalidSigners.selector);
     safe.execTransaction(
       destAddress,
       transferValue,
@@ -683,7 +685,7 @@ contract ExecutingTransactions is WithHSGInstanceTest {
     vm.prank(signerAddresses[0]);
 
     // vm.expectRevert(abi.encodeWithSelector(BelowMinThreshold.selector, minThreshold, 1));
-    vm.expectRevert(InvalidSigners.selector);
+    vm.expectRevert(IHatsSignerGate.InvalidSigners.selector);
 
     safe.execTransaction(
       destAddress,
@@ -716,7 +718,7 @@ contract ConstrainingSigners is WithHSGInstanceTest {
 
     bytes memory signatures = _createNSigsForTx(txHash, 2);
 
-    vm.expectRevert(SignersCannotChangeModules.selector);
+    vm.expectRevert(IHatsSignerGate.SignersCannotChangeModules.selector);
 
     // execute tx
     safe.execTransaction(
@@ -745,7 +747,7 @@ contract ConstrainingSigners is WithHSGInstanceTest {
 
     bytes memory signatures = _createNSigsForTx(txHash, 2);
 
-    vm.expectRevert(abi.encodeWithSelector(CannotDisableThisGuard.selector, address(hatsSignerGate)));
+    vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.CannotDisableThisGuard.selector, address(hatsSignerGate)));
     safe.execTransaction(
       address(safe),
       0,
@@ -774,7 +776,7 @@ contract ConstrainingSigners is WithHSGInstanceTest {
 
     bytes memory signatures = _createNSigsForTx(txHash, 2);
 
-    vm.expectRevert(abi.encodeWithSelector(SignersCannotChangeThreshold.selector));
+    vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.SignersCannotChangeThreshold.selector));
     safe.execTransaction(
       address(safe),
       0,
@@ -803,7 +805,7 @@ contract ConstrainingSigners is WithHSGInstanceTest {
 
     bytes memory signatures = _createNSigsForTx(txHash, 2);
 
-    vm.expectRevert(abi.encodeWithSelector(SignersCannotChangeThreshold.selector));
+    vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.SignersCannotChangeThreshold.selector));
     safe.execTransaction(
       address(safe),
       0,
@@ -831,7 +833,7 @@ contract ConstrainingSigners is WithHSGInstanceTest {
     bytes32 txHash = _getTxHash(address(safe), 0, addOwnerData, safe);
     bytes memory signatures = _createNSigsForTx(txHash, 2);
 
-    vm.expectRevert(abi.encodeWithSelector(SignersCannotChangeOwners.selector));
+    vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.SignersCannotChangeOwners.selector));
     safe.execTransaction(
       address(safe),
       0,
@@ -861,7 +863,7 @@ contract ConstrainingSigners is WithHSGInstanceTest {
     bytes32 txHash = _getTxHash(address(safe), 0, removeOwnerData, safe);
     bytes memory signatures = _createNSigsForTx(txHash, 2);
 
-    vm.expectRevert(abi.encodeWithSelector(SignersCannotChangeOwners.selector));
+    vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.SignersCannotChangeOwners.selector));
     safe.execTransaction(
       address(safe),
       0,
@@ -892,7 +894,7 @@ contract ConstrainingSigners is WithHSGInstanceTest {
     bytes32 txHash = _getTxHash(address(safe), 0, swapOwnerData, safe);
     bytes memory signatures = _createNSigsForTx(txHash, 2);
 
-    vm.expectRevert(abi.encodeWithSelector(SignersCannotChangeOwners.selector));
+    vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.SignersCannotChangeOwners.selector));
     safe.execTransaction(
       address(safe),
       0,
@@ -911,14 +913,14 @@ contract ConstrainingSigners is WithHSGInstanceTest {
 
 contract GuardFunctionAuth is WithHSGInstanceTest {
   function testCannotCallCheckTransactionFromNonSafe() public {
-    vm.expectRevert(NotCalledFromSafe.selector);
+    vm.expectRevert(IHatsSignerGate.NotCalledFromSafe.selector);
     hatsSignerGate.checkTransaction(
       address(0), 0, hex"00", Enum.Operation.Call, 0, 0, 0, address(0), payable(address(0)), hex"00", address(0)
     );
   }
 
   function testCannotCallCheckAfterExecutionFromNonSafe() public {
-    vm.expectRevert(NotCalledFromSafe.selector);
+    vm.expectRevert(IHatsSignerGate.NotCalledFromSafe.selector);
     hatsSignerGate.checkAfterExecution(hex"00", true);
   }
 }
