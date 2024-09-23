@@ -2,14 +2,14 @@
 pragma solidity >=0.8.13;
 
 library HSGLib {
-    /// @notice Emitted when a new target signature threshold for the `safe` is set
-    event TargetThresholdSet(uint256 threshold);
+  /// @notice Emitted when a new target signature threshold for the `safe` is set
+  event TargetThresholdSet(uint256 threshold);
 
-    /// @notice Emitted when a new minimum signature threshold for the `safe` is set
-    event MinThresholdSet(uint256 threshold);
+  /// @notice Emitted when a new minimum signature threshold for the `safe` is set
+  event MinThresholdSet(uint256 threshold);
 
-    /// @notice Emitted when new approved signer hats are added
-    event SignerHatsAdded(uint256[] newSignerHats);
+  /// @notice Emitted when new approved signer hats are added
+  event SignerHatsAdded(uint256[] newSignerHats);
 }
 
 /// @notice Signers are not allowed to disable the HatsSignerGate guard
@@ -34,7 +34,8 @@ error StillWearsSignerHat(address signer);
 error MaxSignersReached();
 
 /// @notice Emitted when a valid signer attempts `claimSigner` but there are already `maxSigners` signers
-/// @dev This will only occur if `signerCount` is out of sync with the current number of valid signers, which can be resolved by calling `reconcileSignerCount`
+/// @dev This will only occur if `signerCount` is out of sync with the current number of valid signers, which can be
+/// resolved by calling `reconcileSignerCount`
 error NoInvalidSignersToReplace();
 
 /// @notice Target threshold must be lower than `maxSigners`
