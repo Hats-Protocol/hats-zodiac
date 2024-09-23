@@ -69,11 +69,13 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
                               MODIFIERS
   //////////////////////////////////////////////////////////////*/
 
+  /// @notice Only the wearer of the owner hat can change this contract's settings
   modifier onlyOwner() {
     if (!HATS.isWearerOfHat(msg.sender, ownerHat)) revert NotOwnerHatWearer();
     _;
   }
 
+  /// @notice Changes to settings can only be made if the contract is not locked
   modifier onlyUnlocked() {
     if (locked) revert Locked();
     _;
@@ -96,6 +98,7 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
     // set the implementation's owner hat to a nonexistent hat to prevent state changes to the implementation
     ownerHat = 1;
 
+    // set the implementation's version; this will also be set on each instance deployed from this implementation
     version = _version;
   }
 
@@ -254,7 +257,8 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
                         OWNER FUNCTIONS
   //////////////////////////////////////////////////////////////*/
 
-  /// @notice Locks the contract, preventing any further changes to the contract's settings
+  /// @notice Irreversibly locks the contract, preventing any further changes to the contract's settings.
+  /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.
   function lock() public onlyOwner onlyUnlocked {
     _lock();
   }
