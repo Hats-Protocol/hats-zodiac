@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import { Test, console2 } from "forge-std/Test.sol";
 import { WithHSGInstanceTest, Enum } from "./TestSuite.sol";
-import "../src/HSGLib.sol";
+import { IHatsSignerGate } from "../src/interfaces/IHatsSignerGate.sol";
 
 contract AttacksScenarios is WithHSGInstanceTest {
   function testAttackOnMaxSignerFails() public {
@@ -28,7 +28,7 @@ contract AttacksScenarios is WithHSGInstanceTest {
     _setSignerValidity(signerAddresses[3], signerHat, true);
 
     // reoncile is called again and signerCount stays at 5
-    // vm.expectRevert(MaxSignersReached.selector);
+    // vm.expectRevert(IHatsSignerGate.MaxSignersReached.selector);
     hatsSignerGate.reconcileSignerCount();
     assertEq(hatsSignerGate.validSignerCount(), 5);
 
@@ -128,7 +128,7 @@ contract AttacksScenarios is WithHSGInstanceTest {
 
     bytes memory signatures = _createNSigsForTx(txHash, 2);
 
-    vm.expectRevert(SignersCannotChangeModules.selector);
+    vm.expectRevert(IHatsSignerGate.SignersCannotChangeModules.selector);
 
     // execute tx
     safe.execTransaction(
@@ -148,7 +148,7 @@ contract AttacksScenarios is WithHSGInstanceTest {
 
   function testTargetSigAttackFails() public {
     // set target threshold to 5
-    _setSignerValidity(address(this), ownerHat, true);
+    vm.prank(owner);
     hatsSignerGate.setTargetThreshold(5);
     // initially there are 5 signers
     _addSignersSameHat(5, signerHat);
@@ -218,7 +218,7 @@ contract AttacksScenarios is WithHSGInstanceTest {
     // new valid signer tries to claim, but can't because we're already at max signers
     _setSignerValidity(signerAddresses[5], signerHat, true);
     vm.prank(signerAddresses[5]);
-    vm.expectRevert(MaxSignersReached.selector);
+    vm.expectRevert(IHatsSignerGate.MaxSignersReached.selector);
     hatsSignerGate.claimSigner(signerHat);
   }
 
@@ -260,13 +260,14 @@ contract AttacksScenarios is WithHSGInstanceTest {
 
   function testSetTargetThresholdUpdatesThresholdCorrectly() public {
     // set target threshold to 5
-    _setSignerValidity(address(this), ownerHat, true);
+    vm.prank(owner);
     hatsSignerGate.setTargetThreshold(5);
     // add 5 valid signers
     _addSignersSameHat(5, signerHat);
     // one loses their hat
     _setSignerValidity(signerAddresses[4], signerHat, false);
     // lower target threshold to 4
+    vm.prank(owner);
     hatsSignerGate.setTargetThreshold(4);
     // since hatsSignerGate.validSignerCount() is also 4, the threshold should also be 4
     assertEq(safe.getThreshold(), 4, "threshold");
@@ -277,8 +278,8 @@ contract AttacksScenarios is WithHSGInstanceTest {
     assertEq(hatsSignerGate.targetThreshold(), 2, "target threshold");
 
     // set target threshold to 1 — should fail
-    _setSignerValidity(address(this), ownerHat, true);
-    vm.expectRevert(InvalidTargetThreshold.selector);
+    vm.prank(owner);
+    vm.expectRevert(IHatsSignerGate.InvalidTargetThreshold.selector);
     hatsSignerGate.setTargetThreshold(1);
   }
 
@@ -338,7 +339,7 @@ contract AttacksScenarios is WithHSGInstanceTest {
     // start with 4 valid signers
     _addSignersSameHat(4, signerHat);
     // set target threshold (and therefore actual threshold) to 3
-    _setSignerValidity(address(this), ownerHat, true);
+    vm.prank(owner);
     hatsSignerGate.setTargetThreshold(3);
     assertEq(safe.getThreshold(), 3, "initial threshold");
     assertEq(safe.nonce(), 0, "pre nonce");
@@ -372,7 +373,7 @@ contract AttacksScenarios is WithHSGInstanceTest {
     // mock the maliciousTx so it would succeed if it were to be executed
     vm.mockCall(maliciousContract, maliciousTx, abi.encode(true));
     // attacker submits the tx to the safe, but it should fail
-    vm.expectRevert(InvalidSigners.selector);
+    vm.expectRevert(IHatsSignerGate.InvalidSigners.selector);
     vm.prank(attacker);
     safe.execTransaction(
       address(safe),

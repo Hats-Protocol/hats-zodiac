@@ -6,11 +6,17 @@ import { SafeProxyFactory } from "../lib/safe-smart-account/contracts/proxies/Sa
 import { ISafe } from "./lib/safe-interfaces/ISafe.sol";
 
 contract SafeDeployer {
+  /*//////////////////////////////////////////////////////////////
+                              CONSTANTS
+  //////////////////////////////////////////////////////////////*/
   address public immutable safeSingleton;
   address public immutable safeFallbackLibrary;
   address public immutable safeMultisendLibrary;
   SafeProxyFactory public immutable safeProxyFactory;
 
+  /*//////////////////////////////////////////////////////////////
+                              CONSTRUCTOR
+  //////////////////////////////////////////////////////////////*/
   constructor(
     address _safeSingleton,
     address _safeFallbackLibrary,
@@ -23,6 +29,9 @@ contract SafeDeployer {
     safeMultisendLibrary = _safeMultisendLibrary;
   }
 
+  /*//////////////////////////////////////////////////////////////
+                            INTERNAL LOGIC
+  //////////////////////////////////////////////////////////////*/
   function _deploySafeAndAttachHSG() internal returns (address payable _safe) {
     _safe = _deploySafe();
     _attachHSG(_safe);
