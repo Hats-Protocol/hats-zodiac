@@ -1,14 +1,10 @@
 # Hats Signer Gate
 
-This repo holds several [Hats Protocol](https://github.com/Hats-Protocol/hats-protocol)-enabled [Zodiac](https://github.com/gnosis/zodiac) contracts. Currently, this repo contains the following, referred to collectively as Hats Signer Gate (HSG):
+This repo holds a [Hats Protocol](https://github.com/Hats-Protocol/hats-protocol)-enabled [Zodiac](https://github.com/gnosis/zodiac) contract called Hats Signer Gate (HSG).
 
-- [Hats Signer Gate](#hats-signer-gate)
-- [Multi-Hats Signer Gate](#multi-hats-signer-gate)
-- [Hats Signer Gate Factory](#hats-signer-gate-factory)
+## Hats Signer Gate v2
 
-## Hats Signer Gate v1
-
-A contract that grants multisig signing rights to addresses wearing a given Hat, enabling on-chain organizations (such as DAOs) to revocably delegate constrained signing authority and responsibility to individuals.
+A contract that grants multisig signing rights to addresses wearing a given hats, enabling on-chain organizations (such as DAOs) to revocably delegate to individuals constrained authority and responsibility to operate an account (i.e. a Safe) owned by the organization.
 
 ### Overview
 
@@ -47,15 +43,13 @@ The wearer of the `ownerHat` can make the following changes to Hats Signer Gate:
 1. "Transfer" ownership to a new Hat by changing the `ownerHat`
 2. Set the acceptable multisig threshold range by changing `minThreshold` and `targetThreshold`
 3. Add other Zodiac modules to the multisig
-4. In [Multi-Hats Signer Gate](#multi-hats-signer-gate), add other Hats as valid signer Hats
+4. Add other Hats as valid signer Hats
 
-### Multi-Hats Signer Gate
+### Deploying New Instances
 
-[MultiHatsSignerGate.sol](./src/MultiHatsSignerGate.sol) is a modification of Hats Signer Gate that supports setting multiple Hats as valid signer Hats.
+Instances of HSG can be created via the [Zodiac module proxy factory](https://github.com/gnosisguild/zodiac/blob/18b7575bb342424537883f7ebe0a94cd7f3ec4f6/contracts/factory/ModuleProxyFactory.sol).
 
-### Hats Signer Gate Factory
-
-[HatsSignerGateFactory](./src/HatsSignerGateFactory.sol) is a factory contract that enables users to deploy proxy instances of HatsSignerGate and MultiHatsSignerGate, either for an existing Safe or wired up to a new Safe deployed at the same time. It uses the [Zodiac module proxy factory](https://github.com/gnosis/zodiac/blob/master/contracts/factory/ModuleProxyFactory.sol) so that the deployments are tracked in the Zodiac subgraph.
+Instances can be created for an existing Safe by passing the Safe address on initialization, or for a new Safe to be deployed from within HSG's initialization.
 
 ### Security Audits
 

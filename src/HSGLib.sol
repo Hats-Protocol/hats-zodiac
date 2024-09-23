@@ -80,3 +80,6 @@ error NotCalledFromSafe();
 /// @notice Emmitted when attempting to reenter `checkTransaction`
 /// @dev The Safe will catch this error and re-throw with its own error message (`GS013`)
 error NoReentryAllowed();
+
+/// @notice Cannot attach to a Safe with existing modules
+error CannotAttachToSafe();

@@ -2,8 +2,114 @@
 pragma solidity ^0.8.13;
 
 import { Test, console2 } from "forge-std/Test.sol";
-import { WithHSGInstanceTest, HatsSignerGate, Enum } from "./TestSuite.sol";
+import { Enum, ISafe, ModuleProxyFactory, TestSuite, WithHSGInstanceTest, HatsSignerGate } from "./TestSuite.sol";
 import "../src/HSGLib.sol";
+
+contract Deployment is TestSuite {
+    function test_onlyHSG() public {
+        // deploy safe with this contract as the single owner
+        address[] memory owners = new address[](1);
+        owners[0] = address(this);
+        ISafe testSafe = _deploySafe(owners, 1, TEST_SALT_NONCE);
+
+        hatsSignerGate = _deployHSG(
+            ownerHat,
+            signerHats,
+            minThreshold,
+            targetThreshold,
+            maxSigners,
+            // TEST_SALT_NONCE,
+            address(testSafe),
+            bytes4(0), // no expected error
+            false
+        );
+
+        assertEq(hatsSignerGate.ownerHat(), ownerHat);
+        assertValidSignerHats(signerHats);
+        assertEq(hatsSignerGate.minThreshold(), minThreshold);
+        assertEq(hatsSignerGate.targetThreshold(), targetThreshold);
+        assertEq(hatsSignerGate.maxSigners(), maxSigners);
+        assertEq(hatsSignerGate.getHatsContract(), address(hats));
+        assertEq(address(hatsSignerGate.safe()), address(testSafe));
+        assertEq(hatsSignerGate.version(), version);
+    }
+
+    function test_andSafe() public {
+        (hatsSignerGate, safe) =
+            _deployHSGAndSafe(ownerHat, signerHats, minThreshold, targetThreshold, maxSigners, false);
+
+        assertEq(hatsSignerGate.ownerHat(), ownerHat);
+        assertValidSignerHats(signerHats);
+        assertEq(hatsSignerGate.minThreshold(), minThreshold);
+        assertEq(hatsSignerGate.targetThreshold(), targetThreshold);
+        assertEq(hatsSignerGate.maxSigners(), maxSigners);
+        assertEq(hatsSignerGate.getHatsContract(), address(hats));
+        assertEq(address(hatsSignerGate.safe()), address(safe));
+        assertEq(hatsSignerGate.version(), version);
+        assertEq(_getSafeGuard(address(safe)), address(hatsSignerGate));
+        assertTrue(safe.isModuleEnabled(address(hatsSignerGate)));
+        assertEq(safe.getOwners()[0], address(hatsSignerGate));
+    }
+
+    function test_revert_onlyHSG_existingSafeHasModules() public {
+        // deploy safe with this contract as the single owner
+        address[] memory owners = new address[](1);
+        owners[0] = address(this);
+        ISafe testSafe = _deploySafe(owners, 1, TEST_SALT_NONCE);
+
+        // attach a module to the safe
+        address dummyModule = makeAddr("dummyModule");
+        bytes memory addModuleData = abi.encodeWithSignature("enableModule(address)", dummyModule);
+        _executeSafeTxFrom(address(this), addModuleData, testSafe);
+        assertTrue(testSafe.isModuleEnabled(dummyModule), "test safe does not have dummy module enabled");
+
+        // deploy an instance of HSG, expecting a revert from a failed initialization
+        hatsSignerGate = _deployHSG(
+            ownerHat,
+            signerHats,
+            minThreshold,
+            targetThreshold,
+            maxSigners,
+            // TEST_SALT_NONCE,
+            address(testSafe),
+            ModuleProxyFactory.FailedInitialization.selector,
+            false
+        );
+    }
+
+    // TODO bring back this test?
+    // function test_revert_onlyHSG_validSignerCountExceedsMaxSigners() public {
+    //     // deploy safe with more owners than maxSigners, and mint hats to each owner so that they're valid signers
+    //     address[] memory owners = new address[](maxSigners + 1);
+    //     for (uint256 i = 0; i < maxSigners + 1; i++) {
+    //         owners[i] = signerAddresses[i];
+    //         vm.prank(org);
+    //         hats.mintHat(signerHats[0], owners[i]);
+    //     }
+    //     console2.log("signerHats[0]", signerHats[0]);
+    //     ISafe testSafe = _deploySafe(owners, 1, TEST_SALT_NONCE);
+
+    //     // deploy an instance of HSG, expecting a revert from a failed initialization
+    //     hatsSignerGate = _deployHSG(
+    //         ownerHat,
+    //         signerHats,
+    //         minThreshold,
+    //         targetThreshold,
+    //         maxSigners,
+    //         address(testSafe),
+    //         ModuleProxyFactory.FailedInitialization.selector,
+    //         false
+    //     );
+    // }
+
+    function test_revert_reinitializeImplementation() public {
+        bytes memory initializeParams = abi.encode(
+            ownerHat, signerHats, address(safe), address(hats), minThreshold, targetThreshold, maxSigners, version, 0
+        );
+        vm.expectRevert("Initializable: contract is already initialized");
+        singletonHatsSignerGate.setUp(initializeParams);
+    }
+}
 
 contract AddingSignerHats is WithHSGInstanceTest {
     function test_Multi_OwnerCanAddSignerHats(uint256 count) public {

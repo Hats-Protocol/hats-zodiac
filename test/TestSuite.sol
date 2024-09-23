@@ -4,12 +4,12 @@ pragma solidity ^0.8.13;
 import { Test, console2 } from "forge-std/Test.sol";
 import { IHats } from "hats-protocol/Interfaces/IHats.sol";
 import { HatsSignerGate } from "../src/HatsSignerGate.sol";
-import { HatsSignerGateFactory } from "../src/HatsSignerGateFactory.sol";
 import { ISafe } from "../src/lib/safe-interfaces/ISafe.sol";
 import { SafeProxyFactory } from "../lib/safe-smart-account/contracts/proxies/SafeProxyFactory.sol";
 import { Enum } from "../lib/safe-smart-account/contracts/common/Enum.sol";
+import { StorageAccessible } from "../lib/safe-smart-account/contracts/common/StorageAccessible.sol";
 import { ModuleProxyFactory } from "../lib/zodiac/contracts/factory/ModuleProxyFactory.sol";
-import { DeployHatsSignerGateFactory } from "../script/HatsSignerGateFactory.s.sol";
+import { DeployImplementation, DeployInstance } from "../script/HatsSignerGate.s.sol";
 
 abstract contract SafeTestHelpers is Test {
     address public constant SENTINELS = address(0x1);
@@ -203,7 +203,8 @@ abstract contract SafeTestHelpers is Test {
 
 contract TestSuite is SafeTestHelpers {
     // Constants
-    bytes32 public constant TEST_SALT = bytes32(abi.encode("test salt"));
+    uint256 public constant TEST_SALT_NONCE = 1;
+    bytes32 public constant TEST_SALT = bytes32(abi.encode(TEST_SALT_NONCE));
     bytes32 public constant GUARD_STORAGE_SLOT = 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
 
     // Test environment
@@ -225,7 +226,6 @@ contract TestSuite is SafeTestHelpers {
 
     // Dependency contract addresses
     IHats public hats;
-    HatsSignerGateFactory public factory;
     ISafe public singletonSafe;
     SafeProxyFactory public safeFactory;
     ModuleProxyFactory public zodiacModuleFactory;
@@ -250,24 +250,20 @@ contract TestSuite is SafeTestHelpers {
         // Set up the test environment with a fork
         vm.createSelectFork(chain, FORK_BLOCK);
 
-        // Deploy the HSG implementation with a salt
-        singletonHatsSignerGate = new HatsSignerGate{ salt: TEST_SALT }();
-
         version = "test";
 
-        // Deploy the HSG factory
-        DeployHatsSignerGateFactory factoryDeployer = new DeployHatsSignerGateFactory();
-        factoryDeployer.prepare({ _verbose: false, _hatsSignerGateSingleton: singletonHatsSignerGate, _version: version });
-        factoryDeployer.run();
+        // Deploy the HSG implementation with a salt
+        DeployImplementation implementationDeployer = new DeployImplementation();
+        implementationDeployer.prepare(false, version);
+        singletonHatsSignerGate = implementationDeployer.run();
 
         // Cache the deploy params and factory address
-        factory = HatsSignerGateFactory(factoryDeployer.factory());
-        safeFallbackLibrary = factoryDeployer.safeFallbackLibrary();
-        safeMultisendLibrary = factoryDeployer.safeMultisendLibrary();
-        safeFactory = SafeProxyFactory(factoryDeployer.safeProxyFactory());
-        zodiacModuleFactory = ModuleProxyFactory(factoryDeployer.zodiacModuleFactory());
-        singletonSafe = ISafe(payable(factoryDeployer.safeSingleton()));
-        hats = IHats(factoryDeployer.hats());
+        safeFallbackLibrary = implementationDeployer.safeFallbackLibrary();
+        safeMultisendLibrary = implementationDeployer.safeMultisendLibrary();
+        safeFactory = SafeProxyFactory(implementationDeployer.safeProxyFactory());
+        zodiacModuleFactory = ModuleProxyFactory(implementationDeployer.zodiacModuleFactory());
+        singletonSafe = ISafe(payable(implementationDeployer.safeSingleton()));
+        hats = IHats(implementationDeployer.hats());
 
         // Create test signer addresses
         (pks, signerAddresses) = _createAddressesFromPks(10);
@@ -289,7 +285,7 @@ contract TestSuite is SafeTestHelpers {
 
         signerHat = signerHats[0];
 
-        // Set up default test HSG params
+        // Set default test HSG params
         minThreshold = 2;
         targetThreshold = 2;
         maxSigners = 5;
@@ -299,7 +295,7 @@ contract TestSuite is SafeTestHelpers {
                               DEPLOYMENT HELPERS
     //////////////////////////////////////////////////////////////*/
 
-    function _deploySafe(address[] memory _owners, uint256 _threshold) public returns (ISafe) {
+    function _deploySafe(address[] memory _owners, uint256 _threshold, uint256 _saltNonce) internal returns (ISafe) {
         // encode safe setup parameters
         bytes memory params = abi.encodeWithSignature(
             "setup(address[],uint256,address,bytes,address,address,uint256,address)",
@@ -314,7 +310,40 @@ contract TestSuite is SafeTestHelpers {
         );
 
         // deploy proxy of singleton from factory
-        return ISafe(payable(safeFactory.createProxyWithNonce(address(singletonSafe), params, 1)));
+        return ISafe(payable(safeFactory.createProxyWithNonce(address(singletonSafe), params, _saltNonce)));
+    }
+
+    function _deployHSG(
+        uint256 _ownerHat,
+        uint256[] memory _signerHats,
+        uint256 _minThreshold,
+        uint256 _targetThreshold,
+        uint256 _maxSigners,
+        address _safe,
+        bytes4 _expectedError,
+        bool _verbose
+    ) internal returns (HatsSignerGate) {
+        // create the instance deployer
+        DeployInstance instanceDeployer = new DeployInstance();
+        instanceDeployer.prepare(
+            _verbose,
+            address(singletonHatsSignerGate),
+            _ownerHat,
+            _signerHats,
+            _minThreshold,
+            _targetThreshold,
+            _maxSigners,
+            _safe,
+            version,
+            TEST_SALT_NONCE
+        );
+
+        if (_expectedError > 0) {
+            vm.expectRevert(_expectedError);
+        }
+
+        // deploy the instance
+        return instanceDeployer.run();
     }
 
     function _deployHSGAndSafe(
@@ -322,15 +351,29 @@ contract TestSuite is SafeTestHelpers {
         uint256[] memory _signerHats,
         uint256 _minThreshold,
         uint256 _targetThreshold,
-        uint256 _maxSigners
-    ) public returns (HatsSignerGate _hatsSignerGate, ISafe _safe) {
-        address hsg;
-        address safe_;
-        (hsg, safe_) =
-            factory.deployHatsSignerGateAndSafe(_ownerHat, _signerHats, _minThreshold, _targetThreshold, _maxSigners);
+        uint256 _maxSigners,
+        bool _verbose
+    ) internal returns (HatsSignerGate _hatsSignerGate, ISafe _safe) {
+        // create the instance deployer
+        DeployInstance instanceDeployer = new DeployInstance();
+        instanceDeployer.prepare(
+            _verbose,
+            address(singletonHatsSignerGate),
+            _ownerHat,
+            _signerHats,
+            _minThreshold,
+            _targetThreshold,
+            _maxSigners,
+            address(0),
+            version,
+            TEST_SALT_NONCE
+        );
+        _hatsSignerGate = instanceDeployer.run();
+        _safe = _hatsSignerGate.safe();
+    }
 
-        _hatsSignerGate = HatsSignerGate(hsg);
-        _safe = ISafe(payable(safe_));
+    function _getSafeGuard(address _safe) internal view returns (address) {
+        return abi.decode(StorageAccessible(_safe).getStorageAt(uint256(GUARD_STORAGE_SLOT), 1), (address));
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -365,12 +408,19 @@ contract TestSuite is SafeTestHelpers {
             hats.setHatWearerStatus(_hat, _wearer, false, true);
         }
     }
+
+    function assertValidSignerHats(uint256[] memory _signerHats) public {
+        for (uint256 i = 0; i < _signerHats.length; i++) {
+            assertTrue(hatsSignerGate.validSignerHats(_signerHats[i]));
+        }
+    }
 }
 
 contract WithHSGInstanceTest is TestSuite {
     function setUp() public override {
         super.setUp();
 
-        (hatsSignerGate, safe) = _deployHSGAndSafe(ownerHat, signerHats, minThreshold, targetThreshold, maxSigners);
+        (hatsSignerGate, safe) =
+            _deployHSGAndSafe(ownerHat, signerHats, minThreshold, targetThreshold, maxSigners, false);
     }
 }
