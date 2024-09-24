@@ -132,7 +132,7 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
     // set the instance's safe and signer parameters
     safe = ISafe(params.safe);
     _addSignerHats(params.signerHats);
-    maxSigners = params.maxSigners;
+    _setMaxSigners(params.maxSigners, params.targetThreshold);
     _setTargetThreshold(params.targetThreshold);
     _setMinThreshold(params.minThreshold);
 
@@ -280,6 +280,14 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
   /// @param _minThreshold The new minimum threshold
   function setMinThreshold(uint256 _minThreshold) public onlyOwner onlyUnlocked {
     _setMinThreshold(_minThreshold);
+  }
+
+  /// @notice Sets a new maximum number of signers
+  /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.
+  /// Reverts if `_maxSigners` is less than the current number of valid signers or lower than `targetThreshold`
+  /// @param _maxSigners The new maximum number of signers
+  function setMaxSigners(uint256 _maxSigners) public onlyOwner onlyUnlocked {
+    _setMaxSigners(_maxSigners, targetThreshold);
   }
 
   /*//////////////////////////////////////////////////////////////
@@ -610,6 +618,19 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
         ++i;
       }
     }
+  }
+
+  /// @dev Internal function to set a new maximum number of signers
+  /// Reverts if `_maxSigners` is less than the current number of valid signers or lower than `targetThreshold`
+  /// @param _maxSigners The new maximum number of signers
+  /// @param _targetThreshold The existing target threshold
+  function _setMaxSigners(uint256 _maxSigners, uint256 _targetThreshold) internal {
+    if (_maxSigners < validSignerCount() || _maxSigners < _targetThreshold) {
+      revert InvalidMaxSigners();
+    }
+
+    maxSigners = _maxSigners;
+    emit HSGEvents.MaxSignersSet(_maxSigners);
   }
 
   /// @notice Internal function that adds `_signer` as an owner on `safe`, updating the threshold if appropriate

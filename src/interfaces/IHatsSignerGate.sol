@@ -17,6 +17,9 @@ library HSGEvents {
   /// @notice Emitted when the owner hat is updated
   event OwnerHatUpdated(uint256 ownerHat);
 
+  /// @notice Emitted when the maximum number of signers is set
+  event MaxSignersSet(uint256 maxSigners);
+
   /// @notice Emitted when the contract is locked, preventing any further changes to settings
   event Locked();
 }
@@ -82,6 +85,9 @@ interface IHatsSignerGate {
 
   /// @notice Min threshold cannot be higher than `maxSigners` or `targetThreshold`
   error InvalidMinThreshold();
+
+  /// @notice Max signers cannot be less than `targetThreshold` or `validSignerCount`
+  error InvalidMaxSigners();
 
   /// @notice Signers already on the `safe` cannot claim twice
   error SignerAlreadyClaimed(address signer);

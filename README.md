@@ -44,6 +44,7 @@ The wearer of the `ownerHat` can make the following changes to Hats Signer Gate:
 2. Set the acceptable multisig threshold range by changing `minThreshold` and `targetThreshold`
 3. Add other Zodiac modules to the multisig
 4. Add other Hats as valid signer Hats
+5. Change the `maxSigners`
 
 ### Deploying New Instances
 

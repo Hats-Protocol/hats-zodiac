@@ -333,6 +333,136 @@ contract AddingSigners is WithHSGInstanceTest {
   }
 }
 
+contract SettingMaxSigners is WithHSGInstanceTest {
+  function test_aboveBothCriteria() public {
+    // set the max signers to a number greater than the current valid signer count and target threshold
+    uint256 newMaxSigners = 3;
+    assertGt(newMaxSigners, hatsSignerGate.validSignerCount(), "newMaxSigners is not above validSignerCount");
+    assertGt(newMaxSigners, hatsSignerGate.targetThreshold(), "newMaxSigners is not above targetThreshold");
+
+    vm.prank(owner);
+    vm.expectEmit(false, false, false, true);
+    emit HSGEvents.MaxSignersSet(newMaxSigners);
+    hatsSignerGate.setMaxSigners(newMaxSigners);
+
+    assertEq(hatsSignerGate.maxSigners(), newMaxSigners, "maxSigners is not set to newMaxSigners");
+  }
+
+  function test_aboveValidSignerCount_atTargetThreshold() public {
+    // set the max signers to a number greater than the current valid signer count
+    uint256 newMaxSigners = 3;
+    assertGt(newMaxSigners, hatsSignerGate.validSignerCount(), "newMaxSigners is not above validSignerCount");
+
+    // increase the target threshold to the new max signers so they are equal
+    vm.prank(owner);
+    hatsSignerGate.setTargetThreshold(newMaxSigners);
+    assertEq(newMaxSigners, hatsSignerGate.targetThreshold(), "newMaxSigners is not equal to targetThreshold");
+
+    vm.prank(owner);
+    vm.expectEmit(false, false, false, true);
+    emit HSGEvents.MaxSignersSet(newMaxSigners);
+    hatsSignerGate.setMaxSigners(newMaxSigners);
+
+    assertEq(hatsSignerGate.maxSigners(), newMaxSigners, "maxSigners is not set to newMaxSigners");
+  }
+
+  function test_atValidSignerCount_aboveTargetThreshold() public {
+    // set the max signers to a number equal to the current valid signer count
+    uint256 newMaxSigners = 3;
+    _addSignersSameHat(newMaxSigners, signerHat);
+    assertEq(newMaxSigners, hatsSignerGate.validSignerCount(), "newMaxSigners is not equal to validSignerCount");
+
+    // max signers is above target threshold
+    assertGt(newMaxSigners, hatsSignerGate.targetThreshold(), "newMaxSigners is not above targetThreshold");
+
+    vm.prank(owner);
+    vm.expectEmit(false, false, false, true);
+    emit HSGEvents.MaxSignersSet(newMaxSigners);
+    hatsSignerGate.setMaxSigners(newMaxSigners);
+
+    assertEq(hatsSignerGate.maxSigners(), newMaxSigners, "maxSigners is not set to newMaxSigners");
+  }
+
+  function test_revert_nonOwner() public {
+    uint256 currentMaxSigners = hatsSignerGate.maxSigners();
+    uint256 newMaxSigners = 3;
+
+    vm.expectRevert(IHatsSignerGate.NotOwnerHatWearer.selector);
+    vm.prank(other);
+    hatsSignerGate.setMaxSigners(newMaxSigners);
+
+    assertEq(hatsSignerGate.maxSigners(), currentMaxSigners, "maxSigners should not change");
+  }
+
+  function test_revert_locked() public {
+    uint256 currentMaxSigners = hatsSignerGate.maxSigners();
+
+    vm.prank(owner);
+    hatsSignerGate.lock();
+
+    uint256 newMaxSigners = 3;
+    vm.expectRevert(IHatsSignerGate.Locked.selector);
+    vm.prank(owner);
+    hatsSignerGate.setMaxSigners(newMaxSigners);
+
+    assertEq(hatsSignerGate.maxSigners(), currentMaxSigners, "maxSigners should not change");
+  }
+
+  function test_revert_invalidMaxSigners_belowTargetThreshold() public {
+    uint256 currentMaxSigners = hatsSignerGate.maxSigners();
+    uint256 newMaxSigners = 1;
+    assertLt(newMaxSigners, hatsSignerGate.targetThreshold(), "newMaxSigners should be less than targetThreshold");
+    assertGe(
+      newMaxSigners,
+      hatsSignerGate.validSignerCount(),
+      "newMaxSigners should be greater than or equal to validSignerCount"
+    );
+
+    vm.expectRevert(IHatsSignerGate.InvalidMaxSigners.selector);
+    vm.prank(owner);
+    hatsSignerGate.setMaxSigners(newMaxSigners);
+
+    assertEq(hatsSignerGate.maxSigners(), currentMaxSigners, "maxSigners should not change");
+  }
+
+  function test_revert_invalidMaxSigners_belowValidSignerCount() public {
+    uint256 currentMaxSigners = hatsSignerGate.maxSigners();
+    uint256 newMaxSigners = 2;
+
+    assertGe(
+      newMaxSigners,
+      hatsSignerGate.targetThreshold(),
+      "newMaxSigners should be greater than or equal to targetThreshold"
+    );
+
+    // add two valid signers so that newMaxSigners is less than validSignerCount
+    _addSignersSameHat(3, signerHat);
+    assertLt(newMaxSigners, hatsSignerGate.validSignerCount(), "newMaxSigners should be less than validSignerCount");
+
+    vm.expectRevert(IHatsSignerGate.InvalidMaxSigners.selector);
+    vm.prank(owner);
+    hatsSignerGate.setMaxSigners(newMaxSigners);
+
+    assertEq(hatsSignerGate.maxSigners(), currentMaxSigners, "maxSigners should not change");
+  }
+
+  function test_revert_invalidMaxSigners_belowBothCriteria() public {
+    uint256 currentMaxSigners = hatsSignerGate.maxSigners();
+    uint256 newMaxSigners = 1;
+    assertLt(newMaxSigners, hatsSignerGate.targetThreshold(), "newMaxSigners should be less than targetThreshold");
+
+    // add two valid signers so that newMaxSigners is less than validSignerCount
+    _addSignersSameHat(2, signerHat);
+    assertLt(newMaxSigners, hatsSignerGate.validSignerCount(), "newMaxSigners should be less than validSignerCount");
+
+    vm.expectRevert(IHatsSignerGate.InvalidMaxSigners.selector);
+    vm.prank(owner);
+    hatsSignerGate.setMaxSigners(newMaxSigners);
+
+    assertEq(hatsSignerGate.maxSigners(), currentMaxSigners, "maxSigners should not change");
+  }
+}
+
 contract ClaimingSigners is WithHSGInstanceTest {
   function testClaimSigner() public {
     _setSignerValidity(signerAddresses[3], signerHat, true);
