@@ -22,6 +22,9 @@ library HSGEvents {
 
   /// @notice Emitted when the contract is locked, preventing any further changes to settings
   event Locked();
+
+  /// @notice Emitted when HSG has been detached from its avatar Safe
+  event Detached();
 }
 
 /// @notice Interface for the HatsSignerGate contract
@@ -148,6 +151,7 @@ interface IHatsSignerGate {
   function setTargetThreshold(uint256 _targetThreshold) external;
   function setMinThreshold(uint256 _minThreshold) external;
   function addSignerHats(uint256[] calldata _newSignerHats) external;
+  function detachHSG() external;
 
   // function checkTransaction(
   //   address to,

@@ -18,13 +18,6 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
 
   IHats public immutable HATS;
 
-  /// @dev The head pointer used in the Safe owners linked list, as well as the module linked list
-  address internal constant SENTINELS = address(0x1);
-
-  /// @dev The storage slot used by Safe to store the guard address
-  ///      keccak256("guard_manager.guard.address")
-  bytes32 internal constant GUARD_STORAGE_SLOT = 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
-
   /*//////////////////////////////////////////////////////////////
                             MUTABLE STATE
   //////////////////////////////////////////////////////////////*/
@@ -288,6 +281,13 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
   /// @param _maxSigners The new maximum number of signers
   function setMaxSigners(uint256 _maxSigners) public onlyOwner onlyUnlocked {
     _setMaxSigners(_maxSigners, targetThreshold);
+  }
+
+  /// @notice Detach HSG from the Safe
+  /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.
+  function detachHSG() public onlyOwner onlyUnlocked {
+    _detachHSG(safe);
+    emit HSGEvents.Detached();
   }
 
   /*//////////////////////////////////////////////////////////////

@@ -1167,3 +1167,45 @@ contract ReconcilingSignerCount is WithHSGInstanceTest {
 //     assertEq(safe.getThreshold(), 2, "second threshold check");
 // }
 }
+
+contract DetachingHSG is WithHSGInstanceTest {
+  function test_happy() public {
+    vm.expectEmit(true, true, true, true);
+    emit HSGEvents.Detached();
+    vm.prank(owner);
+    hatsSignerGate.detachHSG();
+
+    assertFalse(safe.isModuleEnabled(address(hatsSignerGate)), "HSG should not be a module");
+    assertEq(_getSafeGuard(address(safe)), address(0), "HSG should not be a guard");
+  }
+
+  function test_revert_nonOwner() public {
+    vm.expectRevert(IHatsSignerGate.NotOwnerHatWearer.selector);
+    vm.prank(other);
+    hatsSignerGate.detachHSG();
+
+    assertTrue(safe.isModuleEnabled(address(hatsSignerGate)), "HSG should still be a module");
+    assertEq(_getSafeGuard(address(safe)), (address(hatsSignerGate)), "HSG should still be a guard");
+  }
+
+  function test_revert_locked() public {
+    // lock the HSG
+    vm.prank(owner);
+    hatsSignerGate.lock();
+
+    vm.expectRevert(IHatsSignerGate.Locked.selector);
+    vm.prank(owner);
+    hatsSignerGate.detachHSG();
+
+    assertTrue(safe.isModuleEnabled(address(hatsSignerGate)), "HSG should still be a module");
+    assertEq(_getSafeGuard(address(safe)), (address(hatsSignerGate)), "HSG should still be a guard");
+  }
+}
+
+contract MigratingHSG is WithHSGInstanceTest {
+    function test_happy() public {}
+
+    function test_revert_nonOwner() public {}
+
+    function test_revert_locked() public {}
+}
