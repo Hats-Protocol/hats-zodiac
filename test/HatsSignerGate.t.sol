@@ -9,23 +9,23 @@ contract Deployment is TestSuite {
   // errors from dependencies
   error InvalidInitialization();
 
-  function test_onlyHSG() public {
+  function test_onlyHSG(bool _locked) public {
     // deploy safe with this contract as the single owner
     address[] memory owners = new address[](1);
     owners[0] = address(this);
     ISafe testSafe = _deploySafe(owners, 1, TEST_SALT_NONCE);
 
-    hatsSignerGate = _deployHSG(
-      ownerHat,
-      signerHats,
-      minThreshold,
-      targetThreshold,
-      maxSigners,
-      // TEST_SALT_NONCE,
-      address(testSafe),
-      bytes4(0), // no expected error
-      false
-    );
+    hatsSignerGate = _deployHSG({
+      _ownerHat: ownerHat,
+      _signerHats: signerHats,
+      _minThreshold: minThreshold,
+      _targetThreshold: targetThreshold,
+      _maxSigners: maxSigners,
+      _safe: address(testSafe),
+      _expectedError: bytes4(0), // no expected error
+      _locked: _locked,
+      _verbose: false
+    });
 
     assertEq(hatsSignerGate.ownerHat(), ownerHat);
     assertValidSignerHats(signerHats);
@@ -36,10 +36,19 @@ contract Deployment is TestSuite {
     assertEq(address(hatsSignerGate.safe()), address(testSafe));
     assertEq(hatsSignerGate.version(), version);
     assertEq(address(hatsSignerGate.implementation()), address(singletonHatsSignerGate));
+    assertEq(hatsSignerGate.locked(), _locked);
   }
 
-  function test_andSafe() public {
-    (hatsSignerGate, safe) = _deployHSGAndSafe(ownerHat, signerHats, minThreshold, targetThreshold, maxSigners, false);
+  function test_andSafe(bool _locked) public {
+    (hatsSignerGate, safe) = _deployHSGAndSafe({
+      _ownerHat: ownerHat,
+      _signerHats: signerHats,
+      _minThreshold: minThreshold,
+      _targetThreshold: targetThreshold,
+      _maxSigners: maxSigners,
+      _locked: _locked,
+      _verbose: false
+    });
 
     assertEq(hatsSignerGate.ownerHat(), ownerHat);
     assertValidSignerHats(signerHats);
@@ -53,6 +62,7 @@ contract Deployment is TestSuite {
     assertEq(_getSafeGuard(address(safe)), address(hatsSignerGate));
     assertTrue(safe.isModuleEnabled(address(hatsSignerGate)));
     assertEq(safe.getOwners()[0], address(hatsSignerGate));
+    assertEq(hatsSignerGate.locked(), _locked);
   }
 
   function test_revert_onlyHSG_existingSafeHasModules() public {
@@ -68,22 +78,30 @@ contract Deployment is TestSuite {
     assertTrue(testSafe.isModuleEnabled(dummyModule), "test safe does not have dummy module enabled");
 
     // deploy an instance of HSG, expecting a revert from a failed initialization
-    hatsSignerGate = _deployHSG(
-      ownerHat,
-      signerHats,
-      minThreshold,
-      targetThreshold,
-      maxSigners,
-      // TEST_SALT_NONCE,
-      address(testSafe),
-      ModuleProxyFactory.FailedInitialization.selector,
-      false
-    );
+    hatsSignerGate = _deployHSG({
+      _ownerHat: ownerHat,
+      _signerHats: signerHats,
+      _minThreshold: minThreshold,
+      _targetThreshold: targetThreshold,
+      _maxSigners: maxSigners,
+      _safe: address(testSafe),
+      _expectedError: ModuleProxyFactory.FailedInitialization.selector,
+      _locked: false,
+      _verbose: false
+    });
   }
 
   function test_revert_reinitializeImplementation() public {
-    bytes memory initializeParams =
-      abi.encode(ownerHat, signerHats, address(safe), minThreshold, targetThreshold, maxSigners, version, 0);
+    bytes memory initializeParams = abi.encode(
+      ownerHat,
+      signerHats,
+      address(safe),
+      minThreshold,
+      targetThreshold,
+      maxSigners,
+      false,
+      address(singletonHatsSignerGate)
+    );
     vm.expectRevert(InvalidInitialization.selector);
     singletonHatsSignerGate.setUp(initializeParams);
   }
@@ -144,6 +162,21 @@ contract AddingSignerHats is WithHSGInstanceTest {
     vm.expectRevert(IHatsSignerGate.NotOwnerHatWearer.selector);
     hatsSignerGate.addSignerHats(hats);
   }
+
+  function test_revert_locked() public {
+    // lock the HSG
+    vm.prank(owner);
+    hatsSignerGate.lock();
+
+    // create and fill an array of signer hats to add, with length = 1
+    uint256[] memory hats = new uint256[](1);
+    hats[0] = 1;
+
+    // expect a revert from the locked HSG
+    vm.expectRevert(IHatsSignerGate.Locked.selector);
+    vm.prank(owner);
+    hatsSignerGate.addSignerHats(hats);
+  }
 }
 
 contract SettingTargetThreshold is WithHSGInstanceTest {
@@ -193,6 +226,15 @@ contract SettingTargetThreshold is WithHSGInstanceTest {
     assertEq(hatsSignerGate.targetThreshold(), 2);
     assertEq(safe.getThreshold(), 1);
   }
+
+  function test_revert_locked() public {
+    vm.prank(owner);
+    hatsSignerGate.lock();
+
+    vm.expectRevert(IHatsSignerGate.Locked.selector);
+    vm.prank(owner);
+    hatsSignerGate.setTargetThreshold(3);
+  }
 }
 
 contract SettingMinThreshold is WithHSGInstanceTest {
@@ -221,6 +263,15 @@ contract SettingMinThreshold is WithHSGInstanceTest {
     hatsSignerGate.setMinThreshold(1);
 
     assertEq(hatsSignerGate.minThreshold(), 2);
+  }
+
+  function test_revert_locked() public {
+    vm.prank(owner);
+    hatsSignerGate.lock();
+
+    vm.expectRevert(IHatsSignerGate.Locked.selector);
+    vm.prank(owner);
+    hatsSignerGate.setMinThreshold(3);
   }
 }
 

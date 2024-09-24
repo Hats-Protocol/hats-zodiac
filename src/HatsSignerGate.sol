@@ -50,6 +50,9 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
   /// @notice The maximum number of signers allowed for the `safe`
   uint256 public maxSigners;
 
+  /// @notice Whether the contract is locked. If true, the owner cannot change any of the contract's settings.
+  bool public locked;
+
   /// @notice The implementation address of this contract
   address public implementation;
 
@@ -66,10 +69,15 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
                               MODIFIERS
   //////////////////////////////////////////////////////////////*/
 
+  /// @notice Only the wearer of the owner hat can change this contract's settings
   modifier onlyOwner() {
-    if (!HATS.isWearerOfHat(msg.sender, ownerHat)) {
-      revert NotOwnerHatWearer();
-    }
+    if (!HATS.isWearerOfHat(msg.sender, ownerHat)) revert NotOwnerHatWearer();
+    _;
+  }
+
+  /// @notice Changes to settings can only be made if the contract is not locked
+  modifier onlyUnlocked() {
+    if (locked) revert Locked();
     _;
   }
 
@@ -90,6 +98,7 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
     // set the implementation's owner hat to a nonexistent hat to prevent state changes to the implementation
     ownerHat = 1;
 
+    // set the implementation's version; this will also be set on each instance deployed from this implementation
     version = _version;
   }
 
@@ -100,40 +109,36 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
   /**
    * @notice Initializes a new instance of MultiHatsSignerGate
    * @dev Can only be called once
-   * @param initializeParams ABI-encoded bytes with initialization parameters
-   * @custom:field _ownerHatId The id of the owner hat
-   * @custom:field _signerHats The ids of the signer hats
-   * @custom:field _safe The address of the existing safe, or zero address to deploy a new safe
-   * @custom:field _minThreshold The minimum signature threshold
-   * @custom:field _targetThreshold The target signature threshold
-   * @custom:field _maxSigners The maximum number of signers
-   * @custom:field _implementation The HatsSignerGate implementation address
+   * @param initializeParams ABI-encoded bytes with initialization parameters, as defined in
+   * {IHatsSignerGate.SetupParams}
    */
   function setUp(bytes calldata initializeParams) public payable initializer {
-    (
-      uint256 _ownerHatId,
-      uint256[] memory _signerHats,
-      address _safe,
-      uint256 _minThreshold,
-      uint256 _targetThreshold,
-      uint256 _maxSigners,
-      address _implementation
-    ) = abi.decode(initializeParams, (uint256, uint256[], address, uint256, uint256, uint256, address));
+    SetupParams memory params = abi.decode(initializeParams, (SetupParams));
 
-    bool emptySafe = _safe == address(0);
-
-    if (emptySafe) {
-      _safe = _deploySafeAndAttachHSG();
+    // deploy a new safe if there is no provided safe
+    if (params.safe == address(0)) {
+      params.safe = _deploySafeAndAttachHSG();
+    } else {
+      // otherwise, assert that HSG can attach to the existing safe before proceeding
+      if (!_canAttachToSafe(ISafe(params.safe))) revert CannotAttachToSafe();
     }
 
-    _setUpHSG(_ownerHatId, _safe, _minThreshold, _targetThreshold, _maxSigners, _implementation);
+    // set the instance's owner hat
+    _setOwnerHat(params.ownerHat);
 
-    _addSignerHats(_signerHats);
+    // lock the instance if configured as such
+    if (params.locked) _lock();
 
-    // TODO optimize this so that we don't have to do another if statement here
-    if (!emptySafe) {
-      if (!_canAttachToSafe(ISafe(_safe))) revert CannotAttachToSafe();
-    }
+    // set the instance's safe and signer parameters
+    safe = ISafe(params.safe);
+    _addSignerHats(params.signerHats);
+    maxSigners = params.maxSigners;
+    _setTargetThreshold(params.targetThreshold);
+    _setMinThreshold(params.minThreshold);
+
+    // set the instance's metadata
+    version = HatsSignerGate(params.implementation).version();
+    implementation = params.implementation;
   }
 
   /*//////////////////////////////////////////////////////////////
@@ -236,35 +241,45 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
                         OWNER FUNCTIONS
   //////////////////////////////////////////////////////////////*/
 
+  /// @notice Irreversibly locks the contract, preventing any further changes to the contract's settings.
+  /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.
+  function lock() public onlyOwner onlyUnlocked {
+    _lock();
+  }
+
   /// @notice Sets the owner hat
-  /// @dev Only callable by a wearer of the current owner hat
+  /// @dev Only callable by a wearer of the current owner hat, and only if the contract is not locked
   /// @param _ownerHat The new owner hat
-  function setOwnerHat(uint256 _ownerHat) public onlyOwner {
-    ownerHat = _ownerHat;
-    emit HSGEvents.OwnerHatUpdated(_ownerHat);
+  function setOwnerHat(uint256 _ownerHat) public onlyOwner onlyUnlocked {
+    _setOwnerHat(_ownerHat);
+  }
+
+  /// @notice Adds new approved signer hats
+  /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.
+  /// @param _newSignerHats Array of hat ids to add as approved signer hats
+  function addSignerHats(uint256[] calldata _newSignerHats) external onlyOwner onlyUnlocked {
+    _addSignerHats(_newSignerHats);
   }
 
   /// @notice Sets a new target threshold, and changes `safe`'s threshold if appropriate
-  /// @dev Only callable by a wearer of the owner hat. Reverts if `_targetThreshold` is greater than `maxSigners`.
+  /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.
+  /// Reverts if `_targetThreshold` is greater than `maxSigners`.
   /// @param _targetThreshold The new target threshold to set
-  function setTargetThreshold(uint256 _targetThreshold) public onlyOwner {
+  function setTargetThreshold(uint256 _targetThreshold) public onlyOwner onlyUnlocked {
     if (_targetThreshold != targetThreshold) {
       _setTargetThreshold(_targetThreshold);
 
       uint256 signerCount = validSignerCount();
       if (signerCount > 1) _setSafeThreshold(_targetThreshold, signerCount);
-
-      emit HSGEvents.TargetThresholdSet(_targetThreshold);
     }
   }
 
   /// @notice Sets a new minimum threshold
-  /// @dev Only callable by a wearer of the owner hat. Reverts if `_minThreshold` is greater than `maxSigners` or
-  /// `targetThreshold`
+  /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.
+  /// Reverts if `_minThreshold` is greater than `maxSigners` or `targetThreshold`
   /// @param _minThreshold The new minimum threshold
-  function setMinThreshold(uint256 _minThreshold) public onlyOwner {
+  function setMinThreshold(uint256 _minThreshold) public onlyOwner onlyUnlocked {
     _setMinThreshold(_minThreshold);
-    emit HSGEvents.MinThresholdSet(_minThreshold);
   }
 
   /*//////////////////////////////////////////////////////////////
@@ -398,14 +413,6 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
     valid = HATS.isWearerOfHat(_account, claimedSignerHats[_account]);
   }
 
-  /// @notice Adds new approved signer hats
-  /// @param _newSignerHats Array of hat ids to add as approved signer hats
-  function addSignerHats(uint256[] calldata _newSignerHats) external onlyOwner {
-    _addSignerHats(_newSignerHats);
-
-    emit HSGEvents.SignerHatsAdded(_newSignerHats);
-  }
-
   /// @notice A `_hatId` is valid if it is included in the `validSignerHats` mapping
   /// @param _hatId The hat id to check
   /// @return valid Whether `_hatId` is a valid signer hat
@@ -485,32 +492,11 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
                       INTERNAL HELPER FUNCTIONS
   //////////////////////////////////////////////////////////////*/
 
-  /// @notice Internal function to initialize a new instance
-  /// @param _ownerHatId The hat id of the hat that owns this instance of HatsSignerGate
-  /// @param _safe The multisig to which this instance of HatsSignerGate is attached
-  /// @param _minThreshold The minimum threshold for the `_safe`
-  /// @param _targetThreshold The maxium threshold for the `_safe`
-  /// @param _maxSigners The maximum number of signers allowed on the `_safe`
-  /// @param _implementation The implementation address of this contract
-  function _setUpHSG(
-    uint256 _ownerHatId,
-    address _safe,
-    uint256 _minThreshold,
-    uint256 _targetThreshold,
-    uint256 _maxSigners,
-    address _implementation
-  ) internal {
-    ownerHat = _ownerHatId;
-
-    maxSigners = _maxSigners;
-    safe = ISafe(_safe);
-
-    _setTargetThreshold(_targetThreshold);
-    _setMinThreshold(_minThreshold);
-    version = HatsSignerGate(_implementation).version();
-    implementation = _implementation;
-
-    emit HSGEvents.OwnerHatUpdated(_ownerHatId);
+  /// @dev Internal function to set the owner hat
+  /// @param _ownerHat The hat id to set as the owner hat
+  function _setOwnerHat(uint256 _ownerHat) internal {
+    ownerHat = _ownerHat;
+    emit HSGEvents.OwnerHatUpdated(_ownerHat);
   }
 
   /**
@@ -545,6 +531,8 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
         ++i;
       }
     }
+
+    emit HSGEvents.SignerHatsAdded(_newSignerHats);
   }
 
   /// @notice Internal function to set the target threshold
@@ -561,6 +549,7 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
     }
 
     targetThreshold = _targetThreshold;
+    emit HSGEvents.TargetThresholdSet(_targetThreshold);
   }
 
   /// @notice Internal function to set the threshold for the `safe`
@@ -600,6 +589,7 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
     }
 
     minThreshold = _minThreshold;
+    emit HSGEvents.MinThresholdSet(_minThreshold);
   }
 
   /// @notice Internal function to count the number of valid signers in an array of addresses
@@ -805,5 +795,11 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
     if (count < min) _threshold = min;
     else if (count > max) _threshold = max;
     else _threshold = count;
+  }
+
+  /// @dev Locks the contract, preventing any further owner changes
+  function _lock() internal {
+    locked = true;
+    emit HSGEvents.Locked();
   }
 }
