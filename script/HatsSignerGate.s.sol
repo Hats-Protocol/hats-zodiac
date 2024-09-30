@@ -91,6 +91,7 @@ contract DeployInstance is BaseScript {
   uint256 public maxSigners;
   address public safe;
   bool public locked;
+  bool public claimableFor;
 
   function prepare(
     bool _verbose,
@@ -102,6 +103,7 @@ contract DeployInstance is BaseScript {
     uint256 _maxSigners,
     address _safe,
     bool _locked,
+    bool _claimableFor,
     uint256 _saltNonce
   ) public {
     verbose = _verbose;
@@ -113,6 +115,7 @@ contract DeployInstance is BaseScript {
     maxSigners = _maxSigners;
     safe = _safe;
     locked = _locked;
+    claimableFor = _claimableFor;
     saltNonce = _saltNonce;
   }
 
@@ -137,6 +140,7 @@ contract DeployInstance is BaseScript {
       targetThreshold: targetThreshold,
       maxSigners: maxSigners,
       locked: locked,
+      claimableFor: claimableFor,
       implementation: implementation
     });
     return params;

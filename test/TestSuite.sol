@@ -320,6 +320,7 @@ contract TestSuite is SafeTestHelpers {
     uint256 _maxSigners,
     address _safe,
     bool _locked,
+    bool _claimableFor,
     bytes4 _expectedError,
     bool _verbose
   ) internal returns (HatsSignerGate) {
@@ -335,6 +336,7 @@ contract TestSuite is SafeTestHelpers {
       _maxSigners,
       _safe,
       _locked,
+      _claimableFor,
       TEST_SALT_NONCE
     );
 
@@ -353,7 +355,8 @@ contract TestSuite is SafeTestHelpers {
     uint256 _targetThreshold,
     uint256 _maxSigners,
     bool _locked,
-    bool _verbose
+    bool _verbose,
+    bool _claimableFor
   ) internal returns (HatsSignerGate _hatsSignerGate, ISafe _safe) {
     // create the instance deployer
     DeployInstance instanceDeployer = new DeployInstance();
@@ -367,6 +370,7 @@ contract TestSuite is SafeTestHelpers {
       _maxSigners,
       address(0),
       _locked,
+      _claimableFor,
       TEST_SALT_NONCE
     );
     _hatsSignerGate = instanceDeployer.run();
@@ -428,6 +432,7 @@ contract WithHSGInstanceTest is TestSuite {
       _targetThreshold: targetThreshold,
       _maxSigners: maxSigners,
       _locked: false,
+      _claimableFor: false,
       _verbose: false
     });
   }

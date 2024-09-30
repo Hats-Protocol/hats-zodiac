@@ -10,7 +10,7 @@ contract Deployment is TestSuite {
   // errors from dependencies
   error InvalidInitialization();
 
-  function test_onlyHSG(bool _locked) public {
+  function test_onlyHSG(bool _locked, bool _claimableFor) public {
     // deploy safe with this contract as the single owner
     address[] memory owners = new address[](1);
     owners[0] = address(this);
@@ -25,6 +25,7 @@ contract Deployment is TestSuite {
       _safe: address(testSafe),
       _expectedError: bytes4(0), // no expected error
       _locked: _locked,
+      _claimableFor: _claimableFor,
       _verbose: false
     });
 
@@ -38,9 +39,10 @@ contract Deployment is TestSuite {
     assertEq(hatsSignerGate.version(), version);
     assertEq(address(hatsSignerGate.implementation()), address(singletonHatsSignerGate));
     assertEq(hatsSignerGate.locked(), _locked);
+    assertEq(hatsSignerGate.claimableFor(), _claimableFor);
   }
 
-  function test_andSafe(bool _locked) public {
+  function test_andSafe(bool _locked, bool _claimableFor) public {
     (hatsSignerGate, safe) = _deployHSGAndSafe({
       _ownerHat: ownerHat,
       _signerHats: signerHats,
@@ -48,6 +50,7 @@ contract Deployment is TestSuite {
       _targetThreshold: targetThreshold,
       _maxSigners: maxSigners,
       _locked: _locked,
+      _claimableFor: _claimableFor,
       _verbose: false
     });
 
@@ -64,6 +67,7 @@ contract Deployment is TestSuite {
     assertTrue(safe.isModuleEnabled(address(hatsSignerGate)));
     assertEq(safe.getOwners()[0], address(hatsSignerGate));
     assertEq(hatsSignerGate.locked(), _locked);
+    assertEq(hatsSignerGate.claimableFor(), _claimableFor);
   }
 
   function test_revert_reinitializeImplementation() public {
@@ -1195,6 +1199,7 @@ contract MigratingHSG is WithHSGInstanceTest {
       maxSigners,
       address(safe),
       false,
+      false,
       1
     );
 
@@ -1226,5 +1231,39 @@ contract MigratingHSG is WithHSGInstanceTest {
     vm.expectRevert(IHatsSignerGate.Locked.selector);
     vm.prank(owner);
     hatsSignerGate.migrateToNewHSG(address(newHSG));
+  }
+}
+
+contract SettingClaimableFor is WithHSGInstanceTest {
+  function test_happy(bool _claimableFor) public {
+    vm.expectEmit(true, true, true, true);
+    emit HSGEvents.ClaimableForSet(_claimableFor);
+    vm.prank(owner);
+    hatsSignerGate.setClaimableFor(_claimableFor);
+
+    assertEq(hatsSignerGate.claimableFor(), _claimableFor, "incorrectclaimableFor");
+  }
+
+  function test_revert_nonOwner() public {
+    bool currentClaimableFor = hatsSignerGate.claimableFor();
+
+    vm.expectRevert(IHatsSignerGate.NotOwnerHatWearer.selector);
+    vm.prank(other);
+    hatsSignerGate.setClaimableFor(true);
+
+    assertEq(hatsSignerGate.claimableFor(), currentClaimableFor, "claimableFor should not be changed");
+  }
+
+  function test_revert_locked() public {
+    bool currentClaimableFor = hatsSignerGate.claimableFor();
+
+    vm.prank(owner);
+    hatsSignerGate.lock();
+
+    vm.expectRevert(IHatsSignerGate.Locked.selector);
+    vm.prank(owner);
+    hatsSignerGate.setClaimableFor(true);
+
+    assertEq(hatsSignerGate.claimableFor(), currentClaimableFor, "claimableFor should not be changed");
   }
 }

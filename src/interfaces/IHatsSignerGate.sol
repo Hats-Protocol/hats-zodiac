@@ -23,6 +23,9 @@ library HSGEvents {
   /// @notice Emitted when the contract is locked, preventing any further changes to settings
   event Locked();
 
+  /// @notice Emitted when the claimableFor parameter is set
+  event ClaimableForSet(bool claimableFor);
+
   /// @notice Emitted when HSG has been detached from its avatar Safe
   event Detached();
 
@@ -44,6 +47,7 @@ interface IHatsSignerGate {
   /// @param targetThreshold The target signature threshold
   /// @param maxSigners The maximum number of signers
   /// @param locked Whether the contract is locked
+  /// @param claimableFor Whether signer permissions can be claimed on behalf of valid hat wearers
   /// @param implementation The address of the HatsSignerGate implementation
   struct SetupParams {
     uint256 ownerHat;
@@ -53,6 +57,7 @@ interface IHatsSignerGate {
     uint256 targetThreshold;
     uint256 maxSigners;
     bool locked;
+    bool claimableFor;
     address implementation;
   }
 
@@ -124,6 +129,9 @@ interface IHatsSignerGate {
   /// @notice Owner cannot change settings once the contract is locked
   error Locked();
 
+  /// @notice Signer permissions cannot be claimed on behalf of valid hat wearers if this is not set
+  error NotClaimableFor();
+
   /*//////////////////////////////////////////////////////////////
                               FUNCTIONS
   //////////////////////////////////////////////////////////////*/
@@ -131,6 +139,7 @@ interface IHatsSignerGate {
   // TODO make sure all functions implemented in HatsSignerGate are included here
 
   function setUp(bytes calldata initializeParams) external payable;
+  function claimSignerFor(uint256 _hatId, address _for) external;
   function claimSigner(uint256 _hatId) external;
   function removeSigner(address _signer) external;
   function reconcileSignerCount() external;
@@ -139,6 +148,7 @@ interface IHatsSignerGate {
   function setTargetThreshold(uint256 _targetThreshold) external;
   function setMinThreshold(uint256 _minThreshold) external;
   function addSignerHats(uint256[] calldata _newSignerHats) external;
+  function setClaimableFor(bool _claimableFor) external;
   function detachHSG() external;
   function migrateToNewHSG(address _newHSG) external;
 

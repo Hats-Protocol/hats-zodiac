@@ -56,6 +56,9 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
   /// @notice Whether the contract is locked. If true, the owner cannot change any of the contract's settings.
   bool public locked;
 
+  /// @notice Whether signer permissions can be claimed on behalf of valid hat wearers
+  bool public claimableFor;
+
   /// @notice The implementation address of this contract
   address public implementation;
 
@@ -136,6 +139,9 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
     // lock the instance if configured as such
     if (params.locked) _lock();
 
+    // set the instance's claimableFor flag
+    _setClaimableFor(params.claimableFor);
+
     // set the instance's safe and signer parameters
     safe = ISafe(params.safe);
     _addSignerHats(params.signerHats);
@@ -157,46 +163,15 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
   /// with existing invalid owner if relevant.
   /// @param _hatId The hat id to claim signer rights for
   function claimSigner(uint256 _hatId) public {
-    uint256 maxSigs = maxSigners; // save SLOADs
-    address[] memory owners = safe.getOwners();
+    _claimSigner(_hatId, msg.sender);
+  }
 
-    uint256 currentSignerCount = _countValidSigners(owners);
+  /// @notice Claims signer permissions for a valid hat wearer on behalf of the caller
+  /// @param _hatId The hat id to claim signer rights for
+  function claimSignerFor(uint256 _hatId, address _for) public {
+    if (!claimableFor) revert NotClaimableFor();
 
-    if (currentSignerCount >= maxSigs) {
-      revert MaxSignersReached();
-    }
-
-    if (safe.isOwner(msg.sender)) {
-      revert SignerAlreadyClaimed(msg.sender);
-    }
-
-    if (!isValidSignerHat(_hatId)) {
-      revert InvalidSignerHat(_hatId);
-    }
-
-    if (!HATS.isWearerOfHat(msg.sender, _hatId)) {
-      revert NotSignerHatWearer(msg.sender);
-    }
-
-    /* 
-        We check the safe owner count in case there are existing owners who are no longer valid signers. 
-        If we're already at maxSigners, we'll replace one of the invalid owners by swapping the signer.
-        Otherwise, we'll simply add the new signer.
-        */
-    uint256 ownerCount = owners.length;
-
-    if (ownerCount >= maxSigs) {
-      bool swapped = _swapSigner(owners, ownerCount, msg.sender);
-      if (!swapped) {
-        // if there are no invalid owners, we can't add a new signer, so we revert
-        revert NoInvalidSignersToReplace();
-      }
-    } else {
-      _grantSigner(owners, currentSignerCount, msg.sender);
-    }
-
-    // register the hat used to claim. This will be the hat checked in `checkTransaction()` for this signer
-    claimedSignerHats[msg.sender] = _hatId;
+    _claimSigner(_hatId, _for);
   }
 
   /// @notice Removes an invalid signer from the `safe`, updating the threshold if appropriate
@@ -284,6 +259,13 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
   /// @param _maxSigners The new maximum number of signers
   function setMaxSigners(uint256 _maxSigners) public onlyOwner onlyUnlocked {
     _setMaxSigners(_maxSigners, targetThreshold);
+  }
+
+  /// @notice Sets whether signer permissions can be claimed on behalf of valid hat wearers
+  /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.
+  /// @param _claimableFor Whether signer permissions can be claimed on behalf of valid hat wearers
+  function setClaimableFor(bool _claimableFor) public onlyOwner onlyUnlocked {
+    _setClaimableFor(_claimableFor);
   }
 
   /// @notice Detach HSG from the Safe
@@ -626,6 +608,13 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
     emit HSGEvents.MaxSignersSet(_maxSigners);
   }
 
+  /// @notice Internal function to set the claimableFor parameter
+  /// @param _claimableFor Whether signer permissions are claimable on behalf of valid hat wearers
+  function _setClaimableFor(bool _claimableFor) internal {
+    claimableFor = _claimableFor;
+    emit HSGEvents.ClaimableForSet(_claimableFor);
+  }
+
   /// @notice Internal function that adds `_signer` as an owner on `safe`, updating the threshold if appropriate
   /// @dev Unsafe. Does not check if `_signer` is a valid signer
   /// @param _owners Array of owners on the `safe`
@@ -671,6 +660,49 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
     if (!success) {
       revert SafeManagerLib.FailedExecAddSigner();
     }
+  }
+
+  function _claimSigner(uint256 _hatId, address _signer) internal {
+    uint256 maxSigs = maxSigners; // save SLOADs
+    address[] memory owners = safe.getOwners();
+
+    uint256 currentSignerCount = _countValidSigners(owners);
+
+    if (currentSignerCount >= maxSigs) {
+      revert MaxSignersReached();
+    }
+
+    if (safe.isOwner(_signer)) {
+      revert SignerAlreadyClaimed(_signer);
+    }
+
+    if (!isValidSignerHat(_hatId)) {
+      revert InvalidSignerHat(_hatId);
+    }
+
+    if (!HATS.isWearerOfHat(_signer, _hatId)) {
+      revert NotSignerHatWearer(_signer);
+    }
+
+    /* 
+        We check the safe owner count in case there are existing owners who are no longer valid signers. 
+        If we're already at maxSigners, we'll replace one of the invalid owners by swapping the signer.
+        Otherwise, we'll simply add the new signer.
+        */
+    uint256 ownerCount = owners.length;
+
+    if (ownerCount >= maxSigs) {
+      bool swapped = _swapSigner(owners, ownerCount, _signer);
+      if (!swapped) {
+        // if there are no invalid owners, we can't add a new signer, so we revert
+        revert NoInvalidSignersToReplace();
+      }
+    } else {
+      _grantSigner(owners, currentSignerCount, _signer);
+    }
+
+    // register the hat used to claim. This will be the hat checked in `checkTransaction()` for this signer
+    claimedSignerHats[_signer] = _hatId;
   }
 
   /// @notice Internal function that adds `_signer` as an owner on `safe` by swapping with an existing (invalid) owner
