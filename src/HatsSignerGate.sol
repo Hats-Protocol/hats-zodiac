@@ -163,12 +163,18 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
   /// with existing invalid owner if relevant.
   /// @param _hatId The hat id to claim signer rights for
   function claimSigner(uint256 _hatId) public {
-    _claimSigner(_hatId, msg.sender);
+    address[] memory owners = safe.getOwners();
+    _claimSigner(owners, _hatId, msg.sender);
   }
 
-  /// @notice Claims signer permissions for a valid hat wearer on behalf of the caller
+  /// @notice Claims signer permissions for a valid wearer of `_hatId` on behalf of `_signer`
   /// @param _hatId The hat id to claim signer rights for
-  function claimSignerFor(uint256 _hatId, address _for) public {
+  function claimSignerFor(uint256 _hatId, address _signer) public {
+    if (!claimableFor) revert NotClaimableFor();
+
+    address[] memory owners = safe.getOwners();
+    _claimSigner(owners, _hatId, _signer);
+  }
     if (!claimableFor) revert NotClaimableFor();
 
     _claimSigner(_hatId, _for);
@@ -651,54 +657,43 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
       }
 
       // set up the addOwner call
-      addOwnerData = abi.encodeWithSignature("addOwnerWithThreshold(address,uint256)", _signer, newThreshold);
+      addOwnerData = SafeManagerLib.encodeAddOwnerWithThresholdAction(_signer, newThreshold);
     }
 
     // execute the call
     bool success = safe.execTransactionFromHSG(addOwnerData);
 
-    if (!success) {
-      revert SafeManagerLib.FailedExecAddSigner();
-    }
+    if (!success) revert SafeManagerLib.FailedExecAddSigner();
   }
 
-  function _claimSigner(uint256 _hatId, address _signer) internal {
+  function _claimSigner(address[] memory _owners, uint256 _hatId, address _signer) internal {
     uint256 maxSigs = maxSigners; // save SLOADs
-    address[] memory owners = safe.getOwners();
 
-    uint256 currentSignerCount = _countValidSigners(owners);
+    uint256 currentSignerCount = _countValidSigners(_owners);
 
-    if (currentSignerCount >= maxSigs) {
-      revert MaxSignersReached();
-    }
+    if (currentSignerCount >= maxSigs) revert MaxSignersReached();
 
-    if (safe.isOwner(_signer)) {
-      revert SignerAlreadyClaimed(_signer);
-    }
+    if (safe.isOwner(_signer)) revert SignerAlreadyClaimed(_signer);
 
-    if (!isValidSignerHat(_hatId)) {
-      revert InvalidSignerHat(_hatId);
-    }
+    if (!isValidSignerHat(_hatId)) revert InvalidSignerHat(_hatId);
 
-    if (!HATS.isWearerOfHat(_signer, _hatId)) {
-      revert NotSignerHatWearer(_signer);
-    }
+    if (!HATS.isWearerOfHat(_signer, _hatId)) revert NotSignerHatWearer(_signer);
 
     /* 
         We check the safe owner count in case there are existing owners who are no longer valid signers. 
         If we're already at maxSigners, we'll replace one of the invalid owners by swapping the signer.
         Otherwise, we'll simply add the new signer.
         */
-    uint256 ownerCount = owners.length;
+    uint256 ownerCount = _owners.length;
 
     if (ownerCount >= maxSigs) {
-      bool swapped = _swapSigner(owners, ownerCount, _signer);
-      if (!swapped) {
+      bool swapped = _swapSigner(_owners, ownerCount, _signer);
+
         // if there are no invalid owners, we can't add a new signer, so we revert
-        revert NoInvalidSignersToReplace();
-      }
+      if (!swapped) revert NoInvalidSignersToReplace();
     } else {
-      _grantSigner(owners, currentSignerCount, _signer);
+      // otherwise, we add the new signer
+      _grantSigner(_owners, currentSignerCount, _signer);
     }
 
     // register the hat used to claim. This will be the hat checked in `checkTransaction()` for this signer
@@ -718,18 +713,7 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
       ownerToCheck = _owners[i];
 
       if (!isValidSigner(ownerToCheck)) {
-        // prep the swap
-        // data = SafeManagerLib.encodeSwapOwnerAction(
-        //   SafeManagerLib.findPrevOwner(_owners, ownerToCheck), ownerToCheck, _signer
-        // );
-
-        // // execute the swap, reverting if it fails for some reason
-        // success = safe.execTransactionFromHSG(data);
-
-        // if (!success) {
-        //   revert FailedExecRemoveSigner();
-        // }
-
+        // reverts if the swap fails
         success = safe.execSwapOwner(SafeManagerLib.findPrevOwner(_owners, ownerToCheck), ownerToCheck, _signer);
 
         break;
