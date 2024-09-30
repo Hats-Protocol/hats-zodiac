@@ -17,9 +17,6 @@ library HSGEvents {
   /// @notice Emitted when the owner hat is updated
   event OwnerHatUpdated(uint256 ownerHat);
 
-  /// @notice Emitted when the maximum number of signers is set
-  event MaxSignersSet(uint256 maxSigners);
-
   /// @notice Emitted when the contract is locked, preventing any further changes to settings
   event Locked();
 
@@ -45,7 +42,6 @@ interface IHatsSignerGate {
   /// @param safe The address of the safe
   /// @param minThreshold The minimum signature threshold
   /// @param targetThreshold The target signature threshold
-  /// @param maxSigners The maximum number of signers
   /// @param locked Whether the contract is locked
   /// @param claimableFor Whether signer permissions can be claimed on behalf of valid hat wearers
   /// @param implementation The address of the HatsSignerGate implementation
@@ -55,7 +51,6 @@ interface IHatsSignerGate {
     address safe;
     uint256 minThreshold;
     uint256 targetThreshold;
-    uint256 maxSigners;
     bool locked;
     bool claimableFor;
     address implementation;
@@ -83,22 +78,11 @@ interface IHatsSignerGate {
   /// @notice Can't remove a signer if they're still wearing the signer hat
   error StillWearsSignerHat(address signer);
 
-  /// @notice Can never have more signers than designated by `maxSigners`
-  error MaxSignersReached();
-
-  /// @notice Emitted when a valid signer attempts `claimSigner` but there are already `maxSigners` signers
-  /// @dev This will only occur if `signerCount` is out of sync with the current number of valid signers, which can be
-  /// resolved by calling `reconcileSignerCount`
-  error NoInvalidSignersToReplace();
-
-  /// @notice Target threshold must be lower than `maxSigners`
+  /// @notice Target threshold must greater than `minThreshold`
   error InvalidTargetThreshold();
 
-  /// @notice Min threshold cannot be higher than `maxSigners` or `targetThreshold`
+  /// @notice Min threshold cannot be higher than `targetThreshold`
   error InvalidMinThreshold();
-
-  /// @notice Max signers cannot be less than `targetThreshold` or `validSignerCount`
-  error InvalidMaxSigners();
 
   /// @notice Signers already on the `safe` cannot claim twice
   error SignerAlreadyClaimed(address signer);
@@ -185,6 +169,5 @@ interface IHatsSignerGate {
   function safe() external view returns (ISafe);
   function minThreshold() external view returns (uint256);
   function targetThreshold() external view returns (uint256);
-  function maxSigners() external view returns (uint256);
   function version() external view returns (string memory);
 }

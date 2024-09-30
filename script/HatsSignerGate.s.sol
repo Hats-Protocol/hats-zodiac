@@ -88,7 +88,6 @@ contract DeployInstance is BaseScript {
   uint256[] public signersHats;
   uint256 public minThreshold;
   uint256 public targetThreshold;
-  uint256 public maxSigners;
   address public safe;
   bool public locked;
   bool public claimableFor;
@@ -100,7 +99,6 @@ contract DeployInstance is BaseScript {
     uint256[] memory _signersHats,
     uint256 _minThreshold,
     uint256 _targetThreshold,
-    uint256 _maxSigners,
     address _safe,
     bool _locked,
     bool _claimableFor,
@@ -112,7 +110,6 @@ contract DeployInstance is BaseScript {
     signersHats = _signersHats;
     minThreshold = _minThreshold;
     targetThreshold = _targetThreshold;
-    maxSigners = _maxSigners;
     safe = _safe;
     locked = _locked;
     claimableFor = _claimableFor;
@@ -138,7 +135,6 @@ contract DeployInstance is BaseScript {
       safe: safe,
       minThreshold: minThreshold,
       targetThreshold: targetThreshold,
-      maxSigners: maxSigners,
       locked: locked,
       claimableFor: claimableFor,
       implementation: implementation

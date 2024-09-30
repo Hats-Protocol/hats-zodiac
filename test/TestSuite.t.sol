@@ -237,7 +237,6 @@ contract TestSuite is SafeTestHelpers {
   // Test params
   uint256 public minThreshold;
   uint256 public targetThreshold;
-  uint256 public maxSigners;
   bool public locked;
   string public version;
 
@@ -287,7 +286,6 @@ contract TestSuite is SafeTestHelpers {
     // Set default test HSG params
     minThreshold = 2;
     targetThreshold = 2;
-    maxSigners = 5;
   }
 
   /*//////////////////////////////////////////////////////////////
@@ -317,7 +315,6 @@ contract TestSuite is SafeTestHelpers {
     uint256[] memory _signerHats,
     uint256 _minThreshold,
     uint256 _targetThreshold,
-    uint256 _maxSigners,
     address _safe,
     bool _locked,
     bool _claimableFor,
@@ -333,7 +330,6 @@ contract TestSuite is SafeTestHelpers {
       _signerHats,
       _minThreshold,
       _targetThreshold,
-      _maxSigners,
       _safe,
       _locked,
       _claimableFor,
@@ -353,7 +349,6 @@ contract TestSuite is SafeTestHelpers {
     uint256[] memory _signerHats,
     uint256 _minThreshold,
     uint256 _targetThreshold,
-    uint256 _maxSigners,
     bool _locked,
     bool _verbose,
     bool _claimableFor
@@ -367,7 +362,6 @@ contract TestSuite is SafeTestHelpers {
       _signerHats,
       _minThreshold,
       _targetThreshold,
-      _maxSigners,
       address(0),
       _locked,
       _claimableFor,
@@ -430,7 +424,6 @@ contract WithHSGInstanceTest is TestSuite {
       _signerHats: signerHats,
       _minThreshold: minThreshold,
       _targetThreshold: targetThreshold,
-      _maxSigners: maxSigners,
       _locked: false,
       _claimableFor: false,
       _verbose: false
