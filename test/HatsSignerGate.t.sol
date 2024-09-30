@@ -1279,6 +1279,7 @@ contract ClaimingSignerFor is WithHSGInstanceTest {
     hatsSignerGate.claimSignerFor(signerHat, signerAddresses[0]);
 
     assertEq(hatsSignerGate.validSignerCount(), 1);
+    assertEq(safe.getOwners().length, 1);
   }
 
   function test_swapOutInvalidSigner() public {
@@ -1300,6 +1301,7 @@ contract ClaimingSignerFor is WithHSGInstanceTest {
     hatsSignerGate.claimSignerFor(signerHat, newSigner);
 
     assertEq(hatsSignerGate.validSignerCount(), maxSigners);
+    assertEq(safe.getOwners().length, maxSigners);
   }
 
   function test_revert_notClaimableFor() public {
@@ -1315,6 +1317,7 @@ contract ClaimingSignerFor is WithHSGInstanceTest {
     hatsSignerGate.claimSignerFor(signerHat, signerAddresses[0]);
 
     assertEq(hatsSignerGate.validSignerCount(), 0);
+    assertEq(safe.getOwners().length, 1);
   }
 
   function test_revert_alreadyClaimed() public {
@@ -1329,6 +1332,7 @@ contract ClaimingSignerFor is WithHSGInstanceTest {
     hatsSignerGate.claimSignerFor(signerHat, signerAddresses[0]);
 
     assertEq(hatsSignerGate.validSignerCount(), 1);
+    assertEq(safe.getOwners().length, 1);
   }
 
   function test_revert_invalidSignerHat() public {
@@ -1342,6 +1346,7 @@ contract ClaimingSignerFor is WithHSGInstanceTest {
     hatsSignerGate.claimSignerFor(invalidSignerHat, signerAddresses[0]);
 
     assertEq(hatsSignerGate.validSignerCount(), 0);
+    assertEq(safe.getOwners().length, 1);
   }
 
   function test_revert_invalidSigner() public {
@@ -1354,6 +1359,7 @@ contract ClaimingSignerFor is WithHSGInstanceTest {
     hatsSignerGate.claimSignerFor(signerHat, signerAddresses[1]);
 
     assertEq(hatsSignerGate.validSignerCount(), 0);
+    assertEq(safe.getOwners().length, 1);
   }
 
   function test_revert_maxSignersReached() public {
@@ -1373,6 +1379,6 @@ contract ClaimingSignerFor is WithHSGInstanceTest {
     hatsSignerGate.claimSignerFor(signerHat, newSigner);
 
     assertEq(hatsSignerGate.validSignerCount(), maxSigners);
+    assertEq(safe.getOwners().length, maxSigners);
   }
 }
-

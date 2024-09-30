@@ -163,8 +163,7 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
   /// with existing invalid owner if relevant.
   /// @param _hatId The hat id to claim signer rights for
   function claimSigner(uint256 _hatId) public {
-    address[] memory owners = safe.getOwners();
-    _claimSigner(owners, _hatId, msg.sender);
+    _claimSigner(safe.getOwners(), _hatId, msg.sender);
   }
 
   /// @notice Claims signer permissions for a valid wearer of `_hatId` on behalf of `_signer`
@@ -172,12 +171,7 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
   function claimSignerFor(uint256 _hatId, address _signer) public {
     if (!claimableFor) revert NotClaimableFor();
 
-    address[] memory owners = safe.getOwners();
-    _claimSigner(owners, _hatId, _signer);
-  }
-    if (!claimableFor) revert NotClaimableFor();
-
-    _claimSigner(_hatId, _for);
+    _claimSigner(safe.getOwners(), _hatId, _signer);
   }
 
   /// @notice Removes an invalid signer from the `safe`, updating the threshold if appropriate
@@ -689,7 +683,7 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
     if (ownerCount >= maxSigs) {
       bool swapped = _swapSigner(_owners, ownerCount, _signer);
 
-        // if there are no invalid owners, we can't add a new signer, so we revert
+      // if there are no invalid owners, we can't add a new signer, so we revert
       if (!swapped) revert NoInvalidSignersToReplace();
     } else {
       // otherwise, we add the new signer
