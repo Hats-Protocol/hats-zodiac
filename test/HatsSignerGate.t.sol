@@ -4,6 +4,7 @@ pragma solidity ^0.8.13;
 import { Test, console2 } from "forge-std/Test.sol";
 import { Enum, ISafe, ModuleProxyFactory, TestSuite, WithHSGInstanceTest, HatsSignerGate } from "./TestSuite.sol";
 import { IHatsSignerGate, HSGEvents } from "../src/interfaces/IHatsSignerGate.sol";
+import { DeployInstance } from "../script/HatsSignerGate.s.sol";
 
 contract Deployment is TestSuite {
   // errors from dependencies
@@ -63,32 +64,6 @@ contract Deployment is TestSuite {
     assertTrue(safe.isModuleEnabled(address(hatsSignerGate)));
     assertEq(safe.getOwners()[0], address(hatsSignerGate));
     assertEq(hatsSignerGate.locked(), _locked);
-  }
-
-  function test_revert_onlyHSG_existingSafeHasModules() public {
-    // deploy safe with this contract as the single owner
-    address[] memory owners = new address[](1);
-    owners[0] = address(this);
-    ISafe testSafe = _deploySafe(owners, 1, TEST_SALT_NONCE);
-
-    // attach a module to the safe
-    address dummyModule = makeAddr("dummyModule");
-    bytes memory addModuleData = abi.encodeWithSignature("enableModule(address)", dummyModule);
-    _executeSafeTxFrom(address(this), addModuleData, testSafe);
-    assertTrue(testSafe.isModuleEnabled(dummyModule), "test safe does not have dummy module enabled");
-
-    // deploy an instance of HSG, expecting a revert from a failed initialization
-    hatsSignerGate = _deployHSG({
-      _ownerHat: ownerHat,
-      _signerHats: signerHats,
-      _minThreshold: minThreshold,
-      _targetThreshold: targetThreshold,
-      _maxSigners: maxSigners,
-      _safe: address(testSafe),
-      _expectedError: ModuleProxyFactory.FailedInitialization.selector,
-      _locked: false,
-      _verbose: false
-    });
   }
 
   function test_revert_reinitializeImplementation() public {
@@ -1203,9 +1178,53 @@ contract DetachingHSG is WithHSGInstanceTest {
 }
 
 contract MigratingHSG is WithHSGInstanceTest {
-    function test_happy() public {}
+  HatsSignerGate newHSG;
 
-    function test_revert_nonOwner() public {}
+  function setUp() public override {
+    super.setUp();
 
-    function test_revert_locked() public {}
+    // create the instance deployer
+    DeployInstance instanceDeployer = new DeployInstance();
+    instanceDeployer.prepare(
+      true,
+      address(singletonHatsSignerGate),
+      ownerHat,
+      signerHats,
+      minThreshold,
+      targetThreshold,
+      maxSigners,
+      address(safe),
+      false,
+      1
+    );
+
+    // deploy the instance
+    newHSG = instanceDeployer.run();
+  }
+
+  function test_happy() public {
+    vm.expectEmit(true, true, true, true);
+    emit HSGEvents.Migrated(address(newHSG));
+    vm.prank(owner);
+    hatsSignerGate.migrateToNewHSG(address(newHSG));
+
+    assertEq(_getSafeGuard(address(safe)), address(newHSG), "guard should be the new HSG");
+    assertFalse(safe.isModuleEnabled(address(hatsSignerGate)), "old HSG should be disabled as module");
+    assertTrue(safe.isModuleEnabled(address(newHSG)), "new HSG should be enabled as module");
+  }
+
+  function test_revert_nonOwner() public {
+    vm.expectRevert(IHatsSignerGate.NotOwnerHatWearer.selector);
+    vm.prank(other);
+    hatsSignerGate.migrateToNewHSG(address(newHSG));
+  }
+
+  function test_revert_locked() public {
+    vm.prank(owner);
+    hatsSignerGate.lock();
+
+    vm.expectRevert(IHatsSignerGate.Locked.selector);
+    vm.prank(owner);
+    hatsSignerGate.migrateToNewHSG(address(newHSG));
+  }
 }

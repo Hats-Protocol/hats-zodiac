@@ -25,6 +25,9 @@ library HSGEvents {
 
   /// @notice Emitted when HSG has been detached from its avatar Safe
   event Detached();
+
+  /// @notice Emitted when HSG has been migrated to a new HSG
+  event Migrated(address newHSG);
 }
 
 /// @notice Interface for the HatsSignerGate contract
@@ -130,9 +133,6 @@ interface IHatsSignerGate {
   /// @dev The Safe will catch this error and re-throw with its own error message (`GS013`)
   error NoReentryAllowed();
 
-  /// @notice Cannot attach to a Safe with existing modules
-  error CannotAttachToSafe();
-
   /// @notice Owner cannot change settings once the contract is locked
   error Locked();
 
@@ -152,6 +152,7 @@ interface IHatsSignerGate {
   function setMinThreshold(uint256 _minThreshold) external;
   function addSignerHats(uint256[] calldata _newSignerHats) external;
   function detachHSG() external;
+  function migrateToNewHSG(address _newHSG) external;
 
   // function checkTransaction(
   //   address to,

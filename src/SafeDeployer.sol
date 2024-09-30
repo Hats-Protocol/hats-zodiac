@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
+// import { console2 } from "forge-std/console2.sol";
 import { MultiSend } from "../lib/safe-smart-account/contracts/libraries/MultiSend.sol";
 import { SafeProxyFactory } from "../lib/safe-smart-account/contracts/proxies/SafeProxyFactory.sol";
 import { StorageAccessible } from "lib/safe-smart-account/contracts/common/StorageAccessible.sol";
@@ -41,43 +42,13 @@ contract SafeDeployer {
   /*//////////////////////////////////////////////////////////////
                             INTERNAL LOGIC
   //////////////////////////////////////////////////////////////*/
+  /// @dev Deploy a new Safe and attach HSG to it
   function _deploySafeAndAttachHSG() internal returns (address payable _safe) {
-    _safe = _deploySafe();
-    _attachHSG(_safe);
-  }
-
-  function _deploySafe() internal returns (address payable _safe) {
-    // Deploy new safe but do not set it up yet
     _safe = payable(safeProxyFactory.createProxyWithNonce(safeSingleton, hex"00", 0));
-  }
 
-  function _attachHSG(address payable _safe) internal {
-    bytes memory multisendAction = _generateMultisendAction(address(this), _safe);
-
-    // Workaround for solidity dynamic memory array
-    address[] memory owners = new address[](1);
-    owners[0] = address(this);
-
-    // Call setup on safe to enable our new module/guard and set it as the sole initial owner
-    ISafe(_safe).setup(
-      owners,
-      1,
-      safeMultisendLibrary,
-      multisendAction, // set hsg as module and guard
-      safeFallbackLibrary,
-      address(0),
-      0,
-      payable(address(0))
-    );
-  }
-
-  function _generateMultisendAction(address _hatsSignerGate, address _safe)
-    internal
-    pure
-    returns (bytes memory _action)
-  {
-    bytes memory enableHSGModule = _encodeEnableModuleAction(_hatsSignerGate);
-    bytes memory setHSGGuard = _encodeSetGuardAction(_hatsSignerGate);
+    // Prepare calls to enable HSG as module and set it as guard
+    bytes memory enableHSGModule = _encodeEnableModuleAction(address(this));
+    bytes memory setHSGGuard = _encodeSetGuardAction(address(this));
 
     bytes memory packedCalls = abi.encodePacked(
       // enableHSGModule
@@ -94,57 +65,96 @@ contract SafeDeployer {
       bytes(setHSGGuard) // data
     );
 
-    _action = abi.encodeWithSignature("multiSend(bytes)", packedCalls);
+    bytes memory attachHSGAction = abi.encodeWithSelector(MultiSend.multiSend.selector, packedCalls);
+
+    // Workaround for solidity dynamic memory array
+    address[] memory owners = new address[](1);
+    owners[0] = address(this);
+
+    // Call setup on safe to enable our new module/guard and set it as the sole initial owner
+    ISafe(_safe).setup(
+      owners,
+      1,
+      safeMultisendLibrary,
+      attachHSGAction, // set hsg as module and guard
+      safeFallbackLibrary,
+      address(0),
+      0,
+      payable(address(0))
+    );
   }
 
+  /// @dev Encode the action to enable a module
   function _encodeEnableModuleAction(address _moduleToEnable) internal pure returns (bytes memory) {
     return abi.encodeWithSelector(IModuleManager.enableModule.selector, _moduleToEnable);
   }
 
-  /// @dev Assumes the module is the only module enabled
-  function _encodeDisableModuleAction(address _moduleToDisable) internal pure returns (bytes memory) {
-    return abi.encodeWithSelector(IModuleManager.disableModule.selector, SENTINELS, _moduleToDisable);
+  /// @dev Encode the action to disable a module `_moduleToDisable`
+  /// @param _previousModule The previous module in the modules linked list
+  function _encodeDisableModuleAction(address _previousModule, address _moduleToDisable)
+    internal
+    pure
+    returns (bytes memory)
+  {
+    return abi.encodeWithSelector(IModuleManager.disableModule.selector, _previousModule, _moduleToDisable);
   }
 
+  // /// @dev Encode the action to disable a module when it is the only module enabled
+  // function _encodeDisableOnlyModuleAction(address _moduleToDisable) internal pure returns (bytes memory) {
+  //   return _encodeDisableModuleAction(SENTINELS, _moduleToDisable);
+  // }
+
+  /// @dev Encode the action to set a `_guard`
   function _encodeSetGuardAction(address _guard) internal pure returns (bytes memory) {
     return abi.encodeWithSelector(IGuardManager.setGuard.selector, _guard);
   }
 
-  function _detachHSG(ISafe _safe) internal {
-    // Generate calldata to disable HSG as a module
-    bytes memory disableHSGModule = _encodeDisableModuleAction(address(this));
+  /// @dev Encode the action to remove HSG as a guard
+  function _encodeRemoveHSGAsGuardAction() internal pure returns (bytes memory) {
     // Generate calldata to remove HSG as a guard
-    bytes memory removeHSGGuard = _encodeSetGuardAction(address(0));
-
-    // TODO optimization: is this cheaper than making two direct calles via execTransactionFromModule?
-    // Pack the calls to prepare for a multisend
-    bytes memory packedCalls = abi.encodePacked(
-      // disableHSGModule
-      Enum.Operation.Call,
-      _safe, // to
-      uint256(0), // value
-      uint256(disableHSGModule.length), // data length
-      bytes(disableHSGModule), // data
-      // removeHSGGuards
-      Enum.Operation.Call,
-      _safe, // to
-      uint256(0), // value
-      uint256(removeHSGGuard.length), // data length
-      bytes(removeHSGGuard) // data
-    );
-
-    // Encode the multisend calldata
-    bytes memory action = abi.encodeWithSelector(MultiSend.multiSend.selector, packedCalls);
-
-    // Execute the call
-    _safe.execTransactionFromModule({
-      to: safeMultisendLibrary,
-      value: 0,
-      data: action,
-      operation: Enum.Operation.DelegateCall
-    });
+    return _encodeSetGuardAction(address(0));
   }
 
+  /// @dev Execute a transaction with `_data` from the context of a `_safe`
+  function _execTransactionFromHSG(ISafe _safe, bytes memory _data) internal returns (bool success) {
+    success =
+      _safe.execTransactionFromModule({ to: address(_safe), value: 0, data: _data, operation: Enum.Operation.Call });
+  }
+
+  /// @dev Encode the action to disable HSG as a module when there are no other modules enabled on a `_safe`
+  function _disableHSGAsOnlyModule(ISafe _safe) internal {
+    // Generate calldata to remove HSG as a module
+    bytes memory removeHSGModule = _encodeDisableModuleAction(SENTINELS, address(this));
+
+    _execTransactionFromHSG(_safe, removeHSGModule);
+  }
+
+  /// @dev Encode the action to disable HSG as a module on a `_safe`
+  /// @param _previousModule The previous module in the modules linked list
+  function _disableHSGAsModule(ISafe _safe, address _previousModule) internal {
+    bytes memory removeHSGModule = _encodeDisableModuleAction(_previousModule, address(this));
+
+    _execTransactionFromHSG(_safe, removeHSGModule);
+  }
+
+  /// @dev Remove HSG as a guard on a `_safe`
+  /// @param _safe The Safe from which to remove HSG as a guard
+  function _removeHSGAsGuard(ISafe _safe) internal {
+    bytes memory removeHSGGuard = _encodeSetGuardAction(address(0));
+
+    _execTransactionFromHSG(_safe, removeHSGGuard);
+  }
+
+  /// @dev Attach a new HSG `_newHSG` to a `_safe`
+  function _attachNewHSGFromHSG(ISafe _safe, address _newHSG) internal {
+    bytes memory attachHSGModule = _encodeEnableModuleAction(_newHSG);
+    bytes memory setHSGGuard = _encodeSetGuardAction(_newHSG);
+
+    _execTransactionFromHSG(_safe, setHSGGuard);
+    _execTransactionFromHSG(_safe, attachHSGModule);
+  }
+
+  /// @dev Get the guard of a `_safe`
   function _getSafeGuard(address _safe) internal view returns (address) {
     return abi.decode(StorageAccessible(_safe).getStorageAt(uint256(GUARD_STORAGE_SLOT), 1), (address));
   }

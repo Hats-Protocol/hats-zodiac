@@ -418,7 +418,7 @@ contract TestSuite is SafeTestHelpers {
 }
 
 contract WithHSGInstanceTest is TestSuite {
-  function setUp() public override {
+  function setUp() public virtual override {
     super.setUp();
 
     (hatsSignerGate, safe) = _deployHSGAndSafe({

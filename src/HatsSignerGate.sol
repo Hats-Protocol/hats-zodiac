@@ -11,6 +11,11 @@ import { StorageAccessible } from "lib/safe-smart-account/contracts/common/Stora
 import { SignatureDecoder } from "lib/safe-smart-account/contracts/common/SignatureDecoder.sol";
 import { ISafe, Enum } from "./lib/safe-interfaces/ISafe.sol";
 
+/// @title HatsSignerGate
+/// @author Haberdasher Labs
+/// @author @spengrah
+/// @notice A Zodiac compatible contract for managing a Safe's owners and signatures via Hats Protocol.
+/// @dev This contract is designed to work with the Zodiac Module Factory, from which instances are deployed.
 contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDecoder, Initializable {
   /*//////////////////////////////////////////////////////////////
                             CONSTANTS
@@ -100,7 +105,8 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
   //////////////////////////////////////////////////////////////*/
 
   /**
-   * @notice Initializes a new instance of MultiHatsSignerGate
+   * @notice Initializes a new instance of HatsSignerGate.
+   *  Does NOT check if the target Safe is compatible with this HSG.
    * @dev Can only be called once
    * @param initializeParams ABI-encoded bytes with initialization parameters, as defined in
    * {IHatsSignerGate.SetupParams}
@@ -111,9 +117,6 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
     // deploy a new safe if there is no provided safe
     if (params.safe == address(0)) {
       params.safe = _deploySafeAndAttachHSG();
-    } else {
-      // otherwise, assert that HSG can attach to the existing safe before proceeding
-      if (!_canAttachToSafe(ISafe(params.safe))) revert CannotAttachToSafe();
     }
 
     // set the instance's owner hat
@@ -286,8 +289,28 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
   /// @notice Detach HSG from the Safe
   /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.
   function detachHSG() public onlyOwner onlyUnlocked {
-    _detachHSG(safe);
+    ISafe s = safe; // save SLOAD
+
+    // first remove as guard, then as module
+    _removeHSGAsGuard(s);
+    _disableHSGAsOnlyModule(s);
     emit HSGEvents.Detached();
+  }
+
+  /// @notice Migrate the Safe to a new HSG, ie detach this HSG and attach a new HSG
+  /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.
+  /// @param _newHSG The new HatsSignerGate to attach to the Safe
+  function migrateToNewHSG(address _newHSG) public onlyOwner onlyUnlocked {
+    // QUESTION check if _newHSG is indeed an HSG?
+
+    ISafe s = safe; // save SLOADS
+    // remove existing HSG as guard
+    _removeHSGAsGuard(s);
+    // enable new HSG as module and guard
+    _attachNewHSGFromHSG(s, _newHSG);
+    // remove existing HSG as module
+    _disableHSGAsModule(s, _newHSG);
+    emit HSGEvents.Migrated(_newHSG);
   }
 
   /*//////////////////////////////////////////////////////////////
