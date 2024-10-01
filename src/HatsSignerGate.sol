@@ -3,27 +3,30 @@ pragma solidity >=0.8.13;
 
 // import { Test, console2 } from "forge-std/Test.sol"; // comment out after testing
 import { IHats } from "../lib/hats-protocol/src/Interfaces/IHats.sol";
-import { SafeDeployer } from "./SafeDeployer.sol";
+import { SafeManagerLib } from "./lib/SafeManagerLib.sol";
 import { IHatsSignerGate, HSGEvents } from "./interfaces/IHatsSignerGate.sol";
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { BaseGuard } from "lib/zodiac/contracts/guard/BaseGuard.sol";
-import { StorageAccessible } from "lib/safe-smart-account/contracts/common/StorageAccessible.sol";
 import { SignatureDecoder } from "lib/safe-smart-account/contracts/common/SignatureDecoder.sol";
 import { ISafe, Enum } from "./lib/safe-interfaces/ISafe.sol";
 
-contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDecoder, Initializable {
+/// @title HatsSignerGate
+/// @author Haberdasher Labs
+/// @author @spengrah
+/// @notice A Zodiac compatible contract for managing a Safe's owners and signatures via Hats Protocol.
+/// @dev This contract is designed to work with the Zodiac Module Factory, from which instances are deployed.
+contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initializable {
+  using SafeManagerLib for ISafe;
+
   /*//////////////////////////////////////////////////////////////
                             CONSTANTS
   //////////////////////////////////////////////////////////////*/
 
   IHats public immutable HATS;
-
-  /// @dev The head pointer used in the Safe owners linked list, as well as the module linked list
-  address internal constant SENTINELS = address(0x1);
-
-  /// @dev The storage slot used by Safe to store the guard address
-  ///      keccak256("guard_manager.guard.address")
-  bytes32 internal constant GUARD_STORAGE_SLOT = 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
+  address public immutable safeSingleton;
+  address public immutable safeFallbackLibrary;
+  address public immutable safeMultisendLibrary;
+  address public immutable safeProxyFactory;
 
   /*//////////////////////////////////////////////////////////////
                             MUTABLE STATE
@@ -92,8 +95,12 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
     address _safeMultisendLibrary,
     address _safeProxyFactory,
     string memory _version
-  ) SafeDeployer(_safeSingleton, _safeFallbackLibrary, _safeMultisendLibrary, _safeProxyFactory) initializer {
+  ) initializer {
     HATS = IHats(_hats);
+    safeProxyFactory = _safeProxyFactory;
+    safeSingleton = _safeSingleton;
+    safeFallbackLibrary = _safeFallbackLibrary;
+    safeMultisendLibrary = _safeMultisendLibrary;
 
     // set the implementation's owner hat to a nonexistent hat to prevent state changes to the implementation
     ownerHat = 1;
@@ -107,7 +114,8 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
   //////////////////////////////////////////////////////////////*/
 
   /**
-   * @notice Initializes a new instance of MultiHatsSignerGate
+   * @notice Initializes a new instance of HatsSignerGate.
+   *  Does NOT check if the target Safe is compatible with this HSG.
    * @dev Can only be called once
    * @param initializeParams ABI-encoded bytes with initialization parameters, as defined in
    * {IHatsSignerGate.SetupParams}
@@ -117,10 +125,9 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
 
     // deploy a new safe if there is no provided safe
     if (params.safe == address(0)) {
-      params.safe = _deploySafeAndAttachHSG();
-    } else {
-      // otherwise, assert that HSG can attach to the existing safe before proceeding
-      if (!_canAttachToSafe(ISafe(params.safe))) revert CannotAttachToSafe();
+      params.safe = SafeManagerLib.deploySafeAndAttachHSG(
+        safeProxyFactory, safeSingleton, safeFallbackLibrary, safeMultisendLibrary
+      );
     }
 
     // set the instance's owner hat
@@ -222,18 +229,7 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
       newThreshold = target;
     }
     if (newThreshold > 0) {
-      bytes memory data = abi.encodeWithSignature("changeThreshold(uint256)", newThreshold);
-
-      bool success = safe.execTransactionFromModule(
-        address(safe), // to
-        0, // value
-        data, // data
-        Enum.Operation.Call // operation
-      );
-
-      if (!success) {
-        revert FailedExecChangeThreshold();
-      }
+      safe.execChangeThreshold(newThreshold);
     }
   }
 
@@ -288,6 +284,33 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
   /// @param _maxSigners The new maximum number of signers
   function setMaxSigners(uint256 _maxSigners) public onlyOwner onlyUnlocked {
     _setMaxSigners(_maxSigners, targetThreshold);
+  }
+
+  /// @notice Detach HSG from the Safe
+  /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.
+  function detachHSG() public onlyOwner onlyUnlocked {
+    ISafe s = safe; // save SLOAD
+
+    // first remove as guard, then as module
+    s.execRemoveHSGAsGuard();
+    s.execDisableHSGAsOnlyModule();
+    emit HSGEvents.Detached();
+  }
+
+  /// @notice Migrate the Safe to a new HSG, ie detach this HSG and attach a new HSG
+  /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.
+  /// @param _newHSG The new HatsSignerGate to attach to the Safe
+  function migrateToNewHSG(address _newHSG) public onlyOwner onlyUnlocked {
+    // QUESTION check if _newHSG is indeed an HSG?
+
+    ISafe s = safe; // save SLOADS
+    // remove existing HSG as guard
+    s.execRemoveHSGAsGuard();
+    // enable new HSG as module and guard
+    s.execAttachNewHSG(_newHSG);
+    // remove existing HSG as module
+    s.execDisableHSGAsModule(_newHSG);
+    emit HSGEvents.Migrated(_newHSG);
   }
 
   /*//////////////////////////////////////////////////////////////
@@ -374,10 +397,7 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
   function checkAfterExecution(bytes32, bool) external override {
     if (msg.sender != address(safe)) revert NotCalledFromSafe();
     // prevent signers from disabling this guard
-    if (
-      abi.decode(StorageAccessible(address(safe)).getStorageAt(uint256(GUARD_STORAGE_SLOT), 1), (address))
-        != address(this)
-    ) {
+    if (safe.getSafeGuard() != address(this)) {
       revert CannotDisableThisGuard(address(this));
     }
     // prevent signers from changing the threshold
@@ -390,14 +410,13 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
       revert SignersCannotChangeOwners();
     }
     // prevent signers from removing this module or adding any other modules
-    /// @dev SENTINELS and SENTINEL_MODULES are both address(0x1)
-    (address[] memory modulesWith1, address next) = safe.getModulesPaginated(SENTINELS, 1);
+    (address[] memory modulesWith1, address next) = safe.getModulesWith1();
     // ensure that there is only one module...
     if (
       // if the length is 0, we know this module has been removed
       // per Safe ModuleManager.sol#137, "If all entries fit into a single page, the next pointer will be 0x1", ie
       // SENTINELS. Therefore, if `next` is not SENTINELS, we know another module has been added.
-      modulesWith1.length == 0 || next != SENTINELS
+      modulesWith1.length == 0 || next != SafeManagerLib.SENTINELS
     ) {
       revert SignersCannotChangeModules();
     } // ...and that the only module is this contract
@@ -441,7 +460,7 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
    *      2) HatsSignerGate's `validSignerCount()` must be <= `_maxSigners`
    */
   function canAttachToSafe() public view returns (bool) {
-    return _canAttachToSafe(safe);
+    return safe.canAttachHSG();
   }
 
   /// @notice Counts the number of hats-valid signatures within a set of `signatures`
@@ -507,21 +526,6 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
     emit HSGEvents.OwnerHatUpdated(_ownerHat);
   }
 
-  /**
-   * @notice Checks if a HatsSignerGate can be safely attached to a Safe
-   * @dev There must be...
-   *      1) No existing modules on the Safe
-   *      2) HatsSignerGate's `validSignerCount()` must be <= `_maxSigners`
-   */
-  function _canAttachToSafe(ISafe _safe) internal view returns (bool) {
-    (address[] memory modulesWith1,) = _safe.getModulesPaginated(SENTINELS, 1);
-
-    return (modulesWith1.length == 0);
-
-    // QUESTION: do we need to bring back the valid signer count <= maxSigners check?
-    // return (modulesWith1.length == 0 && _countValidSigners(_safe.getOwners()) <= maxSigners);
-  }
-
   // /// @notice Checks if `_account` is a valid signer
   // /// @dev Must be implemented by all flavors of HatsSignerGate
   // /// @param _account The address to check
@@ -561,7 +565,7 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
   }
 
   /// @notice Internal function to set the threshold for the `safe`
-  /// @dev Forwards the threshold-setting call to `safe.ExecTransactionFromModule`
+  /// @dev Forwards the threshold-setting call to `SafeManagerLib.execChangeThreshold`
   /// @param _threshold The threshold to set on the `safe`
   /// @param _signerCount The number of valid signers on the `safe`; should be calculated from `validSignerCount()`
   function _setSafeThreshold(uint256 _threshold, uint256 _signerCount) internal {
@@ -572,18 +576,7 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
       newThreshold = _signerCount;
     }
     if (newThreshold != safe.getThreshold()) {
-      bytes memory data = abi.encodeWithSignature("changeThreshold(uint256)", newThreshold);
-
-      bool success = safe.execTransactionFromModule(
-        address(safe), // to
-        0, // value
-        data, // data
-        Enum.Operation.Call // operation
-      );
-
-      if (!success) {
-        revert FailedExecChangeThreshold();
-      }
+      safe.execChangeThreshold(newThreshold);
     }
   }
 
@@ -648,15 +641,9 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
 
     // if the only owner is a non-signer (ie this module set as an owner on initialization), replace it with _signer
     if (_owners.length == 1 && _owners[0] == address(this)) {
-      // prevOwner will always be the sentinel when owners.length == 1
-
       // set up the swapOwner call
-      addOwnerData = abi.encodeWithSignature(
-        "swapOwner(address,address,address)",
-        SENTINELS, // prevOwner
-        address(this), // oldOwner
-        _signer // newOwner
-      );
+      addOwnerData = SafeManagerLib.encodeSwapOwnerAction(SafeManagerLib.SENTINELS, address(this), _signer);
+
       unchecked {
         // shouldn't overflow given MaxSignersReached check higher in call stack
         ++newSignerCount;
@@ -679,15 +666,10 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
     }
 
     // execute the call
-    bool success = safe.execTransactionFromModule(
-      address(safe), // to
-      0, // value
-      addOwnerData, // data
-      Enum.Operation.Call // operation
-    );
+    bool success = safe.execTransactionFromHSG(addOwnerData);
 
     if (!success) {
-      revert FailedExecAddSigner();
+      revert SafeManagerLib.FailedExecAddSigner();
     }
   }
 
@@ -699,31 +681,24 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
   /// @return success Whether an invalid signer was found and successfully replaced with `_signer`
   function _swapSigner(address[] memory _owners, uint256 _ownerCount, address _signer) internal returns (bool success) {
     address ownerToCheck;
-    bytes memory data;
 
     for (uint256 i; i < _ownerCount;) {
       ownerToCheck = _owners[i];
 
       if (!isValidSigner(ownerToCheck)) {
         // prep the swap
-        data = abi.encodeWithSignature(
-          "swapOwner(address,address,address)",
-          _findPrevOwner(_owners, ownerToCheck), // prevOwner
-          ownerToCheck, // oldOwner
-          _signer // newOwner
-        );
+        // data = SafeManagerLib.encodeSwapOwnerAction(
+        //   SafeManagerLib.findPrevOwner(_owners, ownerToCheck), ownerToCheck, _signer
+        // );
 
-        // execute the swap, reverting if it fails for some reason
-        success = safe.execTransactionFromModule(
-          address(safe), // to
-          0, // value
-          data, // data
-          Enum.Operation.Call // operation
-        );
+        // // execute the swap, reverting if it fails for some reason
+        // success = safe.execTransactionFromHSG(data);
 
-        if (!success) {
-          revert FailedExecRemoveSigner();
-        }
+        // if (!success) {
+        //   revert FailedExecRemoveSigner();
+        // }
+
+        success = safe.execSwapOwner(SafeManagerLib.findPrevOwner(_owners, ownerToCheck), ownerToCheck, _signer);
 
         break;
       }
@@ -745,12 +720,7 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
     if (validSigners < 2 && owners.length == 1) {
       // signerCount could be 0 after reconcileSignerCount
       // make address(this) the only owner
-      removeOwnerData = abi.encodeWithSignature(
-        "swapOwner(address,address,address)",
-        SENTINELS, // prevOwner
-        _signer, // oldOwner
-        address(this) // newOwner
-      );
+      removeOwnerData = SafeManagerLib.encodeSwapOwnerAction(SafeManagerLib.SENTINELS, _signer, address(this));
 
       // newSignerCount is already 0
     } else {
@@ -763,40 +733,14 @@ contract HatsSignerGate is IHatsSignerGate, SafeDeployer, BaseGuard, SignatureDe
         newThreshold = validSigners;
       }
 
-      removeOwnerData = abi.encodeWithSignature(
-        "removeOwner(address,address,uint256)", _findPrevOwner(owners, _signer), _signer, newThreshold
-      );
+      removeOwnerData =
+        SafeManagerLib.encodeRemoveOwnerAction(SafeManagerLib.findPrevOwner(owners, _signer), _signer, newThreshold);
     }
 
-    bool success = safe.execTransactionFromModule(
-      address(safe), // to
-      0, // value
-      removeOwnerData, // data
-      Enum.Operation.Call // operation
-    );
+    bool success = safe.execTransactionFromHSG(removeOwnerData);
 
     if (!success) {
-      revert FailedExecRemoveSigner();
-    }
-  }
-
-  /// @notice Internal function to find the previous owner of an `_owner` in an array of `_owners`, ie the pointer to
-  /// the owner to remove from the `safe` owners linked list
-  /// @param _owners An array of addresses
-  /// @param _owner The address after the one to find
-  /// @return prevOwner The owner previous to `_owner` in the `safe` linked list
-  function _findPrevOwner(address[] memory _owners, address _owner) internal pure returns (address prevOwner) {
-    prevOwner = SENTINELS;
-
-    for (uint256 i; i < _owners.length;) {
-      if (_owners[i] == _owner) {
-        if (i == 0) break;
-        prevOwner = _owners[i - 1];
-      }
-      // shouldn't overflow given reasonable _owners array length
-      unchecked {
-        ++i;
-      }
+      revert SafeManagerLib.FailedExecRemoveSigner();
     }
   }
 

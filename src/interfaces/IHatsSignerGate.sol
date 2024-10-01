@@ -22,6 +22,12 @@ library HSGEvents {
 
   /// @notice Emitted when the contract is locked, preventing any further changes to settings
   event Locked();
+
+  /// @notice Emitted when HSG has been detached from its avatar Safe
+  event Detached();
+
+  /// @notice Emitted when HSG has been migrated to a new HSG
+  event Migrated(address newHSG);
 }
 
 /// @notice Interface for the HatsSignerGate contract
@@ -92,18 +98,6 @@ interface IHatsSignerGate {
   /// @notice Signers already on the `safe` cannot claim twice
   error SignerAlreadyClaimed(address signer);
 
-  /// @notice Emitted when a call to change the threshold fails
-  error FailedExecChangeThreshold();
-
-  /// @notice Emitted when a call to add a signer fails
-  error FailedExecAddSigner();
-
-  /// @notice Emitted when a call to remove a signer fails
-  error FailedExecRemoveSigner();
-
-  /// @notice Emitted when a call to enable a module fails
-  error FailedExecEnableModule();
-
   /// @notice Cannot exececute a tx if `safeOnwerCount` < `minThreshold`
   error BelowMinThreshold(uint256 minThreshold, uint256 safeOwnerCount);
 
@@ -127,9 +121,6 @@ interface IHatsSignerGate {
   /// @dev The Safe will catch this error and re-throw with its own error message (`GS013`)
   error NoReentryAllowed();
 
-  /// @notice Cannot attach to a Safe with existing modules
-  error CannotAttachToSafe();
-
   /// @notice Owner cannot change settings once the contract is locked
   error Locked();
 
@@ -148,6 +139,8 @@ interface IHatsSignerGate {
   function setTargetThreshold(uint256 _targetThreshold) external;
   function setMinThreshold(uint256 _minThreshold) external;
   function addSignerHats(uint256[] calldata _newSignerHats) external;
+  function detachHSG() external;
+  function migrateToNewHSG(address _newHSG) external;
 
   // function checkTransaction(
   //   address to,
