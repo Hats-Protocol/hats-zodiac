@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import { Enum, ISafe } from "../lib/safe-interfaces/ISafe.sol";
+import { ISafe } from "../lib/safe-interfaces/ISafe.sol";
+import { IHats } from "../../lib/hats-protocol/src/Interfaces/IHats.sol";
 
 /// @notice Interface for the HatsSignerGate contract
 interface IHatsSignerGate {
@@ -121,58 +122,166 @@ interface IHatsSignerGate {
   event Migrated(address newHSG);
 
   /*//////////////////////////////////////////////////////////////
+                          CONSTANTS
+  //////////////////////////////////////////////////////////////*/
+
+  /// @notice The Hats Protocol contract address
+  function HATS() external view returns (IHats);
+
+  /// @notice The Safe singleton contract address
+  function safeSingleton() external view returns (address);
+
+  /// @notice The Safe fallback library contract address
+  function safeFallbackLibrary() external view returns (address);
+
+  /// @notice The Safe multisend library contract address
+  function safeMultisendLibrary() external view returns (address);
+
+  /// @notice The Safe proxy factory contract address
+  function safeProxyFactory() external view returns (address);
+
+  /*//////////////////////////////////////////////////////////////
+                          STATE VARIABLES
+  //////////////////////////////////////////////////////////////*/
+
+  /// @notice Append-only tracker of approved signer hats
+  function validSignerHats(uint256) external view returns (bool);
+
+  /// @notice Tracks the hat ids worn by users who have "claimed signer"
+  function claimedSignerHats(address) external view returns (uint256);
+
+  /// @notice The owner hat
+  function ownerHat() external view returns (uint256);
+
+  /// @notice The `safe` to which this contract is attached
+  function safe() external view returns (ISafe);
+
+  /// @notice The minimum signature threshold for the `safe`
+  function minThreshold() external view returns (uint256);
+
+  /// @notice The highest level signature threshold for the `safe`
+  function targetThreshold() external view returns (uint256);
+
+  /// @notice The address of the HatsSignerGate implementation
+  function implementation() external view returns (address);
+
+  /// @notice The version of the HatsSignerGate contract
+  function version() external view returns (string memory);
+
+  /// @notice Whether the contract is locked. If true, the owner cannot change any of the contract's settings.
+  function locked() external view returns (bool);
+
+  /// @notice Whether signer permissions can be claimed on behalf of valid hat wearers
+  function claimableFor() external view returns (bool);
+
+  /*//////////////////////////////////////////////////////////////
                               FUNCTIONS
   //////////////////////////////////////////////////////////////*/
 
   // TODO make sure all functions implemented in HatsSignerGate are included here
 
+  /// @notice Initializes a new instance of HatsSignerGate.
+  /// @dev Does NOT check if the target Safe is compatible with this HSG.
+  /// @dev Can only be called once
+  /// @param initializeParams ABI-encoded bytes with initialization parameters, as defined in
+  /// {IHatsSignerGate.SetupParams}
   function setUp(bytes calldata initializeParams) external payable;
-  function claimSignerFor(uint256 _hatId, address _for) external;
-  function claimSignersFor(uint256[] calldata _hatIds, address[] calldata _for) external;
+
+  /// @notice Claims signer permissions for a valid wearer of `_hatId` on behalf of `_signer`
+  /// @param _hatId The hat id to claim signer rights for
   function claimSigner(uint256 _hatId) external;
+
+  /// @notice Claims signer permissions for a valid wearer of `_hatId` on behalf of `_signer`
+  /// @param _hatId The hat id to claim signer rights for
+  /// @param _signer The address to claim signer rights for
+  function claimSignerFor(uint256 _hatId, address _signer) external;
+
+  /// @notice Claims signer permissions for a set of valid wearers of `_hatIds` on behalf of the `_signers`
+  /// If this contract is the only owner on the `safe`, it will be swapped out for the first `_signer`. Otherwise, each
+  /// of the `_signers` will be added as a new owner.
+  /// @param _hatIds The hat ids to use for adding each of the `_signers`, indexed to `_signers`
+  /// @param _signers The addresses to add as new `safe` owners, indexed to `_hatIds`
+  function claimSignersFor(uint256[] calldata _hatIds, address[] calldata _signers) external;
+
+  /// @notice Removes an invalid signer from the `safe`, updating the threshold if appropriate
+  /// @param _signer The address to remove if not a valid signer
   function removeSigner(address _signer) external;
+
+  /// @notice Tallies the number of existing `safe` owners that wear a signer hat and updates the `safe` threshold if
+  /// necessary
+  /// @dev Does NOT remove invalid `safe` owners
   function reconcileSignerCount() external;
+
+  /// @notice Irreversibly locks the contract, preventing any further changes to the contract's settings.
+  /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.
   function lock() external;
+
+  /// @notice Sets the owner hat
+  /// @dev Only callable by a wearer of the current owner hat, and only if the contract is not locked
+  /// @param _ownerHat The new owner hat
   function setOwnerHat(uint256 _ownerHat) external;
-  function setTargetThreshold(uint256 _targetThreshold) external;
-  function setMinThreshold(uint256 _minThreshold) external;
+
+  /// @notice Adds new approved signer hats
+  /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.
+  /// @param _newSignerHats Array of hat ids to add as approved signer hats
   function addSignerHats(uint256[] calldata _newSignerHats) external;
+
+  /// @notice Sets a new target threshold, and changes `safe`'s threshold if appropriate
+  /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.
+  /// @param _targetThreshold The new target threshold to set
+  function setTargetThreshold(uint256 _targetThreshold) external;
+
+  /// @notice Sets a new minimum threshold
+  /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.
+  /// Reverts if `_minThreshold` is greater than `targetThreshold`
+  /// @param _minThreshold The new minimum threshold
+  function setMinThreshold(uint256 _minThreshold) external;
+
+  /// @notice Sets whether signer permissions can be claimed on behalf of valid hat wearers
+  /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.
+  /// @param _claimableFor Whether signer permissions can be claimed on behalf of valid hat wearers
   function setClaimableFor(bool _claimableFor) external;
+
+  /// @notice Detach HSG from the Safe
+  /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.
   function detachHSG() external;
+
+  /// @notice Migrate the Safe to a new HSG, ie detach this HSG and attach a new HSG
+  /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.
+  /// @param _newHSG The new HatsSignerGate to attach to the Safe
   function migrateToNewHSG(address _newHSG) external;
 
-  // function checkTransaction(
-  //   address to,
-  //   uint256 value,
-  //   bytes calldata data,
-  //   Enum.Operation operation,
-  //   uint256 safeTxGas,
-  //   uint256 baseGas,
-  //   uint256 gasPrice,
-  //   address gasToken,
-  //   address payable refundReceiver,
-  //   bytes memory signatures,
-  //   address msgSender
-  // ) external;
+  /*//////////////////////////////////////////////////////////////
+                          VIEW FUNCTIONS
+  //////////////////////////////////////////////////////////////*/
 
-  // function checkAfterExecution(bytes32 txHash, bool success) external;
-
+  /// @notice Checks if `_account` is a valid signer, ie is wearing the signer hat
+  /// @dev Must be implemented by all flavors of HatsSignerGate
+  /// @param _account The address to check
+  /// @return valid Whether `_account` is a valid signer
   function isValidSigner(address _account) external view returns (bool valid);
+
+  /// @notice A `_hatId` is valid if it is included in the `validSignerHats` mapping
+  /// @param _hatId The hat id to check
+  /// @return valid Whether `_hatId` is a valid signer hat
   function isValidSignerHat(uint256 _hatId) external view returns (bool valid);
+
+  /// @notice Tallies the number of existing `safe` owners that wear a signer hat
+  /// @return signerCount The number of valid signers on the `safe`
   function validSignerCount() external view returns (uint256 signerCount);
+
+  /// @notice Checks if a HatsSignerGate can be safely attached to a Safe, ie there must be no existing modules
   function canAttachToSafe() external view returns (bool);
+
+  /// @notice Counts the number of hats-valid signatures within a set of `signatures`
+  /// @dev modified from
+  /// https://github.com/safe-global/safe-contracts/blob/c36bcab46578a442862d043e12a83fec41143dec/contracts/Safe.sol#L240
+  /// @param dataHash The signed data
+  /// @param signatures The set of signatures to check
+  /// @param sigCount The number of signatures to check
+  /// @return validSigCount The number of hats-valid signatures
   function countValidSignatures(bytes32 dataHash, bytes memory signatures, uint256 sigCount)
     external
     view
     returns (uint256 validSigCount);
-
-  /*//////////////////////////////////////////////////////////////
-                          STATE VARIABLES
-    //////////////////////////////////////////////////////////////*/
-  function validSignerHats(uint256) external view returns (bool);
-  function claimedSignerHats(address) external view returns (uint256);
-  function safe() external view returns (ISafe);
-  function minThreshold() external view returns (uint256);
-  function targetThreshold() external view returns (uint256);
-  function version() external view returns (string memory);
 }

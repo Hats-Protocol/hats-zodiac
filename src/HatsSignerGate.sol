@@ -22,44 +22,53 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
                             CONSTANTS
   //////////////////////////////////////////////////////////////*/
 
+  /// @inheritdoc IHatsSignerGate
   IHats public immutable HATS;
+
+  /// @inheritdoc IHatsSignerGate
   address public immutable safeSingleton;
+
+  /// @inheritdoc IHatsSignerGate
   address public immutable safeFallbackLibrary;
+
+  /// @inheritdoc IHatsSignerGate
   address public immutable safeMultisendLibrary;
+
+  /// @inheritdoc IHatsSignerGate
   address public immutable safeProxyFactory;
 
   /*//////////////////////////////////////////////////////////////
                             MUTABLE STATE
   //////////////////////////////////////////////////////////////*/
 
-  /// @notice Append-only tracker of approved signer hats
+  /// @inheritdoc IHatsSignerGate
   mapping(uint256 => bool) public validSignerHats;
 
-  /// @notice Tracks the hat ids worn by users who have "claimed signer"
+  /// @inheritdoc IHatsSignerGate
   mapping(address => uint256) public claimedSignerHats;
 
-  /// @notice The id of the owner hat
+  /// @inheritdoc IHatsSignerGate
   uint256 public ownerHat;
 
-  /// @notice The multisig to which this contract is attached
+  /// @inheritdoc IHatsSignerGate
   ISafe public safe;
 
-  /// @notice The minimum signature threshold for the `safe`
+  /// @inheritdoc IHatsSignerGate
   uint256 public minThreshold;
 
-  /// @notice The highest level signature threshold for the `safe`
+  /// @inheritdoc IHatsSignerGate
   uint256 public targetThreshold;
 
-  /// @notice Whether the contract is locked. If true, the owner cannot change any of the contract's settings.
+  /// @inheritdoc IHatsSignerGate
   bool public locked;
 
-  /// @notice Whether signer permissions can be claimed on behalf of valid hat wearers
+  /// @inheritdoc IHatsSignerGate
   bool public claimableFor;
 
-  /// @notice The implementation address of this contract
+  /// @inheritdoc IHatsSignerGate
   address public implementation;
 
-  /// @notice The version of HatsSignerGate used in this contract
+  /// @inheritdoc IHatsSignerGate
   string public version;
 
   /// @dev Temporary record of the existing owners on the `safe` when a transaction is submitted
@@ -113,13 +122,7 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
                               INITIALIZER
   //////////////////////////////////////////////////////////////*/
 
-  /**
-   * @notice Initializes a new instance of HatsSignerGate.
-   *  Does NOT check if the target Safe is compatible with this HSG.
-   * @dev Can only be called once
-   * @param initializeParams ABI-encoded bytes with initialization parameters, as defined in
-   * {IHatsSignerGate.SetupParams}
-   */
+  /// @inheritdoc IHatsSignerGate
   function setUp(bytes calldata initializeParams) public payable initializer {
     SetupParams memory params = abi.decode(initializeParams, (SetupParams));
 
@@ -154,15 +157,12 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
                           PUBLIC FUNCTIONS
   //////////////////////////////////////////////////////////////*/
 
-  /// @notice Function to become an owner on the safe if you are wearing `_hatId` and `_hatId` is a valid signer hat
-  /// @dev Reverts if the caller is either invalid or has already claimed.
-  /// @param _hatId The hat id to claim signer rights for
+  /// @inheritdoc IHatsSignerGate
   function claimSigner(uint256 _hatId) public {
     _addSigner(_hatId, msg.sender);
   }
 
-  /// @notice Claims signer permissions for a valid wearer of `_hatId` on behalf of `_signer`
-  /// @param _hatId The hat id to claim signer rights for
+  /// @inheritdoc IHatsSignerGate
   function claimSignerFor(uint256 _hatId, address _signer) public {
     // check that signer permissions are claimable for
     if (!claimableFor) revert NotClaimableFor();
@@ -170,11 +170,7 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
     _addSigner(_hatId, _signer);
   }
 
-  /// @notice Claims signer permissions for a set of valid wearers of `_hatIds` on behalf of the `_signers`
-  /// If this contract is the only owner on the `safe`, it will be swapped out for the first `_signer`. Otherwise, each
-  /// `_signer` will be added as a new owner.
-  /// @param _hatIds The hat ids to use for adding each of the `_signers`, indexed to `_signers`
-  /// @param _signers The addresses to add as new `safe` owners, indexed to `_hatIds`
+  /// @inheritdoc IHatsSignerGate
   function claimSignersFor(uint256[] calldata _hatIds, address[] calldata _signers) public {
     // check that signer permissions are claimable for
     if (!claimableFor) revert NotClaimableFor();
@@ -242,17 +238,14 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
     }
   }
 
-  /// @notice Removes an invalid signer from the `safe`, updating the threshold if appropriate
-  /// @param _signer The address to remove if not a valid signer
+  /// @inheritdoc IHatsSignerGate
   function removeSigner(address _signer) public virtual {
     if (isValidSigner(_signer)) revert StillWearsSignerHat(_signer);
 
     _removeSigner(_signer);
   }
 
-  /// @notice Tallies the number of existing `safe` owners that wear a signer hat and updates the `safe` threshold if
-  /// necessary
-  /// @dev Does NOT remove invalid `safe` owners
+  /// @inheritdoc IHatsSignerGate
   function reconcileSignerCount() public {
     uint256 signerCount = validSignerCount();
 
@@ -274,29 +267,22 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
                         OWNER FUNCTIONS
   //////////////////////////////////////////////////////////////*/
 
-  /// @notice Irreversibly locks the contract, preventing any further changes to the contract's settings.
-  /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.
+  /// @inheritdoc IHatsSignerGate
   function lock() public onlyOwner onlyUnlocked {
     _lock();
   }
 
-  /// @notice Sets the owner hat
-  /// @dev Only callable by a wearer of the current owner hat, and only if the contract is not locked
-  /// @param _ownerHat The new owner hat
+  /// @inheritdoc IHatsSignerGate
   function setOwnerHat(uint256 _ownerHat) public onlyOwner onlyUnlocked {
     _setOwnerHat(_ownerHat);
   }
 
-  /// @notice Adds new approved signer hats
-  /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.
-  /// @param _newSignerHats Array of hat ids to add as approved signer hats
+  /// @inheritdoc IHatsSignerGate
   function addSignerHats(uint256[] calldata _newSignerHats) external onlyOwner onlyUnlocked {
     _addSignerHats(_newSignerHats);
   }
 
-  /// @notice Sets a new target threshold, and changes `safe`'s threshold if appropriate
-  /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.
-  /// @param _targetThreshold The new target threshold to set
+  /// @inheritdoc IHatsSignerGate
   function setTargetThreshold(uint256 _targetThreshold) public onlyOwner onlyUnlocked {
     if (_targetThreshold != targetThreshold) {
       _setTargetThreshold(_targetThreshold);
@@ -306,23 +292,17 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
     }
   }
 
-  /// @notice Sets a new minimum threshold
-  /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.
-  /// Reverts if `_minThreshold` is greater than `targetThreshold`
-  /// @param _minThreshold The new minimum threshold
+  /// @inheritdoc IHatsSignerGate
   function setMinThreshold(uint256 _minThreshold) public onlyOwner onlyUnlocked {
     _setMinThreshold(_minThreshold);
   }
 
-  /// @notice Sets whether signer permissions can be claimed on behalf of valid hat wearers
-  /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.
-  /// @param _claimableFor Whether signer permissions can be claimed on behalf of valid hat wearers
+  /// @inheritdoc IHatsSignerGate
   function setClaimableFor(bool _claimableFor) public onlyOwner onlyUnlocked {
     _setClaimableFor(_claimableFor);
   }
 
-  /// @notice Detach HSG from the Safe
-  /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.
+  /// @inheritdoc IHatsSignerGate
   function detachHSG() public onlyOwner onlyUnlocked {
     ISafe s = safe; // save SLOAD
 
@@ -332,9 +312,7 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
     emit Detached();
   }
 
-  /// @notice Migrate the Safe to a new HSG, ie detach this HSG and attach a new HSG
-  /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.
-  /// @param _newHSG The new HatsSignerGate to attach to the Safe
+  /// @inheritdoc IHatsSignerGate
   function migrateToNewHSG(address _newHSG) public onlyOwner onlyUnlocked {
     // QUESTION check if _newHSG is indeed an HSG?
 
@@ -352,9 +330,7 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
                       ZODIAC GUARD FUNCTIONS
   //////////////////////////////////////////////////////////////*/
 
-  /// @notice Pre-flight check on a `safe` transaction to ensure that it s signers are valid, called from within
-  /// `safe.execTransactionFromModule()`
-  /// @dev Overrides All params mirror params for `safe.execTransactionFromModule()`
+  /// @inheritdoc BaseGuard
   function checkTransaction(
     address to,
     uint256 value,
@@ -457,41 +433,28 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
                           VIEW FUNCTIONS
   //////////////////////////////////////////////////////////////*/
 
-  /// @notice Checks if `_account` is a valid signer, ie is wearing the signer hat
-  /// @dev Must be implemented by all flavors of HatsSignerGate
-  /// @param _account The address to check
-  /// @return valid Whether `_account` is a valid signer
+  /// @inheritdoc IHatsSignerGate
   function isValidSigner(address _account) public view returns (bool valid) {
     /// @dev existing `claimedSignerHats` are always valid, since `validSignerHats` is append-only
     valid = HATS.isWearerOfHat(_account, claimedSignerHats[_account]);
   }
 
-  /// @notice A `_hatId` is valid if it is included in the `validSignerHats` mapping
-  /// @param _hatId The hat id to check
-  /// @return valid Whether `_hatId` is a valid signer hat
+  /// @inheritdoc IHatsSignerGate
   function isValidSignerHat(uint256 _hatId) public view returns (bool valid) {
     valid = validSignerHats[_hatId];
   }
 
-  /// @notice Tallies the number of existing `safe` owners that wear a signer hat
-  /// @return signerCount The number of valid signers on the `safe`
+  /// @inheritdoc IHatsSignerGate
   function validSignerCount() public view returns (uint256 signerCount) {
     signerCount = _countValidSigners(safe.getOwners());
   }
 
-  /**
-   * @notice Checks if a HatsSignerGate can be safely attached to a Safe, ie there must be no existing modules
-   */
+  /// @inheritdoc IHatsSignerGate
   function canAttachToSafe() public view returns (bool) {
     return safe.canAttachHSG();
   }
 
-  /// @notice Counts the number of hats-valid signatures within a set of `signatures`
-  /// @dev modified from
-  /// https://github.com/safe-global/safe-contracts/blob/c36bcab46578a442862d043e12a83fec41143dec/contracts/Safe.sol#L240
-  /// @param dataHash The signed data
-  /// @param signatures The set of signatures to check
-  /// @return validSigCount The number of hats-valid signatures
+  /// @inheritdoc IHatsSignerGate
   function countValidSignatures(bytes32 dataHash, bytes memory signatures, uint256 sigCount)
     public
     view
@@ -555,7 +518,7 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
   // /// @return valid Whether `_account` is a valid signer
   // function isValidSigner(address _account) public view virtual returns (bool valid) { }
 
-  /// @notice Internal function to approve new signer hats
+  /// @dev Internal function to approve new signer hats
   /// @param _newSignerHats Array of hat ids to add as approved signer hats
   function _addSignerHats(uint256[] memory _newSignerHats) internal {
     for (uint256 i = 0; i < _newSignerHats.length;) {
@@ -570,8 +533,7 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
     emit SignerHatsAdded(_newSignerHats);
   }
 
-  /// @notice Internal function to set the target threshold
-  /// @dev Reverts if `_targetThreshold` is lower than `minThreshold`
+  /// @dev Internal function to set the target threshold. Reverts if `_targetThreshold` is lower than `minThreshold`
   /// @param _targetThreshold The new target threshold to set
   function _setTargetThreshold(uint256 _targetThreshold) internal {
     // target threshold cannot be lower than min threshold
@@ -581,8 +543,7 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
     emit TargetThresholdSet(_targetThreshold);
   }
 
-  /// @notice Internal function to set the threshold for the `safe`
-  /// @dev Forwards the threshold-setting call to `SafeManagerLib.execChangeThreshold`
+  /// @dev Internal function to set the threshold for the `safe`
   /// @param _threshold The threshold to set on the `safe`
   /// @param _signerCount The number of valid signers on the `safe`; should be calculated from `validSignerCount()`
   function _setSafeThreshold(uint256 _threshold, uint256 _signerCount) internal {
@@ -597,8 +558,8 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
     }
   }
 
-  /// @notice Internal function to set a new minimum threshold
-  /// @dev Only callable by a wearer of the owner hat. Reverts if `_minThreshold` is greater than `targetThreshold`
+  /// @dev Internal function to set a new minimum threshold. Only callable by a wearer of the owner hat.
+  /// Reverts if `_minThreshold` is greater than `targetThreshold`
   /// @param _minThreshold The new minimum threshold
   function _setMinThreshold(uint256 _minThreshold) internal {
     if (_minThreshold > targetThreshold) revert InvalidMinThreshold();
@@ -607,7 +568,7 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
     emit MinThresholdSet(_minThreshold);
   }
 
-  /// @notice Internal function to count the number of valid signers in an array of addresses
+  /// @dev Internal function to count the number of valid signers in an array of addresses
   /// @param owners The addresses to check for validity
   /// @return signerCount The number of valid signers in `owners`
   function _countValidSigners(address[] memory owners) internal view returns (uint256 signerCount) {
@@ -627,14 +588,14 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
     }
   }
 
-  /// @notice Internal function to set the claimableFor parameter
+  /// @dev Internal function to set the claimableFor parameter
   /// @param _claimableFor Whether signer permissions are claimable on behalf of valid hat wearers
   function _setClaimableFor(bool _claimableFor) internal {
     claimableFor = _claimableFor;
     emit ClaimableForSet(_claimableFor);
   }
 
-  /// @notice Internal function to add a `_signer` to the `safe` if they are wearing a valid signer hat.
+  /// @dev Internal function to add a `_signer` to the `safe` if they are wearing a valid signer hat.
   /// If this contract is the only owner on the `safe`, it will be swapped out for `_signer`. Otherwise, `_signer` will
   /// be added as a new owner.
   /// @param _hatId The hat id to use for the claim
@@ -690,8 +651,8 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
     if (!success) revert SafeManagerLib.FailedExecAddSigner();
   }
 
-  /// @notice Internal function to remove a signer from the `safe`, updating the threshold if appropriate
-  /// @dev Unsafe. Does not check for signer validity before removal
+  /// @dev Internal function to remove a signer from the `safe`, updating the threshold if appropriate
+  /// Unsafe. Does not check for signer validity before removal
   /// @param _signer The address to remove
   function _removeSigner(address _signer) internal {
     bytes memory removeOwnerData;
@@ -726,7 +687,7 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
     // E.g. The expected check method might change and then the Safe would be locked.
   }
 
-  /// @notice Internal function to calculate the threshold that `safe` should have, given the correct `signerCount`,
+  /// @dev Internal function to calculate the threshold that `safe` should have, given the correct `signerCount`,
   /// `minThreshold`, and `targetThreshold`
   /// @return _threshold The correct threshold
   function _getCorrectThreshold() internal view returns (uint256 _threshold) {
