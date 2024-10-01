@@ -330,7 +330,7 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
   function checkTransaction(
     address to,
     uint256 value,
-    bytes calldata data,
+    bytes memory data, // TODO compile viaIR to return this to calldata without stack too deep error
     Enum.Operation operation,
     uint256 safeTxGas,
     uint256 baseGas,
@@ -340,9 +340,13 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
     bytes memory signatures,
     address // msgSender
   ) external override {
-    if (msg.sender != address(safe)) revert NotCalledFromSafe();
+    ISafe s = safe; // save SLOADs
+
+    // ensure that the call is coming from the safe
+    if (msg.sender != address(s)) revert NotCalledFromSafe();
+
     // get the safe owners
-    address[] memory owners = safe.getOwners();
+    address[] memory owners = s.getOwners();
     {
       // scope to avoid stack too deep errors
       uint256 safeOwnerCount = owners.length;
@@ -350,10 +354,11 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
       // ensure that safe threshold is correct
       reconcileSignerCount();
 
+      // ensure that the safe has enough owners to execute the transaction
       if (safeOwnerCount < minThreshold) revert BelowMinThreshold(minThreshold, safeOwnerCount);
     }
     // get the tx hash; view function
-    bytes32 txHash = safe.getTransactionHash(
+    bytes32 txHash = s.getTransactionHash(
       // Transaction info
       to,
       value,
@@ -367,9 +372,9 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
       refundReceiver,
       // Signature info
       // We subtract 1 since nonce was just incremented in the parent function call
-      safe.nonce() - 1 // view function
+      s.nonce() - 1 // view function
     );
-    uint256 threshold = safe.getThreshold();
+    uint256 threshold = s.getThreshold();
     uint256 validSigCount = countValidSignatures(txHash, signatures, threshold);
 
     // revert if there aren't enough valid signatures
@@ -400,20 +405,21 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
    * https://github.com/gnosis/zodiac-guard-mod/blob/988ebc7b71e352f121a0be5f6ae37e79e47a4541/contracts/ModGuard.sol#L86
    */
   function checkAfterExecution(bytes32, bool) external override {
-    if (msg.sender != address(safe)) revert NotCalledFromSafe();
+    ISafe s = safe; // save SLOADs
+    if (msg.sender != address(s)) revert NotCalledFromSafe();
     // prevent signers from disabling this guard
 
-    if (safe.getSafeGuard() != address(this)) revert CannotDisableThisGuard(address(this));
+    if (s.getSafeGuard() != address(this)) revert CannotDisableThisGuard(address(this));
     // prevent signers from changing the threshold
 
-    if (safe.getThreshold() != _getCorrectThreshold()) revert SignersCannotChangeThreshold();
+    if (s.getThreshold() != _getCorrectThreshold()) revert SignersCannotChangeThreshold();
 
     // prevent signers from changing the owners
-    address[] memory owners = safe.getOwners();
+    address[] memory owners = s.getOwners();
     if (keccak256(abi.encode(owners)) != _existingOwnersHash) revert SignersCannotChangeOwners();
 
     // prevent signers from removing this module or adding any other modules
-    (address[] memory modulesWith1, address next) = safe.getModulesWith1();
+    (address[] memory modulesWith1, address next) = s.getModulesWith1();
 
     // ensure that there is only one module...
     // if the length is 0, we know this module has been removed
