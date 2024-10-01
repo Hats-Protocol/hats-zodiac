@@ -378,9 +378,7 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
       // ensure that safe threshold is correct
       reconcileSignerCount();
 
-      if (safeOwnerCount < minThreshold) {
-        revert BelowMinThreshold(minThreshold, safeOwnerCount);
-      }
+      if (safeOwnerCount < minThreshold) revert BelowMinThreshold(minThreshold, safeOwnerCount);
     }
     // get the tx hash; view function
     bytes32 txHash = safe.getTransactionHash(
@@ -403,9 +401,7 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
     uint256 validSigCount = countValidSignatures(txHash, signatures, threshold);
 
     // revert if there aren't enough valid signatures
-    if (validSigCount < threshold || validSigCount < minThreshold) {
-      revert InvalidSigners();
-    }
+    if (validSigCount < threshold || validSigCount < minThreshold) revert InvalidSigners();
 
     // record existing owners for post-flight check
     _existingOwnersHash = keccak256(abi.encode(owners));
@@ -432,32 +428,27 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
   function checkAfterExecution(bytes32, bool) external override {
     if (msg.sender != address(safe)) revert NotCalledFromSafe();
     // prevent signers from disabling this guard
-    if (safe.getSafeGuard() != address(this)) {
-      revert CannotDisableThisGuard(address(this));
-    }
+
+    if (safe.getSafeGuard() != address(this)) revert CannotDisableThisGuard(address(this));
     // prevent signers from changing the threshold
-    if (safe.getThreshold() != _getCorrectThreshold()) {
-      revert SignersCannotChangeThreshold();
-    }
+
+    if (safe.getThreshold() != _getCorrectThreshold()) revert SignersCannotChangeThreshold();
+
     // prevent signers from changing the owners
     address[] memory owners = safe.getOwners();
-    if (keccak256(abi.encode(owners)) != _existingOwnersHash) {
-      revert SignersCannotChangeOwners();
-    }
+    if (keccak256(abi.encode(owners)) != _existingOwnersHash) revert SignersCannotChangeOwners();
+
     // prevent signers from removing this module or adding any other modules
     (address[] memory modulesWith1, address next) = safe.getModulesWith1();
+
     // ensure that there is only one module...
-    if (
-      // if the length is 0, we know this module has been removed
-      // per Safe ModuleManager.sol#137, "If all entries fit into a single page, the next pointer will be 0x1", ie
-      // SENTINELS. Therefore, if `next` is not SENTINELS, we know another module has been added.
-      modulesWith1.length == 0 || next != SafeManagerLib.SENTINELS
-    ) {
-      revert SignersCannotChangeModules();
-    } // ...and that the only module is this contract
-    else if (modulesWith1[0] != address(this)) {
-      revert SignersCannotChangeModules();
-    }
+    // if the length is 0, we know this module has been removed
+    // per Safe ModuleManager.sol#137, "If all entries fit into a single page, the next pointer will be 0x1", ie
+    // SENTINELS. Therefore, if `next` is not SENTINELS, we know another module has been added.
+    if (modulesWith1.length == 0 || next != SafeManagerLib.SENTINELS) revert SignersCannotChangeModules();
+    // ...and that the only module is this contract
+    else if (modulesWith1[0] != address(this)) revert SignersCannotChangeModules();
+
     // leave checked to catch underflows triggered by re-entry attempts
     --_guardEntries;
   }
@@ -698,22 +689,6 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
 
     if (!success) revert SafeManagerLib.FailedExecAddSigner();
   }
-
-  // function _claimSigners(address[] memory _signers, uint256[] memory _hatIds) internal {
-  //   // check that the arrays are the same length
-  //   uint256 toClaimCount = _signers.length;
-  //   if (_hatIds.length != toClaimCount) revert InvalidArrayLength();
-
-  //   uint256 currentSignerCount = _countValidSigners(_owners);
-
-  //   if (safe.isOwner(_signer)) revert SignerAlreadyClaimed(_signer);
-
-  //   if (!isValidSignerHat(_hatId)) revert InvalidSignerHat(_hatId);
-
-  //   if (!HATS.isWearerOfHat(_signer, _hatId)) revert NotSignerHatWearer(_signer);
-
-  //   _grantSigner(_owners, currentSignerCount, _signer);
-  // }
 
   /// @notice Internal function to remove a signer from the `safe`, updating the threshold if appropriate
   /// @dev Unsafe. Does not check for signer validity before removal
