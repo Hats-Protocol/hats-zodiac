@@ -183,9 +183,8 @@ library SafeManagerLib {
     // Generate calldata to remove HSG as a module
     bytes memory removeHSGModule = encodeDisableModuleAction(SENTINELS, address(this));
 
-    bool success = execTransactionFromHSG(_safe, removeHSGModule);
-
-    if (!success) revert FailedExecChangeThreshold();
+    // execute the call
+    if (!execTransactionFromHSG(_safe, removeHSGModule)) revert FailedExecChangeThreshold();
   }
 
   /// @dev Encode the action to disable HSG as a module on a `_safe`
@@ -211,17 +210,6 @@ library SafeManagerLib {
 
     execTransactionFromHSG(_safe, setHSGGuard);
     execTransactionFromHSG(_safe, attachHSGModule);
-  }
-
-  /// @dev Execute the action to swap the owner of a `_safe` from `_oldOwner` to `_newOwner`
-  /// @param _prevOwner The previous owner in the owners linked list
-  function execSwapOwner(ISafe _safe, address _prevOwner, address _oldOwner, address _newOwner)
-    internal
-    returns (bool success)
-  {
-    success = execTransactionFromHSG(_safe, encodeSwapOwnerAction(_prevOwner, _oldOwner, _newOwner));
-
-    if (!success) revert FailedExecRemoveSigner();
   }
 
   /// @dev Execute the action to change the threshold of a `_safe` to `_newThreshold`

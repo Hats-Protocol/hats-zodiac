@@ -228,9 +228,7 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
       }
 
       // execute the call
-      bool success = safe.execTransactionFromHSG(addOwnerData);
-
-      if (!success) revert SafeManagerLib.FailedExecAddSigner();
+      if (!safe.execTransactionFromHSG(addOwnerData)) revert SafeManagerLib.FailedExecAddSigner();
     }
   }
 
@@ -637,9 +635,7 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
     }
 
     // execute the call
-    bool success = safe.execTransactionFromHSG(addOwnerData);
-
-    if (!success) revert SafeManagerLib.FailedExecAddSigner();
+    if (!safe.execTransactionFromHSG(addOwnerData)) revert SafeManagerLib.FailedExecAddSigner();
   }
 
   /// @dev Internal function to remove a signer from the `safe`, updating the threshold if appropriate
@@ -667,9 +663,8 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
         SafeManagerLib.encodeRemoveOwnerAction(SafeManagerLib.findPrevOwner(owners, _signer), _signer, newThreshold);
     }
 
-    bool success = safe.execTransactionFromHSG(removeOwnerData);
-
-    if (!success) revert SafeManagerLib.FailedExecRemoveSigner();
+    // execute the call
+    if (!safe.execTransactionFromHSG(removeOwnerData)) revert SafeManagerLib.FailedExecRemoveSigner();
   }
 
   // solhint-disallow-next-line payable-fallback
