@@ -10,7 +10,7 @@ contract Deployment is TestSuite {
   // errors from dependencies
   error InvalidInitialization();
 
-  function test_onlyHSG(bool _locked) public {
+  function test_onlyHSG(bool _locked, bool _claimableFor) public {
     // deploy safe with this contract as the single owner
     address[] memory owners = new address[](1);
     owners[0] = address(this);
@@ -25,6 +25,7 @@ contract Deployment is TestSuite {
       _safe: address(testSafe),
       _expectedError: bytes4(0), // no expected error
       _locked: _locked,
+      _claimableFor: _claimableFor,
       _verbose: false
     });
 
@@ -38,9 +39,10 @@ contract Deployment is TestSuite {
     assertEq(hatsSignerGate.version(), version);
     assertEq(address(hatsSignerGate.implementation()), address(singletonHatsSignerGate));
     assertEq(hatsSignerGate.locked(), _locked);
+    assertEq(hatsSignerGate.claimableFor(), _claimableFor);
   }
 
-  function test_andSafe(bool _locked) public {
+  function test_andSafe(bool _locked, bool _claimableFor) public {
     (hatsSignerGate, safe) = _deployHSGAndSafe({
       _ownerHat: ownerHat,
       _signerHats: signerHats,
@@ -48,6 +50,7 @@ contract Deployment is TestSuite {
       _targetThreshold: targetThreshold,
       _maxSigners: maxSigners,
       _locked: _locked,
+      _claimableFor: _claimableFor,
       _verbose: false
     });
 
@@ -64,6 +67,7 @@ contract Deployment is TestSuite {
     assertTrue(safe.isModuleEnabled(address(hatsSignerGate)));
     assertEq(safe.getOwners()[0], address(hatsSignerGate));
     assertEq(hatsSignerGate.locked(), _locked);
+    assertEq(hatsSignerGate.claimableFor(), _claimableFor);
   }
 
   function test_revert_reinitializeImplementation() public {
@@ -439,7 +443,7 @@ contract SettingMaxSigners is WithHSGInstanceTest {
 }
 
 contract ClaimingSigners is WithHSGInstanceTest {
-  function testClaimSigner() public {
+  function test_happy() public {
     _setSignerValidity(signerAddresses[3], signerHat, true);
 
     vm.prank(signerAddresses[3]);
@@ -450,7 +454,7 @@ contract ClaimingSigners is WithHSGInstanceTest {
     assertEq(safe.getOwners().length, 1);
   }
 
-  function testOwnerClaimSignerReverts() public {
+  function test_revert_alreadyClaimed() public {
     _addSignersSameHat(2, signerHat);
 
     vm.prank(signerAddresses[1]);
@@ -462,7 +466,7 @@ contract ClaimingSigners is WithHSGInstanceTest {
     assertEq(hatsSignerGate.validSignerCount(), 2);
   }
 
-  function testNonHatWearerCannotClaimSigner() public {
+  function test_revert_invalidSigner() public {
     _setSignerValidity(signerAddresses[3], signerHat, false);
 
     vm.prank(signerAddresses[3]);
@@ -471,7 +475,7 @@ contract ClaimingSigners is WithHSGInstanceTest {
     hatsSignerGate.claimSigner(signerHat);
   }
 
-  function test_Multi_NonHatWearerCannotClaimSigner(uint256 i) public {
+  function test_revert_multi_invalidSigner(uint256 i) public {
     vm.assume(i < 2);
     _setSignerValidity(signerAddresses[3], signerHats[i], false);
 
@@ -1195,6 +1199,7 @@ contract MigratingHSG is WithHSGInstanceTest {
       maxSigners,
       address(safe),
       false,
+      false,
       1
     );
 
@@ -1226,5 +1231,154 @@ contract MigratingHSG is WithHSGInstanceTest {
     vm.expectRevert(IHatsSignerGate.Locked.selector);
     vm.prank(owner);
     hatsSignerGate.migrateToNewHSG(address(newHSG));
+  }
+}
+
+contract SettingClaimableFor is WithHSGInstanceTest {
+  function test_happy(bool _claimableFor) public {
+    vm.expectEmit(true, true, true, true);
+    emit HSGEvents.ClaimableForSet(_claimableFor);
+    vm.prank(owner);
+    hatsSignerGate.setClaimableFor(_claimableFor);
+
+    assertEq(hatsSignerGate.claimableFor(), _claimableFor, "incorrectclaimableFor");
+  }
+
+  function test_revert_nonOwner() public {
+    bool currentClaimableFor = hatsSignerGate.claimableFor();
+
+    vm.expectRevert(IHatsSignerGate.NotOwnerHatWearer.selector);
+    vm.prank(other);
+    hatsSignerGate.setClaimableFor(true);
+
+    assertEq(hatsSignerGate.claimableFor(), currentClaimableFor, "claimableFor should not be changed");
+  }
+
+  function test_revert_locked() public {
+    bool currentClaimableFor = hatsSignerGate.claimableFor();
+
+    vm.prank(owner);
+    hatsSignerGate.lock();
+
+    vm.expectRevert(IHatsSignerGate.Locked.selector);
+    vm.prank(owner);
+    hatsSignerGate.setClaimableFor(true);
+
+    assertEq(hatsSignerGate.claimableFor(), currentClaimableFor, "claimableFor should not be changed");
+  }
+}
+
+contract ClaimingSignerFor is WithHSGInstanceTest {
+  function test_happy() public {
+    _setSignerValidity(signerAddresses[0], signerHat, true);
+
+    // set the claimable for to true
+    vm.prank(owner);
+    hatsSignerGate.setClaimableFor(true);
+
+    hatsSignerGate.claimSignerFor(signerHat, signerAddresses[0]);
+
+    assertEq(hatsSignerGate.validSignerCount(), 1);
+    assertEq(safe.getOwners().length, 1);
+  }
+
+  function test_swapOutInvalidSigner() public {
+    _addSignersSameHat(maxSigners, signerHat);
+    assertEq(hatsSignerGate.validSignerCount(), maxSigners);
+
+    // set the claimable for to true
+    vm.prank(owner);
+    hatsSignerGate.setClaimableFor(true);
+
+    // invalidate one of the existing signers, but don't remove them from the safe
+    _setSignerValidity(signerAddresses[0], signerHat, false);
+    assertEq(hatsSignerGate.validSignerCount(), maxSigners - 1);
+
+    // claim for a new signer
+    address newSigner = signerAddresses[maxSigners + 1];
+    _setSignerValidity(newSigner, signerHat, true);
+
+    hatsSignerGate.claimSignerFor(signerHat, newSigner);
+
+    assertEq(hatsSignerGate.validSignerCount(), maxSigners);
+    assertEq(safe.getOwners().length, maxSigners);
+  }
+
+  function test_revert_notClaimableFor() public {
+    _setSignerValidity(signerAddresses[0], signerHat, true);
+
+    // set the claimable for to true and then undo it
+    vm.prank(owner);
+    hatsSignerGate.setClaimableFor(true);
+    vm.prank(owner);
+    hatsSignerGate.setClaimableFor(false);
+
+    vm.expectRevert(IHatsSignerGate.NotClaimableFor.selector);
+    hatsSignerGate.claimSignerFor(signerHat, signerAddresses[0]);
+
+    assertEq(hatsSignerGate.validSignerCount(), 0);
+    assertEq(safe.getOwners().length, 1);
+  }
+
+  function test_revert_alreadyClaimed() public {
+    _setSignerValidity(signerAddresses[0], signerHat, true);
+
+    vm.prank(owner);
+    hatsSignerGate.setClaimableFor(true);
+
+    hatsSignerGate.claimSignerFor(signerHat, signerAddresses[0]);
+
+    vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.SignerAlreadyClaimed.selector, signerAddresses[0]));
+    hatsSignerGate.claimSignerFor(signerHat, signerAddresses[0]);
+
+    assertEq(hatsSignerGate.validSignerCount(), 1);
+    assertEq(safe.getOwners().length, 1);
+  }
+
+  function test_revert_invalidSignerHat() public {
+    uint256 invalidSignerHat = signerHat + 1;
+    _setSignerValidity(signerAddresses[0], signerHat, true);
+
+    vm.prank(owner);
+    hatsSignerGate.setClaimableFor(true);
+
+    vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.InvalidSignerHat.selector, invalidSignerHat));
+    hatsSignerGate.claimSignerFor(invalidSignerHat, signerAddresses[0]);
+
+    assertEq(hatsSignerGate.validSignerCount(), 0);
+    assertEq(safe.getOwners().length, 1);
+  }
+
+  function test_revert_invalidSigner() public {
+    _setSignerValidity(signerAddresses[0], signerHat, false);
+
+    vm.prank(owner);
+    hatsSignerGate.setClaimableFor(true);
+
+    vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.NotSignerHatWearer.selector, signerAddresses[1]));
+    hatsSignerGate.claimSignerFor(signerHat, signerAddresses[1]);
+
+    assertEq(hatsSignerGate.validSignerCount(), 0);
+    assertEq(safe.getOwners().length, 1);
+  }
+
+  function test_revert_maxSignersReached() public {
+    // fill up the max number of signers
+    _addSignersSameHat(maxSigners, signerHat);
+    assertEq(hatsSignerGate.validSignerCount(), maxSigners);
+
+    // set the claimable for to true
+    vm.prank(owner);
+    hatsSignerGate.setClaimableFor(true);
+
+    // try to claim a new signer
+    address newSigner = signerAddresses[maxSigners + 1];
+    _setSignerValidity(newSigner, signerHat, true);
+
+    vm.expectRevert(IHatsSignerGate.MaxSignersReached.selector);
+    hatsSignerGate.claimSignerFor(signerHat, newSigner);
+
+    assertEq(hatsSignerGate.validSignerCount(), maxSigners);
+    assertEq(safe.getOwners().length, maxSigners);
   }
 }
