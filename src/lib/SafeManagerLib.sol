@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-// import { console2 } from "forge-std/console2.sol";
+// import { console2 } from "../lib/forge-std/src/console2.sol";
 import { MultiSend } from "../../lib/safe-smart-account/contracts/libraries/MultiSend.sol";
 import { SafeProxyFactory } from "../../lib/safe-smart-account/contracts/proxies/SafeProxyFactory.sol";
 import { StorageAccessible } from "../../lib/safe-smart-account/contracts/common/StorageAccessible.sol";
@@ -15,6 +15,7 @@ library SafeManagerLib {
   /*//////////////////////////////////////////////////////////////
                               CUSTOM ERRORS
   //////////////////////////////////////////////////////////////*/
+
   /// @notice Emitted when a call to change the threshold fails
   error FailedExecChangeThreshold();
 
@@ -30,6 +31,7 @@ library SafeManagerLib {
   /*//////////////////////////////////////////////////////////////
                               CONSTANTS
   //////////////////////////////////////////////////////////////*/
+
   /// @dev The head pointer used in the Safe owners linked list, as well as the module linked list
   address internal constant SENTINELS = address(0x1);
 
@@ -181,9 +183,8 @@ library SafeManagerLib {
     // Generate calldata to remove HSG as a module
     bytes memory removeHSGModule = encodeDisableModuleAction(SENTINELS, address(this));
 
-    bool success = execTransactionFromHSG(_safe, removeHSGModule);
-
-    if (!success) revert FailedExecChangeThreshold();
+    // execute the call
+    if (!execTransactionFromHSG(_safe, removeHSGModule)) revert FailedExecChangeThreshold();
   }
 
   /// @dev Encode the action to disable HSG as a module on a `_safe`
@@ -209,17 +210,6 @@ library SafeManagerLib {
 
     execTransactionFromHSG(_safe, setHSGGuard);
     execTransactionFromHSG(_safe, attachHSGModule);
-  }
-
-  /// @dev Execute the action to swap the owner of a `_safe` from `_oldOwner` to `_newOwner`
-  /// @param _prevOwner The previous owner in the owners linked list
-  function execSwapOwner(ISafe _safe, address _prevOwner, address _oldOwner, address _newOwner)
-    internal
-    returns (bool success)
-  {
-    success = execTransactionFromHSG(_safe, encodeSwapOwnerAction(_prevOwner, _oldOwner, _newOwner));
-
-    if (!success) revert FailedExecRemoveSigner();
   }
 
   /// @dev Execute the action to change the threshold of a `_safe` to `_newThreshold`
@@ -259,14 +249,10 @@ library SafeManagerLib {
   function findPrevOwner(address[] memory _owners, address _owner) internal pure returns (address prevOwner) {
     prevOwner = SENTINELS;
 
-    for (uint256 i; i < _owners.length;) {
+    for (uint256 i; i < _owners.length; ++i) {
       if (_owners[i] == _owner) {
         if (i == 0) break;
         prevOwner = _owners[i - 1];
-      }
-      // shouldn't overflow given reasonable _owners array length
-      unchecked {
-        ++i;
       }
     }
   }
