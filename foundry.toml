@@ -7,7 +7,7 @@ optimizer_runs = 1_000_000
 bytecode_hash = "none"
 gas_reports = ["*"]
 auto_detect_solc = false
-solc = "0.8.20"
+solc = "0.8.26"
 fs_permissions = [{ access = "read", path = "./"}]
 remappings = [
   "solmate/=lib/solmate/src/",
