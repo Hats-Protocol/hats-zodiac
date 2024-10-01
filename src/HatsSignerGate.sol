@@ -158,23 +158,94 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
   /// @dev Reverts if the caller is either invalid or has already claimed.
   /// @param _hatId The hat id to claim signer rights for
   function claimSigner(uint256 _hatId) public {
-    _claimSigner(safe.getOwners(), _hatId, msg.sender);
+    _addSigner(_hatId, msg.sender);
   }
 
   /// @notice Claims signer permissions for a valid wearer of `_hatId` on behalf of `_signer`
   /// @param _hatId The hat id to claim signer rights for
   function claimSignerFor(uint256 _hatId, address _signer) public {
+    // check that signer permissions are claimable for
     if (!claimableFor) revert NotClaimableFor();
 
-    _claimSigner(safe.getOwners(), _hatId, _signer);
+    _addSigner(_hatId, _signer);
+  }
+
+  /// @notice Claims signer permissions for a set of valid wearers of `_hatIds` on behalf of the `_signers`
+  /// If this contract is the only owner on the `safe`, it will be swapped out for the first `_signer`. Otherwise, each
+  /// `_signer` will be added as a new owner.
+  /// @param _hatIds The hat ids to use for adding each of the `_signers`, indexed to `_signers`
+  /// @param _signers The addresses to add as new `safe` owners, indexed to `_hatIds`
+  function claimSignersFor(uint256[] calldata _hatIds, address[] calldata _signers) public {
+    // check that signer permissions are claimable for
+    if (!claimableFor) revert NotClaimableFor();
+
+    // check that the arrays are the same length
+    uint256 toClaimCount = _signers.length;
+    if (_hatIds.length != toClaimCount) revert InvalidArrayLength();
+
+    // iterate through the arrays, adding each signer
+    for (uint256 i; i < toClaimCount;) {
+      uint256 hatId = _hatIds[i];
+      address signer = _signers[i];
+
+      // check that the hat is valid
+      if (!isValidSignerHat(hatId)) revert InvalidSignerHat(hatId);
+
+      // don't try to add a signer that is already an owner and wearing a signer hat
+      if (safe.isOwner(signer) && claimedSignerHats[signer] == hatId) revert SignerAlreadyClaimed(signer);
+
+      // check that the signer is wearing the hat
+      if (!HATS.isWearerOfHat(signer, hatId)) revert NotSignerHatWearer(signer);
+
+      // get the current owners
+      address[] memory owners = safe.getOwners();
+
+      // register the hat used to claim. This will be the hat checked in `checkTransaction()` for this signer
+      claimedSignerHats[signer] = hatId;
+
+      // initiate the valid signer count at the current number of valid owners
+      uint256 signerCount = _countValidSigners(owners);
+
+      // initiate the threshold at the current value
+      uint256 threshold = safe.getThreshold();
+
+      // initiate the addOwnerData, to be conditionally set below
+      bytes memory addOwnerData;
+
+      // for the first signer, check if the only owner is this contract and swap it out if so
+
+      if (i == 0 && owners.length == 1 && owners[0] == address(this)) {
+        addOwnerData = SafeManagerLib.encodeSwapOwnerAction(SafeManagerLib.SENTINELS, address(this), signer);
+      } else {
+        // otherwise, add the claimer as a new owner
+        unchecked {
+          // shouldn't overflow on any reasonable human scale
+          ++signerCount;
+        }
+
+        // set the threshold to the number of valid signers, if not over the target threshold
+        if (signerCount <= targetThreshold) {
+          threshold = signerCount;
+        }
+        // set up the addOwner call
+        addOwnerData = SafeManagerLib.encodeAddOwnerWithThresholdAction(signer, threshold);
+      }
+
+      // execute the call
+      bool success = safe.execTransactionFromHSG(addOwnerData);
+
+      if (!success) revert SafeManagerLib.FailedExecAddSigner();
+
+      unchecked {
+        ++i;
+      }
+    }
   }
 
   /// @notice Removes an invalid signer from the `safe`, updating the threshold if appropriate
   /// @param _signer The address to remove if not a valid signer
   function removeSigner(address _signer) public virtual {
-    if (isValidSigner(_signer)) {
-      revert StillWearsSignerHat(_signer);
-    }
+    if (isValidSigner(_signer)) revert StillWearsSignerHat(_signer);
 
     _removeSigner(_signer);
   }
@@ -572,43 +643,54 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
     emit HSGEvents.ClaimableForSet(_claimableFor);
   }
 
-  /// @notice Internal function that adds `_signer` as an owner on `safe`, updating the threshold if appropriate
-  /// @dev Unsafe. Does not check if `_signer` is a valid signer
-  /// @param _owners Array of owners on the `safe`
-  /// @param _currentSignerCount The current number of signers
+  /// @notice Internal function to add a `_signer` to the `safe` if they are wearing a valid signer hat.
+  /// If this contract is the only owner on the `safe`, it will be swapped out for `_signer`. Otherwise, `_signer` will
+  /// be added as a new owner.
+  /// @param _hatId The hat id to use for the claim
   /// @param _signer The address to add as a new `safe` owner
-  function _grantSigner(address[] memory _owners, uint256 _currentSignerCount, address _signer) internal {
-    uint256 newSignerCount = _currentSignerCount;
+  function _addSigner(uint256 _hatId, address _signer) internal {
+    // check that the hat is valid
+    if (!isValidSignerHat(_hatId)) revert InvalidSignerHat(_hatId);
 
-    uint256 currentThreshold = safe.getThreshold(); // view function
-    uint256 newThreshold = currentThreshold;
+    // don't try to add an owner that is already an owner and wearing a signer hat
+    if (safe.isOwner(_signer) && claimedSignerHats[_signer] == _hatId) revert SignerAlreadyClaimed(_signer);
 
+    // check that the signer is wearing the hat
+    if (!HATS.isWearerOfHat(_signer, _hatId)) revert NotSignerHatWearer(_signer);
+
+    // get the current owners
+    address[] memory owners = safe.getOwners();
+
+    // register the hat used to claim. This will be the hat checked in `checkTransaction()` for this signer
+    claimedSignerHats[_signer] = _hatId;
+
+    // initiate the valid signer count at the current number of valid owners
+    uint256 signerCount = _countValidSigners(owners);
+
+    // initiate the threshold at the current value
+    uint256 threshold = safe.getThreshold();
+
+    // initiate the addOwnerData, to be conditionally set below
     bytes memory addOwnerData;
 
-    // if the only owner is a non-signer (ie this module set as an owner on initialization), replace it with _signer
-    if (_owners.length == 1 && _owners[0] == address(this)) {
+    // if the only owner is this contract (set as an owner on initialization), replace it with _signer
+    if (owners.length == 1 && owners[0] == address(this)) {
       // set up the swapOwner call
       addOwnerData = SafeManagerLib.encodeSwapOwnerAction(SafeManagerLib.SENTINELS, address(this), _signer);
-
-      unchecked {
-        // shouldn't overflow on any reasonable human scale
-        ++newSignerCount;
-      }
     } else {
       // otherwise, add the claimer as a new owner
-
       unchecked {
         // shouldn't overflow on any reasonable human scale
-        ++newSignerCount;
+        ++signerCount;
       }
 
-      // ensure that txs can't execute if fewer signers than target threshold
-      if (newSignerCount <= targetThreshold) {
-        newThreshold = newSignerCount;
+      // set the threshold to the number of valid signers, if not over the target threshold
+      if (signerCount <= targetThreshold) {
+        threshold = signerCount;
       }
 
       // set up the addOwner call
-      addOwnerData = SafeManagerLib.encodeAddOwnerWithThresholdAction(_signer, newThreshold);
+      addOwnerData = SafeManagerLib.encodeAddOwnerWithThresholdAction(_signer, threshold);
     }
 
     // execute the call
@@ -617,44 +699,21 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
     if (!success) revert SafeManagerLib.FailedExecAddSigner();
   }
 
-  function _claimSigner(address[] memory _owners, uint256 _hatId, address _signer) internal {
-    uint256 currentSignerCount = _countValidSigners(_owners);
+  // function _claimSigners(address[] memory _signers, uint256[] memory _hatIds) internal {
+  //   // check that the arrays are the same length
+  //   uint256 toClaimCount = _signers.length;
+  //   if (_hatIds.length != toClaimCount) revert InvalidArrayLength();
 
-    if (safe.isOwner(_signer)) revert SignerAlreadyClaimed(_signer);
+  //   uint256 currentSignerCount = _countValidSigners(_owners);
 
-    if (!isValidSignerHat(_hatId)) revert InvalidSignerHat(_hatId);
+  //   if (safe.isOwner(_signer)) revert SignerAlreadyClaimed(_signer);
 
-    if (!HATS.isWearerOfHat(_signer, _hatId)) revert NotSignerHatWearer(_signer);
+  //   if (!isValidSignerHat(_hatId)) revert InvalidSignerHat(_hatId);
 
-    // register the hat used to claim. This will be the hat checked in `checkTransaction()` for this signer
-    claimedSignerHats[_signer] = _hatId;
+  //   if (!HATS.isWearerOfHat(_signer, _hatId)) revert NotSignerHatWearer(_signer);
 
-    _grantSigner(_owners, currentSignerCount, _signer);
-  }
-
-  /// @notice Internal function that adds `_signer` as an owner on `safe` by swapping with an existing (invalid) owner
-  /// @dev Unsafe. Does not check if `_signer` is a valid signer.
-  /// @param _owners Array of owners on the `safe`
-  /// @param _ownerCount The number of owners on the `safe` (length of `_owners` array)
-  /// @param _signer The address to add as a new `safe` owner
-  /// @return success Whether an invalid signer was found and successfully replaced with `_signer`
-  function _swapSigner(address[] memory _owners, uint256 _ownerCount, address _signer) internal returns (bool success) {
-    address ownerToCheck;
-
-    for (uint256 i; i < _ownerCount;) {
-      ownerToCheck = _owners[i];
-
-      if (!isValidSigner(ownerToCheck)) {
-        // reverts if the swap fails
-        success = safe.execSwapOwner(SafeManagerLib.findPrevOwner(_owners, ownerToCheck), ownerToCheck, _signer);
-
-        break;
-      }
-      unchecked {
-        ++i;
-      }
-    }
-  }
+  //   _grantSigner(_owners, currentSignerCount, _signer);
+  // }
 
   /// @notice Internal function to remove a signer from the `safe`, updating the threshold if appropriate
   /// @dev Unsafe. Does not check for signer validity before removal
@@ -663,18 +722,14 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
     bytes memory removeOwnerData;
     address[] memory owners = safe.getOwners();
     uint256 validSigners = _countValidSigners(owners);
-    // uint256 newSignerCount;
 
     if (validSigners < 2 && owners.length == 1) {
       // signerCount could be 0 after reconcileSignerCount
       // make address(this) the only owner
       removeOwnerData = SafeManagerLib.encodeSwapOwnerAction(SafeManagerLib.SENTINELS, _signer, address(this));
-
-      // newSignerCount is already 0
     } else {
       uint256 currentThreshold = safe.getThreshold();
       uint256 newThreshold = currentThreshold;
-      // uint256 validSignerCount = _countValidSigners(owners);
 
       // ensure that txs can't execute if fewer signers than target threshold
       if (validSigners <= targetThreshold) {
@@ -687,9 +742,7 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
 
     bool success = safe.execTransactionFromHSG(removeOwnerData);
 
-    if (!success) {
-      revert SafeManagerLib.FailedExecRemoveSigner();
-    }
+    if (!success) revert SafeManagerLib.FailedExecRemoveSigner();
   }
 
   // solhint-disallow-next-line payable-fallback

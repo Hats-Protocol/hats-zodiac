@@ -1154,3 +1154,206 @@ contract ClaimingSignerFor is WithHSGInstanceTest {
     assertEq(safe.getOwners().length, 1);
   }
 }
+
+contract ClaimingSignersFor is WithHSGInstanceTest {
+  function test_startingEmpty_happy(uint256 _signerCount) public {
+    _signerCount = bound(_signerCount, 1, signerAddresses.length);
+
+    // set up signer validity
+    for (uint256 i; i < _signerCount; i++) {
+      _setSignerValidity(signerAddresses[i], signerHat, true);
+    }
+
+    // set the claimable for to true
+    vm.prank(owner);
+    hatsSignerGate.setClaimableFor(true);
+
+    // create the necessary arrays
+    address[] memory claimers = new address[](_signerCount);
+    uint256[] memory hatIds = new uint256[](_signerCount);
+    for (uint256 i; i < _signerCount; i++) {
+      claimers[i] = signerAddresses[i];
+      hatIds[i] = signerHat;
+    }
+
+    // claim the signers
+    hatsSignerGate.claimSignersFor(hatIds, claimers);
+
+    assertEq(hatsSignerGate.validSignerCount(), _signerCount, "incorrect valid signer count");
+    assertEq(safe.getOwners().length, _signerCount, "incorrect owner count");
+  }
+
+  function test_startingWith1Signer_happy(uint256 _signerCount) public {
+    _signerCount = bound(_signerCount, 1, signerAddresses.length);
+
+    // set up signer validity
+    for (uint256 i; i < _signerCount; i++) {
+      _setSignerValidity(signerAddresses[i], signerHat, true);
+    }
+
+    // set the claimable for to true
+    vm.prank(owner);
+    hatsSignerGate.setClaimableFor(true);
+
+    // add one signer to get rid of the placeholder owner
+    _addSignersSameHat(1, signerHat);
+    assertEq(hatsSignerGate.validSignerCount(), 1, "valid signer count should be 1");
+    assertEq(safe.getOwners().length, 1, "owner count should be 1");
+
+    // create the necessary arrays, starting with the next signer
+    address[] memory claimers = new address[](_signerCount - 1);
+    uint256[] memory hatIds = new uint256[](_signerCount - 1);
+    for (uint256 i; i < _signerCount - 1; i++) {
+      claimers[i] = signerAddresses[i + 1];
+      hatIds[i] = signerHat;
+    }
+
+    // claim the signers
+    hatsSignerGate.claimSignersFor(hatIds, claimers);
+
+    assertEq(hatsSignerGate.validSignerCount(), _signerCount, "incorrect valid signer count");
+    assertEq(safe.getOwners().length, _signerCount, "incorrect owner count");
+  }
+
+  function test_revert_notClaimableFor(uint256 _signerCount) public {
+    _signerCount = bound(_signerCount, 1, signerAddresses.length);
+
+    // set up signer validity
+    for (uint256 i; i < _signerCount; i++) {
+      _setSignerValidity(signerAddresses[i], signerHat, true);
+    }
+
+    // set the claimable for to true and then undo it
+    vm.prank(owner);
+    hatsSignerGate.setClaimableFor(true);
+    vm.prank(owner);
+    hatsSignerGate.setClaimableFor(false);
+
+    // create the necessary arrays
+    address[] memory claimers = new address[](_signerCount);
+    uint256[] memory hatIds = new uint256[](_signerCount);
+    for (uint256 i; i < _signerCount; i++) {
+      claimers[i] = signerAddresses[i];
+      hatIds[i] = signerHat;
+    }
+
+    vm.expectRevert(IHatsSignerGate.NotClaimableFor.selector);
+    hatsSignerGate.claimSignersFor(hatIds, claimers);
+
+    assertEq(hatsSignerGate.validSignerCount(), 0, "incorrect valid signer count");
+    assertEq(safe.getOwners().length, 1, "incorrect owner count");
+  }
+
+  function test_revert_invalidSignerHat(uint256 _signerCount) public {
+    _signerCount = bound(_signerCount, 1, signerAddresses.length);
+    uint256 invalidSignerHat = signerHat + 1;
+
+    // set up signer validity
+    for (uint256 i; i < _signerCount; i++) {
+      _setSignerValidity(signerAddresses[i], signerHat, true);
+    }
+
+    // set the claimable for to true
+    vm.prank(owner);
+    hatsSignerGate.setClaimableFor(true);
+
+    // create the necessary arrays
+    address[] memory claimers = new address[](_signerCount);
+    uint256[] memory hatIds = new uint256[](_signerCount);
+    for (uint256 i; i < _signerCount; i++) {
+      claimers[i] = signerAddresses[i];
+      hatIds[i] = invalidSignerHat;
+    }
+
+    vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.InvalidSignerHat.selector, invalidSignerHat));
+    hatsSignerGate.claimSignersFor(hatIds, claimers);
+  }
+
+  function test_revert_invalidSigner(uint256 _signerCount, uint256 _invalidSignerIndex) public {
+    _signerCount = bound(_signerCount, 1, signerAddresses.length);
+    _invalidSignerIndex = bound(_invalidSignerIndex, 0, _signerCount - 1);
+
+    // set up signer validity
+    for (uint256 i; i < _signerCount; i++) {
+      if (i == _invalidSignerIndex) {
+        _setSignerValidity(signerAddresses[i], signerHat, false);
+      } else {
+        _setSignerValidity(signerAddresses[i], signerHat, true);
+      }
+    }
+
+    // set the claimable for to true
+    vm.prank(owner);
+    hatsSignerGate.setClaimableFor(true);
+
+    // create the necessary arrays
+    address[] memory claimers = new address[](_signerCount);
+    uint256[] memory hatIds = new uint256[](_signerCount);
+    for (uint256 i; i < _signerCount; i++) {
+      claimers[i] = signerAddresses[i];
+      hatIds[i] = signerHat;
+    }
+
+    vm.expectRevert(
+      abi.encodeWithSelector(IHatsSignerGate.NotSignerHatWearer.selector, signerAddresses[_invalidSignerIndex])
+    );
+    hatsSignerGate.claimSignersFor(hatIds, claimers);
+  }
+
+  function test_revert_alreadyClaimed(uint256 _signerCount, uint256 _alreadyClaimedIndex) public {
+    _signerCount = bound(_signerCount, 2, signerAddresses.length);
+    _alreadyClaimedIndex = bound(_alreadyClaimedIndex, 0, _signerCount - 1);
+
+    // set up signer validity
+    for (uint256 i; i < _signerCount; i++) {
+      _setSignerValidity(signerAddresses[i], signerHat, true);
+    }
+
+    // set the claimable for to true
+    vm.prank(owner);
+    hatsSignerGate.setClaimableFor(true);
+
+    // have the _alreadyClaimedIndex signer claim their signer permissions
+    address claimedSigner = signerAddresses[_alreadyClaimedIndex];
+    vm.prank(claimedSigner);
+    hatsSignerGate.claimSigner(signerHat);
+
+    // create the arrays for the remaining signers
+    address[] memory claimers = new address[](_signerCount);
+    uint256[] memory hatIds = new uint256[](_signerCount);
+    for (uint256 i; i < _signerCount; i++) {
+      claimers[i] = signerAddresses[i];
+      hatIds[i] = signerHat;
+    }
+
+    vm.expectRevert(
+      abi.encodeWithSelector(IHatsSignerGate.SignerAlreadyClaimed.selector, signerAddresses[_alreadyClaimedIndex])
+    );
+    hatsSignerGate.claimSignersFor(hatIds, claimers);
+  }
+
+  function test_revert_invalidArrayLength(uint256 _signerCount) public {
+    _signerCount = bound(_signerCount, 1, signerAddresses.length);
+
+    // set up signer validity
+    for (uint256 i; i < _signerCount; i++) {
+      _setSignerValidity(signerAddresses[i], signerHat, true);
+    }
+
+    // set the claimable for to true
+    vm.prank(owner);
+    hatsSignerGate.setClaimableFor(true);
+
+    // create the necessary arrays
+    address[] memory claimers = new address[](_signerCount);
+    uint256[] memory hatIds = new uint256[](_signerCount - 1);
+    for (uint256 i; i < _signerCount - 1; i++) {
+      claimers[i] = signerAddresses[i];
+      hatIds[i] = signerHat;
+    }
+    claimers[_signerCount - 1] = signerAddresses[_signerCount - 1];
+
+    vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.InvalidArrayLength.selector));
+    hatsSignerGate.claimSignersFor(hatIds, claimers);
+  }
+}
