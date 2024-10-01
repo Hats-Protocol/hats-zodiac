@@ -3,33 +3,6 @@ pragma solidity >=0.8.13;
 
 import { Enum, ISafe } from "../lib/safe-interfaces/ISafe.sol";
 
-/// @notice Events emitted by the HatsSignerGate contract
-library HSGEvents {
-  /// @notice Emitted when a new target signature threshold for the `safe` is set
-  event TargetThresholdSet(uint256 threshold);
-
-  /// @notice Emitted when a new minimum signature threshold for the `safe` is set
-  event MinThresholdSet(uint256 threshold);
-
-  /// @notice Emitted when new approved signer hats are added
-  event SignerHatsAdded(uint256[] newSignerHats);
-
-  /// @notice Emitted when the owner hat is updated
-  event OwnerHatUpdated(uint256 ownerHat);
-
-  /// @notice Emitted when the contract is locked, preventing any further changes to settings
-  event Locked();
-
-  /// @notice Emitted when the claimableFor parameter is set
-  event ClaimableForSet(bool claimableFor);
-
-  /// @notice Emitted when HSG has been detached from its avatar Safe
-  event Detached();
-
-  /// @notice Emitted when HSG has been migrated to a new HSG
-  event Migrated(address newHSG);
-}
-
 /// @notice Interface for the HatsSignerGate contract
 interface IHatsSignerGate {
   /*//////////////////////////////////////////////////////////////
@@ -118,6 +91,34 @@ interface IHatsSignerGate {
 
   /// @notice The input arrays must be the same length
   error InvalidArrayLength();
+
+  /*//////////////////////////////////////////////////////////////
+                              EVENTS
+  //////////////////////////////////////////////////////////////*/
+
+  /// @notice Emitted when a new target signature threshold for the `safe` is set
+  event TargetThresholdSet(uint256 threshold);
+
+  /// @notice Emitted when a new minimum signature threshold for the `safe` is set
+  event MinThresholdSet(uint256 threshold);
+
+  /// @notice Emitted when new approved signer hats are added
+  event SignerHatsAdded(uint256[] newSignerHats);
+
+  /// @notice Emitted when the owner hat is updated
+  event OwnerHatUpdated(uint256 ownerHat);
+
+  /// @notice Emitted when the contract is locked, preventing any further changes to settings
+  event HSGLocked();
+
+  /// @notice Emitted when the claimableFor parameter is set
+  event ClaimableForSet(bool claimableFor);
+
+  /// @notice Emitted when HSG has been detached from its avatar Safe
+  event Detached();
+
+  /// @notice Emitted when HSG has been migrated to a new HSG
+  event Migrated(address newHSG);
 
   /*//////////////////////////////////////////////////////////////
                               FUNCTIONS

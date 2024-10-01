@@ -4,7 +4,7 @@ pragma solidity >=0.8.13;
 // import { Test, console2 } from "forge-std/Test.sol"; // comment out after testing
 import { IHats } from "../lib/hats-protocol/src/Interfaces/IHats.sol";
 import { SafeManagerLib } from "./lib/SafeManagerLib.sol";
-import { IHatsSignerGate, HSGEvents } from "./interfaces/IHatsSignerGate.sol";
+import { IHatsSignerGate } from "./interfaces/IHatsSignerGate.sol";
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { BaseGuard } from "lib/zodiac/contracts/guard/BaseGuard.sol";
 import { SignatureDecoder } from "lib/safe-smart-account/contracts/common/SignatureDecoder.sol";
@@ -329,7 +329,7 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
     // first remove as guard, then as module
     s.execRemoveHSGAsGuard();
     s.execDisableHSGAsOnlyModule();
-    emit HSGEvents.Detached();
+    emit Detached();
   }
 
   /// @notice Migrate the Safe to a new HSG, ie detach this HSG and attach a new HSG
@@ -345,7 +345,7 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
     s.execAttachNewHSG(_newHSG);
     // remove existing HSG as module
     s.execDisableHSGAsModule(_newHSG);
-    emit HSGEvents.Migrated(_newHSG);
+    emit Migrated(_newHSG);
   }
 
   /*//////////////////////////////////////////////////////////////
@@ -546,7 +546,7 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
   /// @param _ownerHat The hat id to set as the owner hat
   function _setOwnerHat(uint256 _ownerHat) internal {
     ownerHat = _ownerHat;
-    emit HSGEvents.OwnerHatUpdated(_ownerHat);
+    emit OwnerHatUpdated(_ownerHat);
   }
 
   // /// @notice Checks if `_account` is a valid signer
@@ -567,7 +567,7 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
       }
     }
 
-    emit HSGEvents.SignerHatsAdded(_newSignerHats);
+    emit SignerHatsAdded(_newSignerHats);
   }
 
   /// @notice Internal function to set the target threshold
@@ -578,7 +578,7 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
     if (_targetThreshold < minThreshold) revert InvalidTargetThreshold();
 
     targetThreshold = _targetThreshold;
-    emit HSGEvents.TargetThresholdSet(_targetThreshold);
+    emit TargetThresholdSet(_targetThreshold);
   }
 
   /// @notice Internal function to set the threshold for the `safe`
@@ -604,7 +604,7 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
     if (_minThreshold > targetThreshold) revert InvalidMinThreshold();
 
     minThreshold = _minThreshold;
-    emit HSGEvents.MinThresholdSet(_minThreshold);
+    emit MinThresholdSet(_minThreshold);
   }
 
   /// @notice Internal function to count the number of valid signers in an array of addresses
@@ -631,7 +631,7 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
   /// @param _claimableFor Whether signer permissions are claimable on behalf of valid hat wearers
   function _setClaimableFor(bool _claimableFor) internal {
     claimableFor = _claimableFor;
-    emit HSGEvents.ClaimableForSet(_claimableFor);
+    emit ClaimableForSet(_claimableFor);
   }
 
   /// @notice Internal function to add a `_signer` to the `safe` if they are wearing a valid signer hat.
@@ -741,6 +741,6 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
   /// @dev Locks the contract, preventing any further owner changes
   function _lock() internal {
     locked = true;
-    emit HSGEvents.Locked();
+    emit HSGLocked();
   }
 }

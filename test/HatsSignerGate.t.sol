@@ -2,8 +2,8 @@
 pragma solidity ^0.8.13;
 
 import { Test, console2 } from "forge-std/Test.sol";
-import { Enum, ISafe, ModuleProxyFactory, TestSuite, WithHSGInstanceTest, HatsSignerGate } from "./TestSuite.t.sol";
-import { IHatsSignerGate, HSGEvents } from "../src/interfaces/IHatsSignerGate.sol";
+import { Enum, ISafe, TestSuite, WithHSGInstanceTest, HatsSignerGate } from "./TestSuite.t.sol";
+import { IHatsSignerGate } from "../src/interfaces/IHatsSignerGate.sol";
 import { DeployInstance } from "../script/HatsSignerGate.s.sol";
 
 contract Deployment is TestSuite {
@@ -87,7 +87,7 @@ contract AddingSignerHats is WithHSGInstanceTest {
 
     vm.prank(owner);
     vm.expectEmit(false, false, false, true);
-    emit HSGEvents.SignerHatsAdded(hats);
+    emit IHatsSignerGate.SignerHatsAdded(hats);
 
     hatsSignerGate.addSignerHats(hats);
   }
@@ -128,7 +128,7 @@ contract SettingTargetThreshold is WithHSGInstanceTest {
 
     vm.prank(owner);
     vm.expectEmit(false, false, false, true);
-    emit HSGEvents.TargetThresholdSet(3);
+    emit IHatsSignerGate.TargetThresholdSet(3);
     hatsSignerGate.setTargetThreshold(3);
 
     assertEq(hatsSignerGate.targetThreshold(), 3);
@@ -140,7 +140,7 @@ contract SettingTargetThreshold is WithHSGInstanceTest {
 
     vm.prank(owner);
     vm.expectEmit(false, false, false, true);
-    emit HSGEvents.TargetThresholdSet(3);
+    emit IHatsSignerGate.TargetThresholdSet(3);
 
     hatsSignerGate.setTargetThreshold(3);
 
@@ -153,7 +153,7 @@ contract SettingTargetThreshold is WithHSGInstanceTest {
 
     vm.prank(owner);
     vm.expectEmit(false, false, false, true);
-    emit HSGEvents.TargetThresholdSet(4);
+    emit IHatsSignerGate.TargetThresholdSet(4);
 
     hatsSignerGate.setTargetThreshold(4);
 
@@ -186,7 +186,7 @@ contract SettingMinThreshold is WithHSGInstanceTest {
     hatsSignerGate.setTargetThreshold(3);
 
     vm.expectEmit(false, false, false, true);
-    emit HSGEvents.MinThresholdSet(3);
+    emit IHatsSignerGate.MinThresholdSet(3);
 
     vm.prank(owner);
     hatsSignerGate.setMinThreshold(3);
@@ -965,7 +965,7 @@ contract ReconcilingSignerCount is WithHSGInstanceTest {
 contract DetachingHSG is WithHSGInstanceTest {
   function test_happy() public {
     vm.expectEmit(true, true, true, true);
-    emit HSGEvents.Detached();
+    emit IHatsSignerGate.Detached();
     vm.prank(owner);
     hatsSignerGate.detachHSG();
 
@@ -1023,7 +1023,7 @@ contract MigratingHSG is WithHSGInstanceTest {
 
   function test_happy() public {
     vm.expectEmit(true, true, true, true);
-    emit HSGEvents.Migrated(address(newHSG));
+    emit IHatsSignerGate.Migrated(address(newHSG));
     vm.prank(owner);
     hatsSignerGate.migrateToNewHSG(address(newHSG));
 
@@ -1051,7 +1051,7 @@ contract MigratingHSG is WithHSGInstanceTest {
 contract SettingClaimableFor is WithHSGInstanceTest {
   function test_happy(bool _claimableFor) public {
     vm.expectEmit(true, true, true, true);
-    emit HSGEvents.ClaimableForSet(_claimableFor);
+    emit IHatsSignerGate.ClaimableForSet(_claimableFor);
     vm.prank(owner);
     hatsSignerGate.setClaimableFor(_claimableFor);
 
