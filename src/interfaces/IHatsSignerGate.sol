@@ -116,6 +116,9 @@ interface IHatsSignerGate {
   /// @notice Signer permissions cannot be claimed on behalf of valid hat wearers if this is not set
   error NotClaimableFor();
 
+  /// @notice The input arrays must be the same length
+  error InvalidArrayLength();
+
   /*//////////////////////////////////////////////////////////////
                               FUNCTIONS
   //////////////////////////////////////////////////////////////*/
@@ -124,6 +127,7 @@ interface IHatsSignerGate {
 
   function setUp(bytes calldata initializeParams) external payable;
   function claimSignerFor(uint256 _hatId, address _for) external;
+  function claimSignersFor(uint256[] calldata _hatIds, address[] calldata _for) external;
   function claimSigner(uint256 _hatId) external;
   function removeSigner(address _signer) external;
   function reconcileSignerCount() external;
