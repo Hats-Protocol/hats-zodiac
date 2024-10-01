@@ -1,38 +1,166 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "forge-std/Script.sol";
-import "../src/HatsSignerGate.sol";
-import "../src/HatsSignerGateFactory.sol";
+import { Script, console2 } from "forge-std/Script.sol";
+import { stdJson } from "forge-std/StdJson.sol";
+import { HatsSignerGate } from "../src/HatsSignerGate.sol";
+import { IHatsSignerGate } from "../src/interfaces/IHatsSignerGate.sol";
+import { ModuleProxyFactory } from "../lib/zodiac/contracts/factory/ModuleProxyFactory.sol";
 
-contract DeployHatsSignerGate is Script {
-    HatsSignerGateFactory public hsgFactory; // to deploy
-    uint256 public ownerHatId = 80879840001451919384001045261058892020911433267621717443310830747648;
-    uint256 public signersHatId = 80985152293120476570698963288742562453230328363022266554565141725184;
-    address public safe = 0x56c7A84Cf42Cfe70BfdF14140747ffc63b96E51A;
-    // address public hats = 0x245e5B56C18B18aC2d72F94C5F7bE1D52497A8aD;
-    uint256 public minThreshold = 3;
-    uint256 public targetThreshold = 3;
-    uint256 public maxSigners = 9;
-    // string public version = "MC Super Scouts Demo #1";
-    // string public version = "Rinkeby test #5";
+contract BaseScript is Script {
+  bool public verbose = true;
 
-    string public version = "Cub Scouts Beta 02";
+  function getChainKey() internal view returns (string memory) {
+    return string.concat(".", vm.toString(block.chainid));
+  }
+}
 
-    function run() external {
-        uint256 privKey = vm.envUint("PRIVATE_KEY");
-        address deployer = vm.rememberKey(privKey);
-        vm.startBroadcast(deployer);
+contract DeployImplementation is BaseScript {
+  using stdJson for string;
 
-        /* ddress hatsSignerGate = */
-        hsgFactory.deployHatsSignerGate(ownerHatId, signersHatId, safe, minThreshold, targetThreshold, maxSigners);
+  address public hats;
+  address public safeFallbackLibrary;
+  address public safeMultisendLibrary;
+  address public safeProxyFactory;
+  address public safeSingleton;
+  address public zodiacModuleFactory;
 
-        vm.stopBroadcast();
+  HatsSignerGate public implementation;
+
+  /// ===========================================
+  /// @dev deployment params to be set manually
+  string public version = "v2.0.0-test";
+  bytes32 public SALT = bytes32(abi.encode(0x4a75)); // ~ H(4) A(a) T(7) S(6)
+  /// ===========================================
+
+  function setDeployParams() public {
+    string memory root = vm.projectRoot();
+    string memory path = string.concat(root, "/script/DeployParams.json");
+    string memory json = vm.readFile(path);
+    string memory chain = getChainKey();
+
+    bytes memory params = json.parseRaw(chain);
+
+    // the json is parsed in alphabetical order, so we decode it that way too
+    (hats, safeFallbackLibrary, safeMultisendLibrary, safeProxyFactory, safeSingleton, zodiacModuleFactory) =
+      abi.decode(params, (address, address, address, address, address, address));
+  }
+
+  function prepare(bool _verbose, string memory _version) public {
+    verbose = _verbose;
+    version = _version;
+  }
+
+  function run() external returns (HatsSignerGate) {
+    setDeployParams();
+    uint256 privKey = vm.envUint("PRIVATE_KEY");
+    address deployer = vm.rememberKey(privKey);
+    vm.startBroadcast(deployer);
+
+    implementation =
+      new HatsSignerGate(hats, safeSingleton, safeFallbackLibrary, safeMultisendLibrary, safeProxyFactory, version);
+
+    vm.stopBroadcast();
+
+    if (verbose) {
+      console2.log("HSG implementation", address(implementation));
+      console2.log("Safe singleton", safeSingleton);
+      console2.log("Safe fallback library", safeFallbackLibrary);
+      console2.log("Safe multisend library", safeMultisendLibrary);
+      console2.log("Safe proxy factory", safeProxyFactory);
     }
 
-    // forge script script/HatsSignerGate.s.sol:DeployHatsSignerGate --rpc-url $RINKEBY_RPC --verify --etherscan-api-key $ETHERSCAN_KEY --broadcast
+    return implementation;
+  }
+}
 
-    // forge script script/HatsSignerGate.s.sol:DeployHatsSignerGate --rpc-url $GC_RPC --private-key $PRIVATE_KEY --verify --etherscan-api-key $GNOSISSCAN_KEY --broadcast
+contract DeployInstance is BaseScript {
+  using stdJson for string;
 
-    // forge script script/HatsSignerGate.s.sol:DeployHatsSignerGate --rpc-url $GC_RPC --verify --etherscan-api-key $GNOSISSCAN_KEY --broadcast
+  address public zodiacModuleFactory;
+  address public hats;
+  address public implementation;
+  address public instance;
+
+  uint256 public saltNonce;
+
+  uint256 public ownerHat;
+  uint256[] public signersHats;
+  uint256 public minThreshold;
+  uint256 public targetThreshold;
+  address public safe;
+  bool public locked;
+  bool public claimableFor;
+
+  function prepare(
+    bool _verbose,
+    address _implementation,
+    uint256 _ownerHat,
+    uint256[] memory _signersHats,
+    uint256 _minThreshold,
+    uint256 _targetThreshold,
+    address _safe,
+    bool _locked,
+    bool _claimableFor,
+    uint256 _saltNonce
+  ) public {
+    verbose = _verbose;
+    implementation = _implementation;
+    ownerHat = _ownerHat;
+    signersHats = _signersHats;
+    minThreshold = _minThreshold;
+    targetThreshold = _targetThreshold;
+    safe = _safe;
+    locked = _locked;
+    claimableFor = _claimableFor;
+    saltNonce = _saltNonce;
+  }
+
+  function setModuleFactory() public {
+    string memory root = vm.projectRoot();
+    string memory path = string.concat(root, "/script/DeployParams.json");
+    string memory json = vm.readFile(path);
+    string memory chain = getChainKey();
+
+    bytes memory params = json.parseRaw(chain);
+
+    // the json is parsed in alphabetical order, so we decode it that way too
+    (,,,,, zodiacModuleFactory) = abi.decode(params, (address, address, address, address, address, address));
+  }
+
+  function setupParams() public view returns (IHatsSignerGate.SetupParams memory params) {
+    params = IHatsSignerGate.SetupParams({
+      ownerHat: ownerHat,
+      signerHats: signersHats,
+      safe: safe,
+      minThreshold: minThreshold,
+      targetThreshold: targetThreshold,
+      locked: locked,
+      claimableFor: claimableFor,
+      implementation: implementation
+    });
+    return params;
+  }
+
+  function run() external returns (HatsSignerGate) {
+    setModuleFactory();
+
+    uint256 privKey = vm.envUint("PRIVATE_KEY");
+    address deployer = vm.rememberKey(privKey);
+    vm.startBroadcast(deployer);
+
+    instance = ModuleProxyFactory(zodiacModuleFactory).deployModule(
+      address(implementation), abi.encodeWithSignature("setUp(bytes)", abi.encode(setupParams())), saltNonce
+    );
+
+    vm.stopBroadcast();
+
+    if (verbose) {
+      if (safe == address(0)) {
+        console2.log("new Safe deployed", address(HatsSignerGate(instance).safe()));
+      }
+    }
+
+    return HatsSignerGate(instance);
+  }
 }

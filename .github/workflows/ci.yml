@@ -6,6 +6,12 @@ on:
       - main
   pull_request:
 
+env:
+  FOUNDRY_PROFILE: ci
+  INFURA_KEY: ${{ secrets.INFURA_KEY }}
+  GC_RPC: ${{ secrets.GC_RPC }}
+  PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
+
 jobs:
   lint:
     name: "Markdown linting"
