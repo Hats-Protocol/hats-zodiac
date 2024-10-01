@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-// import { Test, console2 } from "forge-std/Test.sol"; // comment out after testing
+// import { Test, console2 } from "../lib/forge-std/src/Test.sol"; // comment out after testing
 import { IHats } from "../lib/hats-protocol/src/Interfaces/IHats.sol";
 import { SafeManagerLib } from "./lib/SafeManagerLib.sol";
 import { IHatsSignerGate } from "./interfaces/IHatsSignerGate.sol";
-import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import { BaseGuard } from "lib/zodiac/contracts/guard/BaseGuard.sol";
-import { SignatureDecoder } from "lib/safe-smart-account/contracts/common/SignatureDecoder.sol";
+import { Initializable } from "../lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
+import { BaseGuard } from "../lib/zodiac/contracts/guard/BaseGuard.sol";
+import { SignatureDecoder } from "../lib/safe-smart-account/contracts/common/SignatureDecoder.sol";
 import { ISafe, Enum } from "./lib/safe-interfaces/ISafe.sol";
 
 /// @title HatsSignerGate

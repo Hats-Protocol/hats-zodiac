@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-// import { console2 } from "forge-std/console2.sol";
+// import { console2 } from "../lib/forge-std/src/console2.sol";
 import { MultiSend } from "../../lib/safe-smart-account/contracts/libraries/MultiSend.sol";
 import { SafeProxyFactory } from "../../lib/safe-smart-account/contracts/proxies/SafeProxyFactory.sol";
 import { StorageAccessible } from "../../lib/safe-smart-account/contracts/common/StorageAccessible.sol";

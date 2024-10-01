@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import { Test, console2 } from "forge-std/Test.sol";
-import { IHats } from "hats-protocol/Interfaces/IHats.sol";
+import { Test, console2 } from "../lib/forge-std/src/Test.sol";
+import { IHats } from "../lib/hats-protocol/src/Interfaces/IHats.sol";
 import { HatsSignerGate } from "../src/HatsSignerGate.sol";
 import { ISafe } from "../src/lib/safe-interfaces/ISafe.sol";
 import { SafeProxyFactory } from "../lib/safe-smart-account/contracts/proxies/SafeProxyFactory.sol";
