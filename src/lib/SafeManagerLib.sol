@@ -15,6 +15,7 @@ library SafeManagerLib {
   /*//////////////////////////////////////////////////////////////
                               CUSTOM ERRORS
   //////////////////////////////////////////////////////////////*/
+
   /// @notice Emitted when a call to change the threshold fails
   error FailedExecChangeThreshold();
 
@@ -30,6 +31,7 @@ library SafeManagerLib {
   /*//////////////////////////////////////////////////////////////
                               CONSTANTS
   //////////////////////////////////////////////////////////////*/
+
   /// @dev The head pointer used in the Safe owners linked list, as well as the module linked list
   address internal constant SENTINELS = address(0x1);
 
