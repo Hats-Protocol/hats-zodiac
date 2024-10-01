@@ -249,9 +249,6 @@ library SafeManagerLib {
     (address[] memory modulesWith1,) = _safe.getModulesPaginated(SENTINELS, 1);
 
     return (modulesWith1.length == 0);
-
-    // QUESTION: do we need to bring back the valid signer count <= maxSigners check?
-    // return (modulesWith1.length == 0 && _countValidSigners(_safe.getOwners()) <= maxSigners);
   }
 
   /// @notice Internal function to find the previous owner of an `_owner` in an array of `_owners`, ie the pointer to

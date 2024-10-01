@@ -50,9 +50,6 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
   /// @notice The highest level signature threshold for the `safe`
   uint256 public targetThreshold;
 
-  /// @notice The maximum number of signers allowed for the `safe`
-  uint256 public maxSigners;
-
   /// @notice Whether the contract is locked. If true, the owner cannot change any of the contract's settings.
   bool public locked;
 
@@ -145,7 +142,6 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
     // set the instance's safe and signer parameters
     safe = ISafe(params.safe);
     _addSignerHats(params.signerHats);
-    _setMaxSigners(params.maxSigners, params.targetThreshold);
     _setTargetThreshold(params.targetThreshold);
     _setMinThreshold(params.minThreshold);
 
@@ -159,8 +155,7 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
   //////////////////////////////////////////////////////////////*/
 
   /// @notice Function to become an owner on the safe if you are wearing `_hatId` and `_hatId` is a valid signer hat
-  /// @dev Reverts if `maxSigners` has been reached, the caller is either invalid or has already claimed. Swaps caller
-  /// with existing invalid owner if relevant.
+  /// @dev Reverts if the caller is either invalid or has already claimed.
   /// @param _hatId The hat id to claim signer rights for
   function claimSigner(uint256 _hatId) public {
     _claimSigner(safe.getOwners(), _hatId, msg.sender);
@@ -189,10 +184,6 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
   /// @dev Does NOT remove invalid `safe` owners
   function reconcileSignerCount() public {
     uint256 signerCount = validSignerCount();
-
-    if (signerCount > maxSigners) {
-      revert MaxSignersReached();
-    }
 
     uint256 currentThreshold = safe.getThreshold();
     uint256 newThreshold;
@@ -234,7 +225,6 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
 
   /// @notice Sets a new target threshold, and changes `safe`'s threshold if appropriate
   /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.
-  /// Reverts if `_targetThreshold` is greater than `maxSigners`.
   /// @param _targetThreshold The new target threshold to set
   function setTargetThreshold(uint256 _targetThreshold) public onlyOwner onlyUnlocked {
     if (_targetThreshold != targetThreshold) {
@@ -247,18 +237,10 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
 
   /// @notice Sets a new minimum threshold
   /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.
-  /// Reverts if `_minThreshold` is greater than `maxSigners` or `targetThreshold`
+  /// Reverts if `_minThreshold` is greater than `targetThreshold`
   /// @param _minThreshold The new minimum threshold
   function setMinThreshold(uint256 _minThreshold) public onlyOwner onlyUnlocked {
     _setMinThreshold(_minThreshold);
-  }
-
-  /// @notice Sets a new maximum number of signers
-  /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.
-  /// Reverts if `_maxSigners` is less than the current number of valid signers or lower than `targetThreshold`
-  /// @param _maxSigners The new maximum number of signers
-  function setMaxSigners(uint256 _maxSigners) public onlyOwner onlyUnlocked {
-    _setMaxSigners(_maxSigners, targetThreshold);
   }
 
   /// @notice Sets whether signer permissions can be claimed on behalf of valid hat wearers
@@ -436,10 +418,7 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
   }
 
   /**
-   * @notice Checks if a HatsSignerGate can be safely attached to a Safe
-   * @dev There must be...
-   *      1) No existing modules on the Safe
-   *      2) HatsSignerGate's `validSignerCount()` must be <= `_maxSigners`
+   * @notice Checks if a HatsSignerGate can be safely attached to a Safe, ie there must be no existing modules
    */
   function canAttachToSafe() public view returns (bool) {
     return safe.canAttachHSG();
@@ -530,17 +509,11 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
   }
 
   /// @notice Internal function to set the target threshold
-  /// @dev Reverts if `_targetThreshold` is greater than `maxSigners` or lower than `minThreshold`
+  /// @dev Reverts if `_targetThreshold` is lower than `minThreshold`
   /// @param _targetThreshold The new target threshold to set
   function _setTargetThreshold(uint256 _targetThreshold) internal {
     // target threshold cannot be lower than min threshold
-    if (_targetThreshold < minThreshold) {
-      revert InvalidTargetThreshold();
-    }
-    // target threshold cannot be greater than max signers
-    if (_targetThreshold > maxSigners) {
-      revert InvalidTargetThreshold();
-    }
+    if (_targetThreshold < minThreshold) revert InvalidTargetThreshold();
 
     targetThreshold = _targetThreshold;
     emit HSGEvents.TargetThresholdSet(_targetThreshold);
@@ -563,13 +536,10 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
   }
 
   /// @notice Internal function to set a new minimum threshold
-  /// @dev Only callable by a wearer of the owner hat. Reverts if `_minThreshold` is greater than `maxSigners` or
-  /// `targetThreshold`
+  /// @dev Only callable by a wearer of the owner hat. Reverts if `_minThreshold` is greater than `targetThreshold`
   /// @param _minThreshold The new minimum threshold
   function _setMinThreshold(uint256 _minThreshold) internal {
-    if (_minThreshold > maxSigners || _minThreshold > targetThreshold) {
-      revert InvalidMinThreshold();
-    }
+    if (_minThreshold > targetThreshold) revert InvalidMinThreshold();
 
     minThreshold = _minThreshold;
     emit HSGEvents.MinThresholdSet(_minThreshold);
@@ -593,19 +563,6 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
         ++i;
       }
     }
-  }
-
-  /// @dev Internal function to set a new maximum number of signers
-  /// Reverts if `_maxSigners` is less than the current number of valid signers or lower than `targetThreshold`
-  /// @param _maxSigners The new maximum number of signers
-  /// @param _targetThreshold The existing target threshold
-  function _setMaxSigners(uint256 _maxSigners, uint256 _targetThreshold) internal {
-    if (_maxSigners < validSignerCount() || _maxSigners < _targetThreshold) {
-      revert InvalidMaxSigners();
-    }
-
-    maxSigners = _maxSigners;
-    emit HSGEvents.MaxSignersSet(_maxSigners);
   }
 
   /// @notice Internal function to set the claimableFor parameter
@@ -634,14 +591,14 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
       addOwnerData = SafeManagerLib.encodeSwapOwnerAction(SafeManagerLib.SENTINELS, address(this), _signer);
 
       unchecked {
-        // shouldn't overflow given MaxSignersReached check higher in call stack
+        // shouldn't overflow on any reasonable human scale
         ++newSignerCount;
       }
     } else {
       // otherwise, add the claimer as a new owner
 
       unchecked {
-        // shouldn't overflow given MaxSignersReached check higher in call stack
+        // shouldn't overflow on any reasonable human scale
         ++newSignerCount;
       }
 
@@ -661,11 +618,7 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
   }
 
   function _claimSigner(address[] memory _owners, uint256 _hatId, address _signer) internal {
-    uint256 maxSigs = maxSigners; // save SLOADs
-
     uint256 currentSignerCount = _countValidSigners(_owners);
-
-    if (currentSignerCount >= maxSigs) revert MaxSignersReached();
 
     if (safe.isOwner(_signer)) revert SignerAlreadyClaimed(_signer);
 
@@ -673,25 +626,10 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
 
     if (!HATS.isWearerOfHat(_signer, _hatId)) revert NotSignerHatWearer(_signer);
 
-    /* 
-        We check the safe owner count in case there are existing owners who are no longer valid signers. 
-        If we're already at maxSigners, we'll replace one of the invalid owners by swapping the signer.
-        Otherwise, we'll simply add the new signer.
-        */
-    uint256 ownerCount = _owners.length;
-
-    if (ownerCount >= maxSigs) {
-      bool swapped = _swapSigner(_owners, ownerCount, _signer);
-
-      // if there are no invalid owners, we can't add a new signer, so we revert
-      if (!swapped) revert NoInvalidSignersToReplace();
-    } else {
-      // otherwise, we add the new signer
-      _grantSigner(_owners, currentSignerCount, _signer);
-    }
-
     // register the hat used to claim. This will be the hat checked in `checkTransaction()` for this signer
     claimedSignerHats[_signer] = _hatId;
+
+    _grantSigner(_owners, currentSignerCount, _signer);
   }
 
   /// @notice Internal function that adds `_signer` as an owner on `safe` by swapping with an existing (invalid) owner

@@ -2,124 +2,11 @@
 pragma solidity ^0.8.13;
 
 import { Test, console2 } from "forge-std/Test.sol";
-import { WithHSGInstanceTest, Enum } from "./TestSuite.sol";
+import { WithHSGInstanceTest, Enum } from "./TestSuite.t.sol";
 import { IHatsSignerGate } from "../src/interfaces/IHatsSignerGate.sol";
 
 contract AttacksScenarios is WithHSGInstanceTest {
-  function testAttackOnMaxSignerFails() public {
-    // max signers is 5
-    // 5 signers claim
-    _addSignersSameHat(5, signerHat);
-
-    // a signer misbehaves and loses the hat
-    _setSignerValidity(signerAddresses[3], signerHat, false);
-
-    // reconcile is called, so signerCount is updated to 4
-    hatsSignerGate.reconcileSignerCount();
-    assertEq(hatsSignerGate.validSignerCount(), 4);
-
-    // a new signer claims, so signerCount is updated to 5
-    _setSignerValidity(signerAddresses[5], signerHat, true);
-    vm.prank(signerAddresses[5]);
-    hatsSignerGate.claimSigner(signerHat);
-    assertEq(hatsSignerGate.validSignerCount(), 5);
-
-    // the malicious signer behaves nicely and regains the hat, but they were kicked out by the previous signer claim
-    _setSignerValidity(signerAddresses[3], signerHat, true);
-
-    // reoncile is called again and signerCount stays at 5
-    // vm.expectRevert(IHatsSignerGate.MaxSignersReached.selector);
-    hatsSignerGate.reconcileSignerCount();
-    assertEq(hatsSignerGate.validSignerCount(), 5);
-
-    // // any eligible signer can now claim at will
-    // _setSignerValidity(signerAddresses[6], signerHat, true);
-    // vm.prank(signerAddresses[6]);
-    // hatsSignerGate.claimSigner();
-    // assertEq(hatsSignerGate.signerCount(), 7);
-  }
-
-  function testAttackOnMaxSigner2Fails() public {
-    // max signers is x
-    // 1) we grant x signers
-    _addSignersSameHat(5, signerHat);
-    // 2) 3 signers lose validity
-    _setSignerValidity(signerAddresses[2], signerHat, false);
-    _setSignerValidity(signerAddresses[3], signerHat, false);
-    _setSignerValidity(signerAddresses[4], signerHat, false);
-
-    // 3) reconcile is called, signerCount=x-3
-    hatsSignerGate.reconcileSignerCount();
-
-    assertEq(hatsSignerGate.validSignerCount(), 2, "first valid signer count");
-
-    // 4) 3 more signers can be added with claimSigner()
-    _setSignerValidity(signerAddresses[5], signerHat, true);
-    vm.prank(signerAddresses[5]);
-    hatsSignerGate.claimSigner(signerHat);
-    _setSignerValidity(signerAddresses[6], signerHat, true);
-    vm.prank(signerAddresses[6]);
-    hatsSignerGate.claimSigner(signerHat);
-    _setSignerValidity(signerAddresses[7], signerHat, true);
-    vm.prank(signerAddresses[7]);
-    hatsSignerGate.claimSigner(signerHat);
-
-    assertEq(hatsSignerGate.validSignerCount(), 5, "second valid signer count");
-    assertEq(safe.getOwners().length, 5, "first owners length");
-
-    // 5) the 3 signers from (2) regain their validity
-    _setSignerValidity(signerAddresses[2], signerHat, true);
-    _setSignerValidity(signerAddresses[3], signerHat, true);
-    _setSignerValidity(signerAddresses[4], signerHat, true);
-
-    // but we still only have 5 owners and 5 signers
-    assertEq(hatsSignerGate.validSignerCount(), 5, "third valid signer count");
-    assertEq(safe.getOwners().length, 5, "second owners length");
-    hatsSignerGate.reconcileSignerCount();
-    assertEq(hatsSignerGate.validSignerCount(), 5, "fourth valid signer count");
-
-    // // 6) we now have x+3 signers
-    // hatsSignerGate.reconcileSignerCount();
-    // assertEq(hatsSignerGate.signerCount(), 8);
-  }
-
-  function testValidSignersCanClaimAfterMaxSignerLosesHat() public {
-    // max signers is 5
-    // 5 signers claim
-    _addSignersSameHat(5, signerHat);
-
-    // a signer misbehaves and loses the hat
-    _setSignerValidity(signerAddresses[4], signerHat, false);
-
-    // reconcile is called, so signerCount is updated to 4
-    hatsSignerGate.reconcileSignerCount();
-
-    _setSignerValidity(signerAddresses[5], signerHat, true);
-    vm.prank(signerAddresses[5]);
-    hatsSignerGate.claimSigner(signerHat);
-  }
-
-  function testValidSignersCanClaimAfterLastMaxSignerLosesHat() public {
-    // max signers is 5
-    // 5 signers claim
-    _addSignersSameHat(5, signerHat);
-
-    address[] memory owners = safe.getOwners();
-
-    // a signer misbehaves and loses the hat
-    _setSignerValidity(owners[4], signerHat, false);
-
-    // validSignerCount is now 4
-    assertEq(hatsSignerGate.validSignerCount(), 4);
-
-    _setSignerValidity(signerAddresses[5], signerHat, true);
-    vm.prank(signerAddresses[5]);
-    hatsSignerGate.claimSigner(signerHat);
-  }
-
   function testSignersCannotAddNewModules() public {
-    // (address[] memory modules,) = safe.getModulesPaginated(SENTINELS, 5);
-
     bytes memory addModuleData = abi.encodeWithSignature("enableModule(address)", address(0xf00baa));
 
     _addSignersSameHat(2, signerHat);
@@ -199,32 +86,8 @@ contract AttacksScenarios is WithHSGInstanceTest {
     );
   }
 
-  function testCannotClaimSignerIfNoInvalidSigners() public {
-    assertEq(maxSigners, 5);
-    _addSignersSameHat(5, signerHat);
-    // one signer loses their hat
-    _setSignerValidity(signerAddresses[4], signerHat, false);
-    assertEq(hatsSignerGate.validSignerCount(), 4);
-
-    // reconcile is called, updating signer count to 4
-    hatsSignerGate.reconcileSignerCount();
-    assertEq(hatsSignerGate.validSignerCount(), 4);
-
-    // bad signer regains their hat
-    _setSignerValidity(signerAddresses[4], signerHat, true);
-    // signer count returns to 5
-    assertEq(hatsSignerGate.validSignerCount(), 5);
-
-    // new valid signer tries to claim, but can't because we're already at max signers
-    _setSignerValidity(signerAddresses[5], signerHat, true);
-    vm.prank(signerAddresses[5]);
-    vm.expectRevert(IHatsSignerGate.MaxSignersReached.selector);
-    hatsSignerGate.claimSigner(signerHat);
-  }
-
   function testRemoveSignerCorrectlyUpdates() public {
     assertEq(hatsSignerGate.targetThreshold(), 2, "target threshold");
-    assertEq(maxSigners, 5, "max signers");
     // start with 5 valid signers
     _addSignersSameHat(5, signerHat);
 
@@ -244,7 +107,6 @@ contract AttacksScenarios is WithHSGInstanceTest {
   }
 
   function testCanClaimToReplaceInvalidSignerAtMaxSigner() public {
-    assertEq(maxSigners, 5, "max signers");
     // start with 5 valid signers (the max)
     _addSignersSameHat(5, signerHat);
 
@@ -282,58 +144,6 @@ contract AttacksScenarios is WithHSGInstanceTest {
     vm.expectRevert(IHatsSignerGate.InvalidTargetThreshold.selector);
     hatsSignerGate.setTargetThreshold(1);
   }
-
-  // function testCannotAccidentallySetThresholdHigherThanTarget() public {
-  //     assertEq(hatsSignerGate.targetThreshold(), 2, "target threshold");
-
-  //     // to reach the condition to test, we need...
-  //     // 1) signer count > target threshold
-  //     // 2) current threshold < target threshold
-
-  //     // 1) its unlikely to get both of these naturally since adding new signers increases the threshold
-  //     // but we can force it by adding owners to the safe by pretending to be the hatsSignerGate itself
-  //     // we start by adding 1 valid signer legitimately
-  //     _addSignersSameHat(1, signerHat);
-  //     // then we add 2 more valid owners my pranking the execTransactionFromModule function
-  //     console2.log("signerAddresses[2]", signerAddresses[2]);
-  //     console2.log("signerAddresses[3]", signerAddresses[3]);
-  //     _setSignerValidity(signerAddresses[2], signerHat, true);
-  //     _setSignerValidity(signerAddresses[3], signerHat, true);
-  //     bytes memory addOwner3 = abi.encodeWithSignature("addOwnerWithThreshold(address,uint256)", signerAddresses[2],
-  // 1);
-  //     bytes memory addOwner4 = abi.encodeWithSignature("addOwnerWithThreshold(address,uint256)", signerAddresses[3],
-  // 1);
-
-  //     // _setSignerValidity(address(this), signerHat, true);
-  //     vm.startPrank(address(hatsSignerGate));
-  //     safe.execTransactionFromModule(
-  //         address(safe), // to
-  //         0, // value
-  //         addOwner3, // data
-  //         Enum.Operation.Call // operation
-  //     );
-  //     safe.execTransactionFromModule(
-  //         address(safe), // to
-  //         0, // value
-  //         addOwner4, // data
-  //         Enum.Operation.Call // operation
-  //     );
-
-  //     // mock these calls to ensure the validSignerCount doesn't panic/revert
-  //     _setSignerValidity(signerAddresses[2], 0, false);
-  //     _setSignerValidity(signerAddresses[3], 0, false);
-
-  //     // now we've meet the necessary conditions
-
-  //     assertGt(
-  //         hatsSignerGate.validSignerCount(), hatsSignerGate.targetThreshold(), "1) signer count > target threshold"
-  //     );
-  //     assertLt(safe.getThreshold(), hatsSignerGate.targetThreshold(), "2) current threshold < target threshold");
-
-  //     // calling reconcile should change the threshold to the target
-  //     hatsSignerGate.reconcileSignerCount();
-  //     assertEq(safe.getThreshold(), hatsSignerGate.targetThreshold(), "threshold == target threshold");
-  // }
 
   function testAttackerCannotExploitSigHandlingDifferences() public {
     // start with 4 valid signers
