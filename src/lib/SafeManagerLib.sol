@@ -261,14 +261,10 @@ library SafeManagerLib {
   function findPrevOwner(address[] memory _owners, address _owner) internal pure returns (address prevOwner) {
     prevOwner = SENTINELS;
 
-    for (uint256 i; i < _owners.length;) {
+    for (uint256 i; i < _owners.length; ++i) {
       if (_owners[i] == _owner) {
         if (i == 0) break;
         prevOwner = _owners[i - 1];
-      }
-      // shouldn't overflow given reasonable _owners array length
-      unchecked {
-        ++i;
       }
     }
   }

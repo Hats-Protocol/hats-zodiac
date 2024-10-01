@@ -180,7 +180,7 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
     if (_hatIds.length != toClaimCount) revert InvalidArrayLength();
 
     // iterate through the arrays, adding each signer
-    for (uint256 i; i < toClaimCount;) {
+    for (uint256 i; i < toClaimCount; ++i) {
       uint256 hatId = _hatIds[i];
       address signer = _signers[i];
 
@@ -231,10 +231,6 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
       bool success = safe.execTransactionFromHSG(addOwnerData);
 
       if (!success) revert SafeManagerLib.FailedExecAddSigner();
-
-      unchecked {
-        ++i;
-      }
     }
   }
 
@@ -380,8 +376,10 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
     if (validSigCount < threshold || validSigCount < minThreshold) revert InvalidSigners();
 
     // record existing owners for post-flight check
+    // TODO use TSTORE
     _existingOwnersHash = keccak256(abi.encode(owners));
 
+    // TODO use TSTORE
     unchecked {
       ++_guardEntries;
     }
@@ -467,7 +465,7 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
     bytes32 s;
     uint256 i;
 
-    for (i; i < sigCount;) {
+    for (i; i < sigCount; ++i) {
       (v, r, s) = signatureSplit(signatures, i);
       if (v == 0) {
         // If v is 0 then it is a contract signature
@@ -494,10 +492,6 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
           ++validSigCount;
         }
       }
-      // shouldn't overflow given reasonable sigCount
-      unchecked {
-        ++i;
-      }
     }
   }
 
@@ -521,13 +515,8 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
   /// @dev Internal function to approve new signer hats
   /// @param _newSignerHats Array of hat ids to add as approved signer hats
   function _addSignerHats(uint256[] memory _newSignerHats) internal {
-    for (uint256 i = 0; i < _newSignerHats.length;) {
+    for (uint256 i; i < _newSignerHats.length; ++i) {
       validSignerHats[_newSignerHats[i]] = true;
-
-      // should not overflow with feasible array length
-      unchecked {
-        ++i;
-      }
     }
 
     emit SignerHatsAdded(_newSignerHats);
@@ -574,16 +563,12 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
   function _countValidSigners(address[] memory owners) internal view returns (uint256 signerCount) {
     uint256 length = owners.length;
     // count the existing safe owners that wear the signer hat
-    for (uint256 i; i < length;) {
+    for (uint256 i; i < length; ++i) {
       if (isValidSigner(owners[i])) {
         // shouldn't overflow given reasonable owners array length
         unchecked {
           ++signerCount;
         }
-      }
-      // shouldn't overflow given reasonable owners array length
-      unchecked {
-        ++i;
       }
     }
   }

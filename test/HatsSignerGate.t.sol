@@ -1160,7 +1160,7 @@ contract ClaimingSignersFor is WithHSGInstanceTest {
     _signerCount = bound(_signerCount, 1, signerAddresses.length);
 
     // set up signer validity
-    for (uint256 i; i < _signerCount; i++) {
+    for (uint256 i; i < _signerCount; ++i) {
       _setSignerValidity(signerAddresses[i], signerHat, true);
     }
 
@@ -1171,7 +1171,7 @@ contract ClaimingSignersFor is WithHSGInstanceTest {
     // create the necessary arrays
     address[] memory claimers = new address[](_signerCount);
     uint256[] memory hatIds = new uint256[](_signerCount);
-    for (uint256 i; i < _signerCount; i++) {
+    for (uint256 i; i < _signerCount; ++i) {
       claimers[i] = signerAddresses[i];
       hatIds[i] = signerHat;
     }
@@ -1187,7 +1187,7 @@ contract ClaimingSignersFor is WithHSGInstanceTest {
     _signerCount = bound(_signerCount, 1, signerAddresses.length);
 
     // set up signer validity
-    for (uint256 i; i < _signerCount; i++) {
+    for (uint256 i; i < _signerCount; ++i) {
       _setSignerValidity(signerAddresses[i], signerHat, true);
     }
 
@@ -1203,7 +1203,7 @@ contract ClaimingSignersFor is WithHSGInstanceTest {
     // create the necessary arrays, starting with the next signer
     address[] memory claimers = new address[](_signerCount - 1);
     uint256[] memory hatIds = new uint256[](_signerCount - 1);
-    for (uint256 i; i < _signerCount - 1; i++) {
+    for (uint256 i; i < _signerCount - 1; ++i) {
       claimers[i] = signerAddresses[i + 1];
       hatIds[i] = signerHat;
     }
@@ -1219,7 +1219,7 @@ contract ClaimingSignersFor is WithHSGInstanceTest {
     _signerCount = bound(_signerCount, 1, signerAddresses.length);
 
     // set up signer validity
-    for (uint256 i; i < _signerCount; i++) {
+    for (uint256 i; i < _signerCount; ++i) {
       _setSignerValidity(signerAddresses[i], signerHat, true);
     }
 
@@ -1232,7 +1232,7 @@ contract ClaimingSignersFor is WithHSGInstanceTest {
     // create the necessary arrays
     address[] memory claimers = new address[](_signerCount);
     uint256[] memory hatIds = new uint256[](_signerCount);
-    for (uint256 i; i < _signerCount; i++) {
+    for (uint256 i; i < _signerCount; ++i) {
       claimers[i] = signerAddresses[i];
       hatIds[i] = signerHat;
     }
@@ -1249,7 +1249,7 @@ contract ClaimingSignersFor is WithHSGInstanceTest {
     uint256 invalidSignerHat = signerHat + 1;
 
     // set up signer validity
-    for (uint256 i; i < _signerCount; i++) {
+    for (uint256 i; i < _signerCount; ++i) {
       _setSignerValidity(signerAddresses[i], signerHat, true);
     }
 
@@ -1260,7 +1260,7 @@ contract ClaimingSignersFor is WithHSGInstanceTest {
     // create the necessary arrays
     address[] memory claimers = new address[](_signerCount);
     uint256[] memory hatIds = new uint256[](_signerCount);
-    for (uint256 i; i < _signerCount; i++) {
+    for (uint256 i; i < _signerCount; ++i) {
       claimers[i] = signerAddresses[i];
       hatIds[i] = invalidSignerHat;
     }
@@ -1274,7 +1274,7 @@ contract ClaimingSignersFor is WithHSGInstanceTest {
     _invalidSignerIndex = bound(_invalidSignerIndex, 0, _signerCount - 1);
 
     // set up signer validity
-    for (uint256 i; i < _signerCount; i++) {
+    for (uint256 i; i < _signerCount; ++i) {
       if (i == _invalidSignerIndex) {
         _setSignerValidity(signerAddresses[i], signerHat, false);
       } else {
@@ -1289,7 +1289,7 @@ contract ClaimingSignersFor is WithHSGInstanceTest {
     // create the necessary arrays
     address[] memory claimers = new address[](_signerCount);
     uint256[] memory hatIds = new uint256[](_signerCount);
-    for (uint256 i; i < _signerCount; i++) {
+    for (uint256 i; i < _signerCount; ++i) {
       claimers[i] = signerAddresses[i];
       hatIds[i] = signerHat;
     }
@@ -1305,7 +1305,7 @@ contract ClaimingSignersFor is WithHSGInstanceTest {
     _alreadyClaimedIndex = bound(_alreadyClaimedIndex, 0, _signerCount - 1);
 
     // set up signer validity
-    for (uint256 i; i < _signerCount; i++) {
+    for (uint256 i; i < _signerCount; ++i) {
       _setSignerValidity(signerAddresses[i], signerHat, true);
     }
 
@@ -1321,7 +1321,7 @@ contract ClaimingSignersFor is WithHSGInstanceTest {
     // create the arrays for the remaining signers
     address[] memory claimers = new address[](_signerCount);
     uint256[] memory hatIds = new uint256[](_signerCount);
-    for (uint256 i; i < _signerCount; i++) {
+    for (uint256 i; i < _signerCount; ++i) {
       claimers[i] = signerAddresses[i];
       hatIds[i] = signerHat;
     }
@@ -1336,7 +1336,7 @@ contract ClaimingSignersFor is WithHSGInstanceTest {
     _signerCount = bound(_signerCount, 1, signerAddresses.length);
 
     // set up signer validity
-    for (uint256 i; i < _signerCount; i++) {
+    for (uint256 i; i < _signerCount; ++i) {
       _setSignerValidity(signerAddresses[i], signerHat, true);
     }
 
@@ -1347,7 +1347,7 @@ contract ClaimingSignersFor is WithHSGInstanceTest {
     // create the necessary arrays
     address[] memory claimers = new address[](_signerCount);
     uint256[] memory hatIds = new uint256[](_signerCount - 1);
-    for (uint256 i; i < _signerCount - 1; i++) {
+    for (uint256 i; i < _signerCount - 1; ++i) {
       claimers[i] = signerAddresses[i];
       hatIds[i] = signerHat;
     }

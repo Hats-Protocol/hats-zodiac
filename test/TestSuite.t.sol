@@ -134,11 +134,11 @@ abstract contract SafeTestHelpers is Test {
     if (i == j) return;
     uint256 pivot = _arr[uint256(_left + (_right - _left) / 2)];
     while (i <= j) {
-      while (_arr[uint256(i)] < pivot) i++;
+      while (_arr[uint256(i)] < pivot) ++i;
       while (pivot < _arr[uint256(j)]) j--;
       if (i <= j) {
         (_arr[uint256(i)], _arr[uint256(j)]) = (_arr[uint256(j)], _arr[uint256(i)]);
-        i++;
+        ++i;
         j--;
       }
     }
@@ -149,14 +149,10 @@ abstract contract SafeTestHelpers is Test {
   function _findPrevOwner(address[] memory _owners, address _owner) internal pure returns (address prevOwner) {
     prevOwner = SENTINELS;
 
-    for (uint256 i; i < _owners.length;) {
+    for (uint256 i; i < _owners.length; ++i) {
       if (_owners[i] == _owner) {
         if (i == 0) break;
         prevOwner = _owners[i - 1];
-      }
-      // shouldn't overflow given reasonable _owners array length
-      unchecked {
-        ++i;
       }
     }
   }
@@ -273,7 +269,7 @@ contract TestSuite is SafeTestHelpers {
     tophat = hats.mintTopHat(org, "tophat", "https://hats.com");
     ownerHat = hats.createHat(tophat, "owner", 10, eligibility, toggle, true, "");
 
-    for (uint256 i = 0; i < signerHatCount; i++) {
+    for (uint256 i = 0; i < signerHatCount; ++i) {
       signerHats[i] =
         hats.createHat(tophat, string.concat("signerHat", vm.toString(i)), 100, eligibility, toggle, true, "image");
     }
@@ -380,7 +376,7 @@ contract TestSuite is SafeTestHelpers {
     //////////////////////////////////////////////////////////////*/
 
   function _addSignersSameHat(uint256 _count, uint256 _hat) internal {
-    for (uint256 i = 0; i < _count; i++) {
+    for (uint256 i = 0; i < _count; ++i) {
       _setSignerValidity(signerAddresses[i], _hat, true);
       vm.prank(signerAddresses[i]);
       hatsSignerGate.claimSigner(_hat);
@@ -388,7 +384,7 @@ contract TestSuite is SafeTestHelpers {
   }
 
   function _addSignersDifferentHats(uint256 _count, uint256[] memory _hats) internal {
-    for (uint256 i = 0; i < _count; i++) {
+    for (uint256 i = 0; i < _count; ++i) {
       _setSignerValidity(signerAddresses[i], _hats[i], true);
       vm.prank(signerAddresses[i]);
       hatsSignerGate.claimSigner(_hats[i]);
@@ -409,7 +405,7 @@ contract TestSuite is SafeTestHelpers {
   }
 
   function assertValidSignerHats(uint256[] memory _signerHats) public {
-    for (uint256 i = 0; i < _signerHats.length; i++) {
+    for (uint256 i = 0; i < _signerHats.length; ++i) {
       assertTrue(hatsSignerGate.validSignerHats(_signerHats[i]));
     }
   }
