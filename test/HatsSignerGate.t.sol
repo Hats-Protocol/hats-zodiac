@@ -34,7 +34,6 @@ contract Deployment is TestSuite {
     assertEq(hatsSignerGate.targetThreshold(), targetThreshold);
     assertEq(address(hatsSignerGate.HATS()), address(hats));
     assertEq(address(hatsSignerGate.safe()), address(testSafe));
-    assertEq(hatsSignerGate.version(), version);
     assertEq(address(hatsSignerGate.implementation()), address(singletonHatsSignerGate));
     assertEq(hatsSignerGate.locked(), _locked);
     assertEq(hatsSignerGate.claimableFor(), _claimableFor);
@@ -57,7 +56,6 @@ contract Deployment is TestSuite {
     assertEq(hatsSignerGate.targetThreshold(), targetThreshold);
     assertEq(address(hatsSignerGate.HATS()), address(hats));
     assertEq(address(hatsSignerGate.safe()), address(safe));
-    assertEq(hatsSignerGate.version(), version);
     assertEq(address(hatsSignerGate.implementation()), address(singletonHatsSignerGate));
     assertEq(_getSafeGuard(address(safe)), address(hatsSignerGate));
     assertTrue(safe.isModuleEnabled(address(hatsSignerGate)));

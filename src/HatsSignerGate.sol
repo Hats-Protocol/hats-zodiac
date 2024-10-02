@@ -37,6 +37,9 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
   /// @inheritdoc IHatsSignerGate
   address public immutable safeProxyFactory;
 
+  /// @inheritdoc IHatsSignerGate
+  string public constant version = "2.0.0";
+
   /*//////////////////////////////////////////////////////////////
                             MUTABLE STATE
   //////////////////////////////////////////////////////////////*/
@@ -102,8 +105,7 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
     address _safeSingleton,
     address _safeFallbackLibrary,
     address _safeMultisendLibrary,
-    address _safeProxyFactory,
-    string memory _version
+    address _safeProxyFactory
   ) initializer {
     HATS = IHats(_hats);
     safeProxyFactory = _safeProxyFactory;
@@ -113,9 +115,6 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
 
     // set the implementation's owner hat to a nonexistent hat to prevent state changes to the implementation
     ownerHat = 1;
-
-    // set the implementation's version; this will also be set on each instance deployed from this implementation
-    version = _version;
   }
 
   /*//////////////////////////////////////////////////////////////

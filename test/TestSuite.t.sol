@@ -234,7 +234,6 @@ contract TestSuite is SafeTestHelpers {
   uint256 public minThreshold;
   uint256 public targetThreshold;
   bool public locked;
-  string public version;
 
   // Utility variables
   address[] initSafeOwners = new address[](1);
@@ -243,11 +242,9 @@ contract TestSuite is SafeTestHelpers {
     // Set up the test environment with a fork
     vm.createSelectFork(chain, FORK_BLOCK);
 
-    version = "test";
-
     // Deploy the HSG implementation with a salt
     DeployImplementation implementationDeployer = new DeployImplementation();
-    implementationDeployer.prepare(false, version);
+    implementationDeployer.prepare(false);
     singletonHatsSignerGate = implementationDeployer.run();
 
     // Cache the deploy params and factory address

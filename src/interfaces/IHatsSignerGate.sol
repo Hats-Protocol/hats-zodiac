@@ -140,6 +140,9 @@ interface IHatsSignerGate {
   /// @notice The Safe proxy factory contract address
   function safeProxyFactory() external view returns (address);
 
+  /// @notice The version of this HatsSignerGate contract
+  function version() external view returns (string memory);
+
   /*//////////////////////////////////////////////////////////////
                           STATE VARIABLES
   //////////////////////////////////////////////////////////////*/
@@ -164,9 +167,6 @@ interface IHatsSignerGate {
 
   /// @notice The address of the HatsSignerGate implementation
   function implementation() external view returns (address);
-
-  /// @notice The version of the HatsSignerGate contract
-  function version() external view returns (string memory);
 
   /// @notice Whether the contract is locked. If true, the owner cannot change any of the contract's settings.
   function locked() external view returns (bool);
