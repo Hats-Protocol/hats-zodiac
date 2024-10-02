@@ -81,19 +81,17 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
   uint256 internal _guardEntries;
 
   /*//////////////////////////////////////////////////////////////
-                              MODIFIERS
+                      AUTHENTICATION FUNCTIONS
   //////////////////////////////////////////////////////////////*/
 
-  /// @notice Only the wearer of the owner hat can change this contract's settings
-  modifier onlyOwner() {
+  /// @dev Internal function to check if the caller is wearing the owner hat
+  function _checkOwner() internal view {
     if (!HATS.isWearerOfHat(msg.sender, ownerHat)) revert NotOwnerHatWearer();
-    _;
   }
 
-  /// @notice Changes to settings can only be made if the contract is not locked
-  modifier onlyUnlocked() {
+  /// @dev Internal function to check if the contract is unlocked
+  function _checkUnlocked() internal view {
     if (locked) revert Locked();
-    _;
   }
 
   /*//////////////////////////////////////////////////////////////
@@ -261,22 +259,30 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
   //////////////////////////////////////////////////////////////*/
 
   /// @inheritdoc IHatsSignerGate
-  function lock() public onlyOwner onlyUnlocked {
+  function lock() public {
+    _checkUnlocked();
+    _checkOwner();
     _lock();
   }
 
   /// @inheritdoc IHatsSignerGate
-  function setOwnerHat(uint256 _ownerHat) public onlyOwner onlyUnlocked {
+  function setOwnerHat(uint256 _ownerHat) public {
+    _checkUnlocked();
+    _checkOwner();
     _setOwnerHat(_ownerHat);
   }
 
   /// @inheritdoc IHatsSignerGate
-  function addSignerHats(uint256[] calldata _newSignerHats) external onlyOwner onlyUnlocked {
+  function addSignerHats(uint256[] calldata _newSignerHats) external {
+    _checkUnlocked();
+    _checkOwner();
     _addSignerHats(_newSignerHats);
   }
 
   /// @inheritdoc IHatsSignerGate
-  function setTargetThreshold(uint256 _targetThreshold) public onlyOwner onlyUnlocked {
+  function setTargetThreshold(uint256 _targetThreshold) public {
+    _checkUnlocked();
+    _checkOwner();
     if (_targetThreshold != targetThreshold) {
       _setTargetThreshold(_targetThreshold);
 
@@ -286,17 +292,23 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
   }
 
   /// @inheritdoc IHatsSignerGate
-  function setMinThreshold(uint256 _minThreshold) public onlyOwner onlyUnlocked {
+  function setMinThreshold(uint256 _minThreshold) public {
+    _checkUnlocked();
+    _checkOwner();
     _setMinThreshold(_minThreshold);
   }
 
   /// @inheritdoc IHatsSignerGate
-  function setClaimableFor(bool _claimableFor) public onlyOwner onlyUnlocked {
+  function setClaimableFor(bool _claimableFor) public {
+    _checkUnlocked();
+    _checkOwner();
     _setClaimableFor(_claimableFor);
   }
 
   /// @inheritdoc IHatsSignerGate
-  function detachHSG() public onlyOwner onlyUnlocked {
+  function detachHSG() public {
+    _checkUnlocked();
+    _checkOwner();
     ISafe s = safe; // save SLOAD
 
     // first remove as guard, then as module
@@ -306,7 +318,9 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
   }
 
   /// @inheritdoc IHatsSignerGate
-  function migrateToNewHSG(address _newHSG) public onlyOwner onlyUnlocked {
+  function migrateToNewHSG(address _newHSG) public {
+    _checkUnlocked();
+    _checkOwner();
     // QUESTION check if _newHSG is indeed an HSG?
 
     ISafe s = safe; // save SLOADS
