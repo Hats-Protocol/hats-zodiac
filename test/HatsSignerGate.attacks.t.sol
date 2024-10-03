@@ -45,7 +45,6 @@ contract AttacksScenarios is WithHSGInstanceTest {
     _setSignerValidity(signerAddresses[3], signerHat, false);
     _setSignerValidity(signerAddresses[4], signerHat, false);
 
-
     // the 3 owners regain their hats
     _setSignerValidity(signerAddresses[2], signerHat, true);
     _setSignerValidity(signerAddresses[3], signerHat, true);
