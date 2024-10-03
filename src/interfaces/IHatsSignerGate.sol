@@ -43,8 +43,8 @@ interface IHatsSignerGate {
   /// @notice Only wearers of a valid signer hat can become signers
   error NotSignerHatWearer(address user);
 
-  /// @notice Valid signers must wear the signer hat at time of execution
-  error InvalidSigners();
+  /// @notice Thrown when the number of signatures from valid signers is less than the correct threshold
+  error InsufficientValidSignatures();
 
   /// @notice This contract can only be set once as a zodiac guard on `safe`
   error GuardAlreadySet();
@@ -60,9 +60,6 @@ interface IHatsSignerGate {
 
   /// @notice Signers already on the `safe` cannot claim twice
   error SignerAlreadyClaimed(address signer);
-
-  /// @notice Cannot exececute a tx if `safeOnwerCount` < `minThreshold`
-  error BelowMinThreshold(uint256 minThreshold, uint256 safeOwnerCount);
 
   /// @notice Can only claim signer with a valid signer hat
   error InvalidSignerHat(uint256 hatId);
@@ -210,7 +207,7 @@ interface IHatsSignerGate {
   /// @notice Tallies the number of existing `safe` owners that wear a signer hat and updates the `safe` threshold if
   /// necessary
   /// @dev Does NOT remove invalid `safe` owners
-  function reconcileSignerCount() external;
+  // function reconcileSignerCount() external;
 
   /// @notice Irreversibly locks the contract, preventing any further changes to the contract's settings.
   /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.

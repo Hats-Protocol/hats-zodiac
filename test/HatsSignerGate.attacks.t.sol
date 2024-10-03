@@ -45,10 +45,6 @@ contract AttacksScenarios is WithHSGInstanceTest {
     _setSignerValidity(signerAddresses[3], signerHat, false);
     _setSignerValidity(signerAddresses[4], signerHat, false);
 
-    // reconcile is called, so signerCount is updated to 2
-    hatsSignerGate.reconcileSignerCount();
-    assertEq(hatsSignerGate.validSignerCount(), 2);
-    assertEq(safe.getThreshold(), 2);
 
     // the 3 owners regain their hats
     _setSignerValidity(signerAddresses[2], signerHat, true);
@@ -183,7 +179,7 @@ contract AttacksScenarios is WithHSGInstanceTest {
     // mock the maliciousTx so it would succeed if it were to be executed
     vm.mockCall(maliciousContract, maliciousTx, abi.encode(true));
     // attacker submits the tx to the safe, but it should fail
-    vm.expectRevert(IHatsSignerGate.InvalidSigners.selector);
+    vm.expectRevert(IHatsSignerGate.InsufficientValidSignatures.selector);
     vm.prank(attacker);
     safe.execTransaction(
       address(safe),

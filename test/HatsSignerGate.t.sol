@@ -330,41 +330,6 @@ contract RemovingSigners is WithHSGInstanceTest {
     assertEq(safe.getThreshold(), 1);
   }
 
-  function testCanRemoveInvalidSignerAfterReconcile2Signers() public {
-    _addSignersSameHat(2, signerHat);
-
-    _setSignerValidity(signerAddresses[0], signerHat, false);
-
-    hatsSignerGate.reconcileSignerCount();
-    assertEq(hatsSignerGate.validSignerCount(), 1);
-
-    hatsSignerGate.removeSigner(signerAddresses[0]);
-
-    assertEq(safe.getOwners().length, 1);
-    assertEq(safe.getOwners()[0], signerAddresses[1]);
-    assertEq(hatsSignerGate.validSignerCount(), 1);
-
-    assertEq(safe.getThreshold(), 1);
-  }
-
-  function testCanRemoveInvalidSignerAfterReconcile3PLusSigners() public {
-    _addSignersSameHat(3, signerHat);
-
-    _setSignerValidity(signerAddresses[0], signerHat, false);
-
-    hatsSignerGate.reconcileSignerCount();
-    assertEq(hatsSignerGate.validSignerCount(), 2);
-
-    hatsSignerGate.removeSigner(signerAddresses[0]);
-
-    assertEq(safe.getOwners().length, 2);
-    assertEq(safe.getOwners()[0], signerAddresses[2]);
-    assertEq(safe.getOwners()[1], signerAddresses[1]);
-    assertEq(hatsSignerGate.validSignerCount(), 2);
-
-    assertEq(safe.getThreshold(), 2);
-  }
-
   function testCannotRemoveValidSigner() public {
     _addSignersSameHat(1, signerHat);
 
@@ -474,7 +439,7 @@ contract ExecutingTransactions is WithHSGInstanceTest {
     vm.prank(signerAddresses[0]);
 
     // vm.expectRevert(abi.encodeWithSelector(BelowMinThreshold.selector, minThreshold, 1));
-    vm.expectRevert(IHatsSignerGate.InvalidSigners.selector);
+    vm.expectRevert(IHatsSignerGate.InsufficientValidSignatures.selector);
 
     safe.execTransaction(
       destAddress,
@@ -518,11 +483,7 @@ contract ExecutingTransactions is WithHSGInstanceTest {
     // have the legit signer exec the tx
     vm.prank(signerAddresses[0]);
 
-    vm.expectRevert(
-      abi.encodeWithSelector(
-        IHatsSignerGate.BelowMinThreshold.selector, hatsSignerGate.minThreshold(), safe.getOwners().length
-      )
-    );
+    vm.expectRevert(IHatsSignerGate.InsufficientValidSignatures.selector);
 
     safe.execTransaction(
       destAddress,
@@ -547,7 +508,8 @@ contract ExecutingTransactions is WithHSGInstanceTest {
     _addSignersSameHat(2, signerHat);
 
     _setSignerValidity(signerAddresses[1], signerHat, false);
-    assertEq(safe.getThreshold(), 2);
+    assertEq(safe.getThreshold(), 2, "threshold should be 2");
+    assertEq(hatsSignerGate.validSignerCount(), 1, "valid signer count should be 1");
 
     // set up test values
     // uint256 preNonce = safe.nonce();
@@ -561,14 +523,11 @@ contract ExecutingTransactions is WithHSGInstanceTest {
     // have the remaining signer sign it
     // create the tx
     bytes32 txHash = _getTxHash(destAddress, transferValue, hex"00", safe);
-    // have them sign it
-    bytes memory signatures = _createNSigsForTx(txHash, 1);
-
-    hatsSignerGate.reconcileSignerCount();
-    assertEq(safe.getThreshold(), 1);
+    // have both signers (1 valid, 1 invalid) sign it
+    bytes memory signatures = _createNSigsForTx(txHash, 2);
 
     // vm.expectRevert(abi.encodeWithSelector(BelowMinThreshold.selector, minThreshold, 1));
-    vm.expectRevert(IHatsSignerGate.InvalidSigners.selector);
+    vm.expectRevert(IHatsSignerGate.InsufficientValidSignatures.selector);
     safe.execTransaction(
       destAddress,
       transferValue,
@@ -649,7 +608,7 @@ contract ExecutingTransactions is WithHSGInstanceTest {
     vm.prank(signerAddresses[0]);
 
     // vm.expectRevert(abi.encodeWithSelector(BelowMinThreshold.selector, minThreshold, 1));
-    vm.expectRevert(IHatsSignerGate.InvalidSigners.selector);
+    vm.expectRevert(IHatsSignerGate.InsufficientValidSignatures.selector);
 
     safe.execTransaction(
       destAddress,
@@ -887,77 +846,6 @@ contract GuardFunctionAuth is WithHSGInstanceTest {
     vm.expectRevert(IHatsSignerGate.NotCalledFromSafe.selector);
     hatsSignerGate.checkAfterExecution(hex"00", true);
   }
-}
-
-contract ReconcilingSignerCount is WithHSGInstanceTest {
-// function testReconcileSignerCount() public {
-//     _setSignerValidity(signerAddresses[1], signerHat, false);
-//     _setSignerValidity(signerAddresses[2], signerHat, false);
-//     _setSignerValidity(signerAddresses[3], signerHat, false);
-//     // add 3 more safe owners the old fashioned way
-//     // 1
-//     bytes memory addOwnersData1 = abi.encodeWithSignature("addOwnerWithThreshold(address,uint256)",
-// signerAddresses[1], 1);
-
-//     // _setSignerValidity(address(this), signerHat, true);
-//     vm.prank(address(hatsSignerGate));
-
-//     safe.execTransactionFromModule(
-//         address(safe), // to
-//         0, // value
-//         addOwnersData1, // data
-//         Enum.Operation.Call // operation
-//     );
-
-//     // 2
-//     bytes memory addOwnersData2 = abi.encodeWithSignature("addOwnerWithThreshold(address,uint256)",
-// signerAddresses[2], 1);
-
-//     // _setSignerValidity(address(this), signerHat, true);
-//     vm.prank(address(hatsSignerGate));
-
-//     safe.execTransactionFromModule(
-//         address(safe), // to
-//         0, // value
-//         addOwnersData2, // data
-//         Enum.Operation.Call // operation
-//     );
-
-//     // 3
-//     bytes memory addOwnersData3 = abi.encodeWithSignature("addOwnerWithThreshold(address,uint256)",
-// signerAddresses[3], 1);
-
-//     // _setSignerValidity(address(this), signerHat, true);
-//     vm.prank(address(hatsSignerGate));
-
-//     safe.execTransactionFromModule(
-//         address(safe), // to
-//         0, // value
-//         addOwnersData3, // data
-//         Enum.Operation.Call // operation
-//     );
-
-//     assertEq(hatsSignerGate.validSignerCount(), 0);
-
-//     // set only two of them as valid signers
-//     _setSignerValidity(signerAddresses[0], signerHat, true);
-//     _setSignerValidity(signerAddresses[1], signerHat, true);
-
-//     // do the reconcile
-//     hatsSignerGate.reconcileSignerCount();
-
-//     assertEq(hatsSignerGate.validSignerCount(), 2, "first signer count check");
-//     assertEq(safe.getThreshold(), 2, "first threshold check");
-
-//     // now we can remove both the invalid signers with no changes to hatsSignerCount
-//     _setSignerValidity(signerAddresses[2], signerHat, false);
-//     hatsSignerGate.removeSigner(signerAddresses[2]);
-//     _setSignerValidity(signerAddresses[3], signerHat, false);
-//     hatsSignerGate.removeSigner(signerAddresses[3]);
-
-//     assertEq(hatsSignerGate.validSignerCount(), 2, "second signer count check");
-//     assertEq(safe.getThreshold(), 2, "second threshold check");
-// }
 }
 
 contract DetachingHSG is WithHSGInstanceTest {
