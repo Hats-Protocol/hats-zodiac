@@ -890,6 +890,8 @@ contract MigratingHSG is WithHSGInstanceTest {
 
     // create the instance deployer
     DeployInstance instanceDeployer = new DeployInstance();
+
+    // set up the deployment with the same parameters as the existing HSG (except for the nonce)
     instanceDeployer.prepare(
       true,
       address(singletonHatsSignerGate),
@@ -907,21 +909,84 @@ contract MigratingHSG is WithHSGInstanceTest {
     newHSG = instanceDeployer.run();
   }
 
-  function test_happy() public {
+  function test_happy_noSignersToMigrate() public {
     vm.expectEmit(true, true, true, true);
     emit IHatsSignerGate.Migrated(address(newHSG));
     vm.prank(owner);
-    hatsSignerGate.migrateToNewHSG(address(newHSG));
+    hatsSignerGate.migrateToNewHSG(address(newHSG), new uint256[](0), new address[](0));
 
     assertEq(_getSafeGuard(address(safe)), address(newHSG), "guard should be the new HSG");
     assertFalse(safe.isModuleEnabled(address(hatsSignerGate)), "old HSG should be disabled as module");
     assertTrue(safe.isModuleEnabled(address(newHSG)), "new HSG should be enabled as module");
   }
 
+  function test_happy_claimableFor_signersToMigrate(uint256 _count) public {
+    uint256 count = bound(_count, 1, signerAddresses.length);
+    // add some signers to the existing HSG
+    _addSignersSameHat(count, signerHat);
+
+    // set the claimable for to true for the new HSG
+    vm.prank(owner);
+    newHSG.setClaimableFor(true);
+
+    // create the migration arrays
+    uint256[] memory hatIdsToMigrate = new uint256[](count);
+    address[] memory signersToMigrate = new address[](count);
+    for (uint256 i; i < count; ++i) {
+      hatIdsToMigrate[i] = signerHat;
+      signersToMigrate[i] = signerAddresses[i];
+    }
+
+    vm.expectEmit(true, true, true, true);
+    emit IHatsSignerGate.Migrated(address(newHSG));
+    vm.prank(owner);
+    hatsSignerGate.migrateToNewHSG(address(newHSG), hatIdsToMigrate, signersToMigrate);
+
+    assertEq(_getSafeGuard(address(safe)), address(newHSG), "guard should be the new HSG");
+    assertFalse(safe.isModuleEnabled(address(hatsSignerGate)), "old HSG should be disabled as module");
+    assertTrue(safe.isModuleEnabled(address(newHSG)), "new HSG should be enabled as module");
+
+    // check that the signers are now in the new HSG
+    for (uint256 i; i < count; ++i) {
+      assertTrue(newHSG.isValidSigner(signersToMigrate[i]), "signer should be in the new HSG");
+    }
+    assertEq(newHSG.validSignerCount(), count, "valid signer count should be correct");
+  }
+
+  function test_revert_notClaimableFor_signersToMigrate(uint256 _count) public {
+    uint256 count = bound(_count, 1, signerAddresses.length);
+    // add some signers to the existing HSG
+    _addSignersSameHat(count, signerHat);
+
+    // don't set the claimable for to true for the new HSG
+
+    // create the migration arrays
+    uint256[] memory hatIdsToMigrate = new uint256[](count);
+    address[] memory signersToMigrate = new address[](count);
+    for (uint256 i; i < count; ++i) {
+      hatIdsToMigrate[i] = signerHat;
+      signersToMigrate[i] = signerAddresses[i];
+    }
+
+    vm.expectRevert(IHatsSignerGate.NotClaimableFor.selector);
+    vm.prank(owner);
+    hatsSignerGate.migrateToNewHSG(address(newHSG), hatIdsToMigrate, signersToMigrate);
+
+    assertEq(_getSafeGuard(address(safe)), address(hatsSignerGate), "guard should be the old HSG");
+    assertTrue(safe.isModuleEnabled(address(hatsSignerGate)), "old HSG should be enabled as module");
+    assertFalse(safe.isModuleEnabled(address(newHSG)), "new HSG should not be enabled as module");
+
+    // check that the signers are now in the new HSG
+    for (uint256 i; i < count; ++i) {
+      assertFalse(newHSG.isValidSigner(signersToMigrate[i]), "signer should not be in the new HSG");
+    }
+    assertEq(newHSG.validSignerCount(), 0, "valid signer count should be 0");
+  }
+
   function test_revert_nonOwner() public {
     vm.expectRevert(IHatsSignerGate.NotOwnerHatWearer.selector);
     vm.prank(other);
-    hatsSignerGate.migrateToNewHSG(address(newHSG));
+    hatsSignerGate.migrateToNewHSG(address(newHSG), new uint256[](0), new address[](0));
   }
 
   function test_revert_locked() public {
@@ -930,7 +995,7 @@ contract MigratingHSG is WithHSGInstanceTest {
 
     vm.expectRevert(IHatsSignerGate.Locked.selector);
     vm.prank(owner);
-    hatsSignerGate.migrateToNewHSG(address(newHSG));
+    hatsSignerGate.migrateToNewHSG(address(newHSG), new uint256[](0), new address[](0));
   }
 }
 
@@ -980,6 +1045,10 @@ contract ClaimingSignerFor is WithHSGInstanceTest {
 
     assertEq(hatsSignerGate.validSignerCount(), 1);
     assertEq(safe.getOwners().length, 1);
+  }
+
+  function test_happy_alreadyOwnerNotRegistered() public {
+    // TODO
   }
 
   function test_revert_notClaimableFor() public {
@@ -1099,6 +1168,11 @@ contract ClaimingSignersFor is WithHSGInstanceTest {
 
     assertEq(hatsSignerGate.validSignerCount(), _signerCount, "incorrect valid signer count");
     assertEq(safe.getOwners().length, _signerCount, "incorrect owner count");
+  }
+
+  function test_alreadyOwnerNotRegistered_happy() public {
+    // TODO
+    // fuzz for the number of unregistered owners
   }
 
   function test_revert_notClaimableFor(uint256 _signerCount) public {
@@ -1242,4 +1316,28 @@ contract ClaimingSignersFor is WithHSGInstanceTest {
     vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.InvalidArrayLength.selector));
     hatsSignerGate.claimSignersFor(hatIds, claimers);
   }
+}
+
+contract SettingOwnerHat is WithHSGInstanceTest {
+// TODO
+}
+
+contract SettingHSGGuard is WithHSGInstanceTest {
+// TODO
+}
+
+contract EnablingHSGModules is WithHSGInstanceTest {
+// TODO
+}
+
+contract DisablingHSGModules is WithHSGInstanceTest {
+// TODO
+}
+
+contract ExecutingFromModuleViaHSG is WithHSGInstanceTest {
+// TODO
+}
+
+contract ExecutingFromModuleReturnDataViaHSG is WithHSGInstanceTest {
+// TODO
 }

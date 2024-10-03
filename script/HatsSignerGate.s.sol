@@ -62,6 +62,7 @@ contract DeployImplementation is BaseScript {
 
     if (verbose) {
       console2.log("HSG implementation", address(implementation));
+      console2.log("HSG code size", address(implementation).code.length);
       console2.log("Safe singleton", safeSingleton);
       console2.log("Safe fallback library", safeFallbackLibrary);
       console2.log("Safe multisend library", safeMultisendLibrary);

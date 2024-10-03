@@ -188,11 +188,13 @@ interface IHatsSignerGate {
   /// {IHatsSignerGate.SetupParams}
   function setUp(bytes calldata initializeParams) external payable;
 
-  /// @notice Claims signer permissions for a valid wearer of `_hatId` on behalf of `_signer`
+  /// @notice Claims signer permissions for a valid wearer of `_hatId` on behalf of `_signer`.
+  /// @dev If the `_signer` is not already an owner on the `safe`, they are added as a new owner.
   /// @param _hatId The hat id to claim signer rights for
   function claimSigner(uint256 _hatId) external;
 
-  /// @notice Claims signer permissions for a valid wearer of `_hatId` on behalf of `_signer`
+  /// @notice Claims signer permissions for a valid wearer of `_hatId` on behalf of `_signer`.
+  /// @dev If the `_signer` is not already an owner on the `safe`, they are added as a new owner.
   /// @param _hatId The hat id to claim signer rights for
   /// @param _signer The address to claim signer rights for
   function claimSignerFor(uint256 _hatId, address _signer) external;
@@ -250,7 +252,11 @@ interface IHatsSignerGate {
   /// @notice Migrate the Safe to a new HSG, ie detach this HSG and attach a new HSG
   /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.
   /// @param _newHSG The new HatsSignerGate to attach to the Safe
-  function migrateToNewHSG(address _newHSG) external;
+  /// @param _signerHatIds The hat ids to use for adding each of the `_signersToMigrate`, indexed to `_signersToMigrate`
+  /// @param _signersToMigrate The addresses to add as new `safe` owners, indexed to `_signerHatIds`, empty if no
+  /// signers to migrate. `_newHSG` must have claimableFor==TRUE to migrate signers.
+  function migrateToNewHSG(address _newHSG, uint256[] calldata _signerHatIds, address[] calldata _signersToMigrate)
+    external;
 
   /*//////////////////////////////////////////////////////////////
                           VIEW FUNCTIONS
