@@ -90,6 +90,10 @@ interface IHatsSignerGate {
   /// @notice The input arrays must be the same length
   error InvalidArrayLength();
 
+  /// @notice Modules enabled on HSG cannot make external calls to the `safe`
+  /// @dev This ensures that modules cannot change any of the `safe`'s settings
+  error ModulesCannotCallSafe();
+
   /*//////////////////////////////////////////////////////////////
                               EVENTS
   //////////////////////////////////////////////////////////////*/

@@ -7,6 +7,8 @@ import { SafeManagerLib } from "./lib/SafeManagerLib.sol";
 import { IHatsSignerGate } from "./interfaces/IHatsSignerGate.sol";
 import { Initializable } from "../lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
 import { BaseGuard } from "../lib/zodiac/contracts/guard/BaseGuard.sol";
+import { GuardableUnowned } from "./lib/zodiac-modified/GuardableUnowned.sol";
+import { ModifierUnowned } from "./lib/zodiac-modified/ModifierUnowned.sol";
 import { SignatureDecoder } from "../lib/safe-smart-account/contracts/common/SignatureDecoder.sol";
 import { ISafe, Enum } from "./lib/safe-interfaces/ISafe.sol";
 
@@ -15,7 +17,15 @@ import { ISafe, Enum } from "./lib/safe-interfaces/ISafe.sol";
 /// @author @spengrah
 /// @notice A Zodiac compatible contract for managing a Safe's owners and signatures via Hats Protocol.
 /// @dev This contract is designed to work with the Zodiac Module Factory, from which instances are deployed.
-contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initializable {
+// TODO need to reduce bytecode size by ~.7 kb
+contract HatsSignerGate is
+  IHatsSignerGate,
+  BaseGuard,
+  GuardableUnowned,
+  ModifierUnowned,
+  SignatureDecoder,
+  Initializable
+{
   using SafeManagerLib for ISafe;
 
   /*//////////////////////////////////////////////////////////////
@@ -144,6 +154,9 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
 
     // set the instance's metadata
     implementation = params.implementation;
+
+    // TODO set any initial modules
+    // TODO set the initial guard
   }
 
   /*//////////////////////////////////////////////////////////////
@@ -334,6 +347,24 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
     // ensure that the call is coming from the safe
     if (msg.sender != address(s)) revert NotCalledFromSafe();
 
+    // module guard preflight check
+    if (_guard != address(0)) {
+      BaseGuard(_guard).checkTransaction(
+        to,
+        value,
+        data,
+        operation,
+        // Zero out the redundant transaction information only used for Safe multisig transctions.
+        0,
+        0,
+        0,
+        address(0),
+        payable(0),
+        "",
+        address(0)
+      );
+    }
+
     // get the safe owners
     address[] memory owners = s.getOwners();
 
@@ -389,6 +420,11 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
     ISafe s = safe; // save SLOADs
     if (msg.sender != address(s)) revert NotCalledFromSafe();
     // prevent signers from disabling this guard
+
+    // module guard postflight check
+    if (_guard != address(0)) {
+      BaseGuard(_guard).checkAfterExecution(bytes32(0), false);
+    }
 
     if (s.getSafeGuard() != address(this)) revert CannotDisableThisGuard(address(this));
 
@@ -689,5 +725,93 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
   fallback() external {
     // We don't revert on fallback to avoid issues in case of a Safe upgrade
     // E.g. The expected check method might change and then the Safe would be locked.
+  }
+
+  /*//////////////////////////////////////////////////////////////
+                      ZODIAC MODIFIER FUNCTIONS
+  //////////////////////////////////////////////////////////////*/
+
+  /// @dev Allows a Module to execute a transaction.
+  /// @notice Can only be called by an enabled module.
+  /// @notice Must emit ExecutionFromModuleSuccess(address module) if successful.
+  /// @notice Must emit ExecutionFromModuleFailure(address module) if unsuccessful.
+  /// @param to Destination address of module transaction.
+  /// @param value Ether value of module transaction.
+  /// @param data Data payload of module transaction.
+  /// @param operation Operation type of module transaction: 0 == call, 1 == delegate call.
+  function execTransactionFromModule(address to, uint256 value, bytes calldata data, Enum.Operation operation)
+    public
+    override
+    moduleOnly
+    returns (bool success)
+  {
+    // disallow external calls to the safe
+    if (to == address(safe)) revert ModulesCannotCallSafe();
+
+    // forward the call to the safe
+    success = safe.execTransactionFromModule(to, value, data, operation);
+
+    // emit the appropriate execution status event
+    if (success) {
+      emit ExecutionFromModuleSuccess(msg.sender);
+    } else {
+      emit ExecutionFromModuleFailure(msg.sender);
+    }
+  }
+
+  /// @dev Allows a Module to execute a transaction and return data
+  /// @notice Can only be called by an enabled module.
+  /// @notice Must emit ExecutionFromModuleSuccess(address module) if successful.
+  /// @notice Must emit ExecutionFromModuleFailure(address module) if unsuccessful.
+  /// @param to Destination address of module transaction.
+  /// @param value Ether value of module transaction.
+  /// @param data Data payload of module transaction.
+  /// @param operation Operation type of module transaction: 0 == call, 1 == delegate call.
+  function execTransactionFromModuleReturnData(address to, uint256 value, bytes calldata data, Enum.Operation operation)
+    public
+    override
+    moduleOnly
+    returns (bool success, bytes memory returnData)
+  {
+    // disallow external calls to the safe
+    if (to == address(safe)) revert ModulesCannotCallSafe();
+
+    // forward the call to the safe
+    (success, returnData) = safe.execTransactionFromModuleReturnData(to, value, data, operation);
+
+    // emit the appropriate execution status event
+    if (success) {
+      emit ExecutionFromModuleSuccess(msg.sender);
+    } else {
+      emit ExecutionFromModuleFailure(msg.sender);
+    }
+  }
+
+  /// @inheritdoc ModifierUnowned
+  /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.
+  function disableModule(address prevModule, address module) public override {
+    _checkUnlocked();
+    _checkOwner();
+    super.disableModule(prevModule, module);
+  }
+
+  /// @inheritdoc ModifierUnowned
+  /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.
+  function enableModule(address module) public override {
+    _checkUnlocked();
+    _checkOwner();
+    super.enableModule(module);
+  }
+
+  /*//////////////////////////////////////////////////////////////
+                      ZODIAC GUARD FUNCTIONS
+  //////////////////////////////////////////////////////////////*/
+
+  /// @inheritdoc GuardableUnowned
+  /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.
+  function setGuard(address guard) public override {
+    _checkUnlocked();
+    _checkOwner();
+    super.setGuard(guard);
   }
 }
