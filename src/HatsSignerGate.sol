@@ -221,7 +221,7 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
       }
 
       // execute the call
-      if (!safe.execTransactionFromHSG(addOwnerData)) revert SafeManagerLib.FailedExecAddSigner();
+      if (!safe.execSafeTransactionFromHSG(addOwnerData)) revert SafeManagerLib.FailedExecAddSigner();
     }
   }
 
@@ -620,7 +620,7 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
     }
 
     // execute the call
-    if (!safe.execTransactionFromHSG(addOwnerData)) revert SafeManagerLib.FailedExecAddSigner();
+    if (!safe.execSafeTransactionFromHSG(addOwnerData)) revert SafeManagerLib.FailedExecAddSigner();
   }
 
   /// @dev Internal function to remove a signer from the `safe`, updating the threshold if appropriate
@@ -649,13 +649,7 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
     }
 
     // execute the call
-    if (!safe.execTransactionFromHSG(removeOwnerData)) revert SafeManagerLib.FailedExecRemoveSigner();
-  }
-
-  // solhint-disallow-next-line payable-fallback
-  fallback() external {
-    // We don't revert on fallback to avoid issues in case of a Safe upgrade
-    // E.g. The expected check method might change and then the Safe would be locked.
+    if (!safe.execSafeTransactionFromHSG(removeOwnerData)) revert SafeManagerLib.FailedExecRemoveSigner();
   }
 
   /// @dev Internal function to calculate the threshold that `safe` should have, given the correct `signerCount`,
