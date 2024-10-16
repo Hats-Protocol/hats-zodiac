@@ -1048,7 +1048,23 @@ contract ClaimingSignerFor is WithHSGInstanceTest {
   }
 
   function test_happy_alreadyOwnerNotRegistered() public {
-    // TODO
+    // add a signer directly to the safe by pranking the safe
+    vm.prank(address(safe));
+    safe.addOwnerWithThreshold(signerAddresses[0], 1);
+
+    // set the signer's validity
+    _setSignerValidity(signerAddresses[0], signerHat, true);
+
+    // set the claimable for to true
+    vm.prank(owner);
+    hatsSignerGate.setClaimableFor(true);
+
+    // claim the signer
+    hatsSignerGate.claimSignerFor(signerHat, signerAddresses[0]);
+
+    assertEq(hatsSignerGate.validSignerCount(), 1, "valid signer count should be 1");
+    // owner count should be 2 since the hsg instance is still an owner
+    assertEq(safe.getOwners().length, 2, "owner count should be 2");
   }
 
   function test_revert_notClaimableFor() public {
@@ -1170,9 +1186,38 @@ contract ClaimingSignersFor is WithHSGInstanceTest {
     assertEq(safe.getOwners().length, _signerCount, "incorrect owner count");
   }
 
-  function test_alreadyOwnerNotRegistered_happy() public {
-    // TODO
-    // fuzz for the number of unregistered owners
+  function test_alreadyOwnerNotRegistered_happy(uint256 _signerCount) public {
+    _signerCount = bound(_signerCount, 1, signerAddresses.length);
+
+    // add _signerCount signers directly to the safe by pranking the safe
+    for (uint256 i; i < _signerCount; ++i) {
+      vm.prank(address(safe));
+      safe.addOwnerWithThreshold(signerAddresses[i], 1);
+    }
+
+    // set up signer validity
+    for (uint256 i; i < _signerCount; ++i) {
+      _setSignerValidity(signerAddresses[i], signerHat, true);
+    }
+
+    // set the claimable for to true
+    vm.prank(owner);
+    hatsSignerGate.setClaimableFor(true);
+
+    // create the necessary arrays
+    address[] memory claimers = new address[](_signerCount);
+    uint256[] memory hatIds = new uint256[](_signerCount);
+    for (uint256 i; i < _signerCount; ++i) {
+      claimers[i] = signerAddresses[i];
+      hatIds[i] = signerHat;
+    }
+
+    // claim the signers
+    hatsSignerGate.claimSignersFor(hatIds, claimers);
+
+    assertEq(hatsSignerGate.validSignerCount(), _signerCount, "incorrect valid signer count");
+    // owner count should be 1 more than the number of valid signers since the hsg instance is still an owner
+    assertEq(safe.getOwners().length, _signerCount + 1, "should be 1 more than the number of valid signers");
   }
 
   function test_revert_notClaimableFor(uint256 _signerCount) public {
