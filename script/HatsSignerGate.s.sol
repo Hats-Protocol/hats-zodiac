@@ -29,7 +29,6 @@ contract DeployImplementation is BaseScript {
 
   /// ===========================================
   /// @dev deployment params to be set manually
-  string public version = "v2.0.0-test";
   bytes32 public SALT = bytes32(abi.encode(0x4a75)); // ~ H(4) A(a) T(7) S(6)
   /// ===========================================
 
@@ -46,9 +45,8 @@ contract DeployImplementation is BaseScript {
       abi.decode(params, (address, address, address, address, address, address));
   }
 
-  function prepare(bool _verbose, string memory _version) public {
+  function prepare(bool _verbose) public {
     verbose = _verbose;
-    version = _version;
   }
 
   function run() external returns (HatsSignerGate) {
@@ -58,12 +56,13 @@ contract DeployImplementation is BaseScript {
     vm.startBroadcast(deployer);
 
     implementation =
-      new HatsSignerGate(hats, safeSingleton, safeFallbackLibrary, safeMultisendLibrary, safeProxyFactory, version);
+      new HatsSignerGate(hats, safeSingleton, safeFallbackLibrary, safeMultisendLibrary, safeProxyFactory);
 
     vm.stopBroadcast();
 
     if (verbose) {
       console2.log("HSG implementation", address(implementation));
+      console2.log("HSG code size", address(implementation).code.length);
       console2.log("Safe singleton", safeSingleton);
       console2.log("Safe fallback library", safeFallbackLibrary);
       console2.log("Safe multisend library", safeMultisendLibrary);

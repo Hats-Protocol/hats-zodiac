@@ -15,6 +15,7 @@ abstract contract SafeTestHelpers is Test {
   address public constant SENTINELS = address(0x1);
   mapping(address => bytes) public walletSigs;
   uint256[] public pks;
+  address[] public signerAddresses;
 
   /*//////////////////////////////////////////////////////////////
                               SAFE TEST HELPERS
@@ -103,13 +104,17 @@ abstract contract SafeTestHelpers is Test {
 
       walletSigs[signer] = bytes.concat(r, s, bytes1(v));
       signers[i] = uint256(uint160(signer));
+      // assert that the derived address matches what we have already stored
+      assertEq(address(uint160(signers[i])), signerAddresses[i], "signer address should match");
     }
+
+    // sort the signers to match what Safe expects
     _sort(signers, 0, int256(_signerCount - 1));
 
+    // concat the signatures in the order that Safe expects
     for (uint256 i = 0; i < _signerCount; ++i) {
-      address addy = address(uint160(signers[i]));
-      // emit log_address(addy);
-      signatures = bytes.concat(signatures, walletSigs[addy]);
+      address addr = address(uint160(signers[i]));
+      signatures = bytes.concat(signatures, walletSigs[addr]);
     }
   }
 
@@ -191,6 +196,26 @@ abstract contract SafeTestHelpers is Test {
       abi.encode(_from, bytes32(0), bytes1(0x01))
     );
   }
+
+  function _executeEthTransferFromSafe(address _to, uint256 _value, uint256 _signerCount, ISafe _safe) public {
+    bytes32 txHash = _getEthTransferSafeTxHash(_to, _value, _safe);
+
+    bytes memory signatures = _createNSigsForTx(txHash, _signerCount);
+
+    _safe.execTransaction(
+      address(_safe),
+      _value,
+      "",
+      Enum.Operation.Call,
+      // not using the refunder
+      0,
+      0,
+      0,
+      address(0),
+      payable(address(0)),
+      signatures
+    );
+  }
 }
 
 contract TestSuite is SafeTestHelpers {
@@ -209,7 +234,6 @@ contract TestSuite is SafeTestHelpers {
   address public eligibility = makeAddr("eligibility");
   address public toggle = makeAddr("toggle");
   address public other = makeAddr("other");
-  address[] public signerAddresses;
 
   // Test hats
   uint256 public tophat;
@@ -234,7 +258,6 @@ contract TestSuite is SafeTestHelpers {
   uint256 public minThreshold;
   uint256 public targetThreshold;
   bool public locked;
-  string public version;
 
   // Utility variables
   address[] initSafeOwners = new address[](1);
@@ -243,11 +266,9 @@ contract TestSuite is SafeTestHelpers {
     // Set up the test environment with a fork
     vm.createSelectFork(chain, FORK_BLOCK);
 
-    version = "test";
-
     // Deploy the HSG implementation with a salt
     DeployImplementation implementationDeployer = new DeployImplementation();
-    implementationDeployer.prepare(false, version);
+    implementationDeployer.prepare(false);
     singletonHatsSignerGate = implementationDeployer.run();
 
     // Cache the deploy params and factory address
@@ -404,7 +425,7 @@ contract TestSuite is SafeTestHelpers {
     }
   }
 
-  function assertValidSignerHats(uint256[] memory _signerHats) public {
+  function assertValidSignerHats(uint256[] memory _signerHats) public view {
     for (uint256 i = 0; i < _signerHats.length; ++i) {
       assertTrue(hatsSignerGate.validSignerHats(_signerHats[i]));
     }

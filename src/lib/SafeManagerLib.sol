@@ -173,7 +173,7 @@ library SafeManagerLib {
   //////////////////////////////////////////////////////////////*/
 
   /// @dev Execute a transaction with `_data` from the context of a `_safe`
-  function execTransactionFromHSG(ISafe _safe, bytes memory _data) internal returns (bool success) {
+  function execSafeTransactionFromHSG(ISafe _safe, bytes memory _data) internal returns (bool success) {
     success =
       _safe.execTransactionFromModule({ to: address(_safe), value: 0, data: _data, operation: Enum.Operation.Call });
   }
@@ -184,7 +184,7 @@ library SafeManagerLib {
     bytes memory removeHSGModule = encodeDisableModuleAction(SENTINELS, address(this));
 
     // execute the call
-    if (!execTransactionFromHSG(_safe, removeHSGModule)) revert FailedExecChangeThreshold();
+    if (!execSafeTransactionFromHSG(_safe, removeHSGModule)) revert FailedExecChangeThreshold();
   }
 
   /// @dev Encode the action to disable HSG as a module on a `_safe`
@@ -192,7 +192,7 @@ library SafeManagerLib {
   function execDisableHSGAsModule(ISafe _safe, address _previousModule) internal {
     bytes memory removeHSGModule = encodeDisableModuleAction(_previousModule, address(this));
 
-    execTransactionFromHSG(_safe, removeHSGModule);
+    execSafeTransactionFromHSG(_safe, removeHSGModule);
   }
 
   /// @dev Remove HSG as a guard on a `_safe`
@@ -200,7 +200,7 @@ library SafeManagerLib {
   function execRemoveHSGAsGuard(ISafe _safe) internal {
     bytes memory removeHSGGuard = encodeSetGuardAction(address(0));
 
-    execTransactionFromHSG(_safe, removeHSGGuard);
+    execSafeTransactionFromHSG(_safe, removeHSGGuard);
   }
 
   /// @dev Attach a new HSG `_newHSG` to a `_safe`
@@ -208,13 +208,13 @@ library SafeManagerLib {
     bytes memory attachHSGModule = encodeEnableModuleAction(_newHSG);
     bytes memory setHSGGuard = encodeSetGuardAction(_newHSG);
 
-    execTransactionFromHSG(_safe, setHSGGuard);
-    execTransactionFromHSG(_safe, attachHSGModule);
+    execSafeTransactionFromHSG(_safe, setHSGGuard);
+    execSafeTransactionFromHSG(_safe, attachHSGModule);
   }
 
   /// @dev Execute the action to change the threshold of a `_safe` to `_newThreshold`
   function execChangeThreshold(ISafe _safe, uint256 _newThreshold) internal returns (bool success) {
-    success = execTransactionFromHSG(_safe, encodeChangeThresholdAction(_newThreshold));
+    success = execSafeTransactionFromHSG(_safe, encodeChangeThresholdAction(_newThreshold));
   }
 
   /*//////////////////////////////////////////////////////////////

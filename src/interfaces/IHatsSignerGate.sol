@@ -43,8 +43,8 @@ interface IHatsSignerGate {
   /// @notice Only wearers of a valid signer hat can become signers
   error NotSignerHatWearer(address user);
 
-  /// @notice Valid signers must wear the signer hat at time of execution
-  error InvalidSigners();
+  /// @notice Thrown when the number of signatures from valid signers is less than the correct threshold
+  error InsufficientValidSignatures();
 
   /// @notice This contract can only be set once as a zodiac guard on `safe`
   error GuardAlreadySet();
@@ -60,9 +60,6 @@ interface IHatsSignerGate {
 
   /// @notice Signers already on the `safe` cannot claim twice
   error SignerAlreadyClaimed(address signer);
-
-  /// @notice Cannot exececute a tx if `safeOnwerCount` < `minThreshold`
-  error BelowMinThreshold(uint256 minThreshold, uint256 safeOwnerCount);
 
   /// @notice Can only claim signer with a valid signer hat
   error InvalidSignerHat(uint256 hatId);
@@ -92,6 +89,10 @@ interface IHatsSignerGate {
 
   /// @notice The input arrays must be the same length
   error InvalidArrayLength();
+
+  /// @notice Modules enabled on HSG cannot make external calls to the `safe`
+  /// @dev This ensures that modules cannot change any of the `safe`'s settings
+  error ModulesCannotCallSafe();
 
   /*//////////////////////////////////////////////////////////////
                               EVENTS
@@ -140,6 +141,9 @@ interface IHatsSignerGate {
   /// @notice The Safe proxy factory contract address
   function safeProxyFactory() external view returns (address);
 
+  /// @notice The version of this HatsSignerGate contract
+  function version() external view returns (string memory);
+
   /*//////////////////////////////////////////////////////////////
                           STATE VARIABLES
   //////////////////////////////////////////////////////////////*/
@@ -165,9 +169,6 @@ interface IHatsSignerGate {
   /// @notice The address of the HatsSignerGate implementation
   function implementation() external view returns (address);
 
-  /// @notice The version of the HatsSignerGate contract
-  function version() external view returns (string memory);
-
   /// @notice Whether the contract is locked. If true, the owner cannot change any of the contract's settings.
   function locked() external view returns (bool);
 
@@ -187,11 +188,13 @@ interface IHatsSignerGate {
   /// {IHatsSignerGate.SetupParams}
   function setUp(bytes calldata initializeParams) external payable;
 
-  /// @notice Claims signer permissions for a valid wearer of `_hatId` on behalf of `_signer`
+  /// @notice Claims signer permissions for a valid wearer of `_hatId` on behalf of `_signer`.
+  /// @dev If the `_signer` is not already an owner on the `safe`, they are added as a new owner.
   /// @param _hatId The hat id to claim signer rights for
   function claimSigner(uint256 _hatId) external;
 
-  /// @notice Claims signer permissions for a valid wearer of `_hatId` on behalf of `_signer`
+  /// @notice Claims signer permissions for a valid wearer of `_hatId` on behalf of `_signer`.
+  /// @dev If the `_signer` is not already an owner on the `safe`, they are added as a new owner.
   /// @param _hatId The hat id to claim signer rights for
   /// @param _signer The address to claim signer rights for
   function claimSignerFor(uint256 _hatId, address _signer) external;
@@ -210,7 +213,7 @@ interface IHatsSignerGate {
   /// @notice Tallies the number of existing `safe` owners that wear a signer hat and updates the `safe` threshold if
   /// necessary
   /// @dev Does NOT remove invalid `safe` owners
-  function reconcileSignerCount() external;
+  // function reconcileSignerCount() external;
 
   /// @notice Irreversibly locks the contract, preventing any further changes to the contract's settings.
   /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.
@@ -249,7 +252,11 @@ interface IHatsSignerGate {
   /// @notice Migrate the Safe to a new HSG, ie detach this HSG and attach a new HSG
   /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.
   /// @param _newHSG The new HatsSignerGate to attach to the Safe
-  function migrateToNewHSG(address _newHSG) external;
+  /// @param _signerHatIds The hat ids to use for adding each of the `_signersToMigrate`, indexed to `_signersToMigrate`
+  /// @param _signersToMigrate The addresses to add as new `safe` owners, indexed to `_signerHatIds`, empty if no
+  /// signers to migrate. `_newHSG` must have claimableFor==TRUE to migrate signers.
+  function migrateToNewHSG(address _newHSG, uint256[] calldata _signerHatIds, address[] calldata _signersToMigrate)
+    external;
 
   /*//////////////////////////////////////////////////////////////
                           VIEW FUNCTIONS
