@@ -8,7 +8,7 @@ import { IGuard } from "../../../lib/zodiac/contracts/interfaces/IGuard.sol";
 /// @author Gnosis Guild
 /// @dev Modified from Zodiac's Guardable to enable inheriting contracts to use their preferred owner logic.
 contract GuardableUnowned {
-  address internal _guard;
+  address public guard;
 
   event ChangedGuard(address guard);
 
@@ -16,18 +16,18 @@ contract GuardableUnowned {
   error NotIERC165Compliant(address guard);
 
   /// @dev Set a guard that checks transactions before execution.
-  /// @param guard The address of the guard to be used or the 0 address to disable the guard.
-  function setGuard(address guard) public virtual {
+  /// @param _guard The address of the guard to be used or the 0 address to disable the guard.
+  function setGuard(address _guard) public virtual {
     if (_guard != address(0)) {
       if (!BaseGuard(_guard).supportsInterface(type(IGuard).interfaceId)) {
         revert NotIERC165Compliant(_guard);
       }
     }
-    _guard = guard;
-    emit ChangedGuard(guard);
+    guard = _guard;
+    emit ChangedGuard(_guard);
   }
 
-  function getGuard() public view virtual returns (address guard) {
-    return _guard;
+  function getGuard() public view virtual returns (address _guard) {
+    return guard;
   }
 }

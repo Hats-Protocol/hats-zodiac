@@ -5,6 +5,11 @@ import { Test, console2 } from "../lib/forge-std/src/Test.sol";
 import { Enum, ISafe, TestSuite, WithHSGInstanceTest, HatsSignerGate } from "./TestSuite.t.sol";
 import { IHatsSignerGate } from "../src/interfaces/IHatsSignerGate.sol";
 import { DeployInstance } from "../script/HatsSignerGate.s.sol";
+import { IAvatar } from "../src/lib/zodiac-modified/ModifierUnowned.sol";
+import { IModuleManager } from "../src/lib/safe-interfaces/IModuleManager.sol";
+import { GuardableUnowned } from "../src/lib/zodiac-modified/GuardableUnowned.sol";
+import { ModifierUnowned } from "../src/lib/zodiac-modified/ModifierUnowned.sol";
+import { TestGuard } from "./mocks/TestGuard.sol";
 
 contract Deployment is TestSuite {
   // errors from dependencies
@@ -1364,25 +1369,437 @@ contract ClaimingSignersFor is WithHSGInstanceTest {
 }
 
 contract SettingOwnerHat is WithHSGInstanceTest {
-// TODO
+  uint256 newOwnerHat = ownerHat + 1;
+
+  function test_happy() public {
+    vm.prank(owner);
+    hatsSignerGate.setOwnerHat(newOwnerHat);
+
+    assertEq(hatsSignerGate.ownerHat(), newOwnerHat, "owner hat should be new");
+  }
+
+  function test_revert_notOwner() public {
+    vm.expectRevert(IHatsSignerGate.NotOwnerHatWearer.selector);
+    hatsSignerGate.setOwnerHat(newOwnerHat);
+
+    assertEq(hatsSignerGate.ownerHat(), ownerHat, "owner hat should be old");
+  }
+
+  function test_revert_locked() public {
+    vm.prank(owner);
+    hatsSignerGate.lock();
+
+    vm.expectRevert(IHatsSignerGate.Locked.selector);
+    vm.prank(owner);
+    hatsSignerGate.setOwnerHat(newOwnerHat);
+
+    assertEq(hatsSignerGate.ownerHat(), ownerHat, "owner hat should be old");
+  }
 }
 
 contract SettingHSGGuard is WithHSGInstanceTest {
-// TODO
+  TestGuard public testGuard;
+
+  function setUp() public override {
+    super.setUp();
+
+    testGuard = new TestGuard(address(hatsSignerGate));
+  }
+
+  function test_happy() public {
+    vm.expectEmit(true, true, true, true);
+    emit GuardableUnowned.ChangedGuard(address(testGuard));
+    vm.prank(owner);
+    hatsSignerGate.setGuard(address(testGuard));
+
+    assertEq(hatsSignerGate.getGuard(), address(testGuard), "guard should be testGuard");
+  }
+
+  function test_removeGuard() public {
+    address emptyGuard = address(0);
+    vm.expectEmit(true, true, true, true);
+    emit GuardableUnowned.ChangedGuard(emptyGuard);
+    vm.prank(owner);
+    hatsSignerGate.setGuard(emptyGuard);
+
+    assertEq(hatsSignerGate.getGuard(), emptyGuard, "guard should be empty");
+  }
+
+  function test_revert_notOwner() public {
+    vm.expectRevert(IHatsSignerGate.NotOwnerHatWearer.selector);
+    hatsSignerGate.setGuard(address(testGuard));
+
+    assertEq(hatsSignerGate.getGuard(), address(0), "guard should be empty");
+  }
+
+  function test_revert_locked() public {
+    vm.prank(owner);
+    hatsSignerGate.lock();
+
+    vm.expectRevert(IHatsSignerGate.Locked.selector);
+    vm.prank(owner);
+    hatsSignerGate.setGuard(address(testGuard));
+
+    assertEq(hatsSignerGate.getGuard(), address(0), "guard should be empty");
+  }
+}
+
+contract HSGGuarding is WithHSGInstanceTest {
+  TestGuard public testGuard;
+  uint256 public disallowedValue = 1337;
+  uint256 public goodValue = 9_000_000_000;
+  address public recipient = makeAddr("recipient");
+  uint256 public signerCount = 2;
+
+  function setUp() public override {
+    super.setUp();
+
+    // create a new test guard contract
+    testGuard = new TestGuard(address(hatsSignerGate));
+
+    // set it on our hsg instance
+    vm.prank(owner);
+    hatsSignerGate.setGuard(address(testGuard));
+    assertEq(hatsSignerGate.getGuard(), address(testGuard), "guard should be testGuard");
+
+    // deal the safe some eth
+    deal(address(safe), 1 ether);
+
+    // add signerCount number of signers
+    _addSignersSameHat(signerCount, signerHat);
+
+    address[] memory owners = safe.getOwners();
+    assertEq(owners.length, signerCount, "owners should be signerCount");
+  }
+
+  /// @dev a successful transaction should hit the testGuard's checkTransaction and checkAfterExecution funcs
+  function test_executed() public {
+    uint256 preNonce = safe.nonce();
+    uint256 preValue = address(safe).balance;
+    uint256 transferValue = goodValue;
+    uint256 postValue = preValue - transferValue;
+
+    // create the tx
+    bytes32 txHash = _getTxHash(recipient, transferValue, hex"00", safe);
+
+    // have 3 signers sign it
+    bytes memory signatures = _createNSigsForTx(txHash, signerCount);
+
+    // we expect the `sender` param to be address(0) because the sender param from hsg.checkTransaction is empty
+    vm.expectEmit();
+    emit TestGuard.PreChecked(address(0));
+    vm.expectEmit();
+    emit TestGuard.PostChecked(true);
+
+    // have one of the signers submit/exec the tx
+    vm.prank(signerAddresses[0]);
+    safe.execTransaction(
+      recipient,
+      transferValue,
+      hex"00",
+      Enum.Operation.Call,
+      // not using the refunder
+      0,
+      0,
+      0,
+      address(0),
+      payable(address(0)),
+      signatures
+    );
+
+    // confirm the tx succeeded by checking ETH balance changes
+    assertEq(address(safe).balance, postValue);
+    assertEq(recipient.balance, transferValue);
+    assertEq(safe.nonce(), preNonce + 1);
+  }
+
+  // the test guard should revert in checkTransaction
+  function test_revert_checkTransaction() public {
+    // we make this happen by using a bad value in the safe.execTransaction call
+    uint256 preNonce = safe.nonce();
+    uint256 preValue = address(safe).balance;
+    uint256 transferValue = disallowedValue;
+
+    // create the tx
+    bytes32 txHash = _getTxHash(recipient, transferValue, hex"00", safe);
+
+    // have 3 signers sign it
+    bytes memory signatures = _createNSigsForTx(txHash, signerCount);
+
+    // we expect the test guard to revert in checkTransaction
+    vm.expectRevert("Cannot send 1337");
+
+    // have one of the signers submit/exec the tx
+    vm.prank(signerAddresses[0]);
+    safe.execTransaction(
+      recipient,
+      transferValue,
+      hex"00",
+      Enum.Operation.Call,
+      // not using the refunder
+      0,
+      0,
+      0,
+      address(0),
+      payable(address(0)),
+      signatures
+    );
+
+    // confirm the tx did not succeed by checking ETH balance changes
+    assertEq(address(safe).balance, preValue);
+    assertEq(recipient.balance, 0);
+    assertEq(safe.nonce(), preNonce);
+  }
+
+  // the test guard should revert in checkAfterExecution
+  function test_revert_checkAfterExecution() public {
+    // we make this happen by setting the test guard to disallow execution
+    testGuard.disallowExecution();
+
+    // craft a basic eth transfer tx
+    uint256 preNonce = safe.nonce();
+    uint256 preValue = address(safe).balance;
+    uint256 transferValue = goodValue;
+
+    // create the tx
+    bytes32 txHash = _getTxHash(recipient, transferValue, hex"00", safe);
+
+    // have 3 signers sign it
+    bytes memory signatures = _createNSigsForTx(txHash, signerCount);
+
+    // we expect the test guard to revert in checkTransaction
+    vm.expectRevert("Reverted in checkAfterExecution");
+
+    // have one of the signers submit/exec the tx
+    vm.prank(signerAddresses[0]);
+    safe.execTransaction(
+      recipient,
+      transferValue,
+      hex"00",
+      Enum.Operation.Call,
+      // not using the refunder
+      0,
+      0,
+      0,
+      address(0),
+      payable(address(0)),
+      signatures
+    );
+
+    // confirm the tx did not succeed by checking ETH balance changes
+    assertEq(address(safe).balance, preValue);
+    assertEq(recipient.balance, 0);
+    assertEq(safe.nonce(), preNonce);
+  }
 }
 
 contract EnablingHSGModules is WithHSGInstanceTest {
-// TODO
+  address newModule = makeAddr("newModule");
+
+  function test_happy() public {
+    vm.expectEmit(true, true, true, true);
+    emit IAvatar.EnabledModule(newModule);
+    vm.prank(owner);
+    hatsSignerGate.enableModule(newModule);
+
+    assertTrue(hatsSignerGate.isModuleEnabled(newModule), "new module should be enabled");
+  }
+
+  function test_revert_notOwner() public {
+    vm.expectRevert(IHatsSignerGate.NotOwnerHatWearer.selector);
+    hatsSignerGate.enableModule(newModule);
+
+    assertFalse(hatsSignerGate.isModuleEnabled(newModule), "new module should not be enabled");
+  }
+
+  function test_revert_locked() public {
+    vm.prank(owner);
+    hatsSignerGate.lock();
+
+    vm.expectRevert(IHatsSignerGate.Locked.selector);
+    vm.prank(owner);
+    hatsSignerGate.enableModule(newModule);
+
+    assertFalse(hatsSignerGate.isModuleEnabled(newModule), "new module should not be enabled");
+  }
 }
 
 contract DisablingHSGModules is WithHSGInstanceTest {
-// TODO
+  address newModule = makeAddr("newModule");
+
+  function setUp() public override {
+    super.setUp();
+
+    // enable a new module
+    vm.prank(owner);
+    hatsSignerGate.enableModule(newModule);
+
+    assertTrue(hatsSignerGate.isModuleEnabled(newModule), "new module should be enabled");
+  }
+
+  function test_happy() public {
+    vm.expectEmit(true, true, true, true);
+    emit IAvatar.DisabledModule(newModule);
+    vm.prank(owner);
+    // since newModule is the only enabled module, prevModule is the SENTINEL
+    hatsSignerGate.disableModule({ prevModule: SENTINELS, module: newModule });
+
+    assertFalse(hatsSignerGate.isModuleEnabled(newModule), "new module should be disabled");
+  }
+
+  function test_revert_notOwner() public {
+    vm.expectRevert(IHatsSignerGate.NotOwnerHatWearer.selector);
+    hatsSignerGate.disableModule({ prevModule: SENTINELS, module: newModule });
+
+    assertTrue(hatsSignerGate.isModuleEnabled(newModule), "new module should still be enabled");
+  }
+
+  function test_revert_locked() public {
+    vm.prank(owner);
+    hatsSignerGate.lock();
+
+    vm.expectRevert(IHatsSignerGate.Locked.selector);
+    vm.prank(owner);
+    hatsSignerGate.disableModule({ prevModule: SENTINELS, module: newModule });
+
+    assertTrue(hatsSignerGate.isModuleEnabled(newModule), "new module should still be enabled");
+  }
 }
 
 contract ExecutingFromModuleViaHSG is WithHSGInstanceTest {
-// TODO
+  address newModule = makeAddr("newModule");
+  address recipient = makeAddr("recipient");
+
+  function setUp() public override {
+    super.setUp();
+
+    // enable a new module
+    vm.prank(owner);
+    hatsSignerGate.enableModule(newModule);
+
+    // deal the safe some eth
+    deal(address(safe), 1 ether);
+  }
+
+  function test_happy_executionSuccess() public {
+    uint256 preValue = address(safe).balance;
+    uint256 transferValue = 0.3 ether;
+    uint256 postValue = preValue - transferValue;
+
+    // have the new module submit/exec the tx, expecting a success event emission from both hsg and the newModule
+    vm.expectEmit();
+    emit IModuleManager.ExecutionFromModuleSuccess(address(hatsSignerGate));
+    vm.expectEmit();
+    emit IAvatar.ExecutionFromModuleSuccess(newModule);
+    vm.prank(newModule);
+    hatsSignerGate.execTransactionFromModule(recipient, transferValue, hex"00", Enum.Operation.Call);
+
+    // confirm the tx succeeded by checking ETH balance changes
+    assertEq(address(safe).balance, postValue);
+    assertEq(recipient.balance, transferValue);
+  }
+
+  function test_happy_executionFailure() public {
+    // craft a call to a function that doesn't exist on a contract (we'll use Hats.sol)
+    bytes memory badCall = abi.encodeWithSignature("badCall()");
+
+    // have the new module submit/exec the tx, expecting a failure event emission from both hsg and the newModule
+    vm.expectEmit();
+    emit IModuleManager.ExecutionFromModuleFailure(address(hatsSignerGate));
+    vm.expectEmit();
+    emit IAvatar.ExecutionFromModuleFailure(newModule);
+    vm.prank(newModule);
+    hatsSignerGate.execTransactionFromModule(address(hats), 0, badCall, Enum.Operation.Call);
+  }
+
+  function test_revert_notModule() public {
+    uint256 preValue = address(safe).balance;
+    uint256 transferValue = 0.3 ether;
+
+    // have a non-module submit/exec the tx, expecting a revert
+    vm.expectRevert(abi.encodeWithSelector(ModifierUnowned.NotAuthorized.selector, other));
+    vm.prank(other);
+    hatsSignerGate.execTransactionFromModule(recipient, transferValue, hex"00", Enum.Operation.Call);
+
+    // confirm the tx did not succeed by checking ETH balance changes
+    assertEq(address(safe).balance, preValue);
+    assertEq(recipient.balance, 0);
+  }
+
+  function test_revert_moduleCannotCallSafe() public {
+    uint256 transferValue = 0.3 ether;
+    // try to send to the safe, expecting a revert
+    vm.expectRevert(IHatsSignerGate.ModulesCannotCallSafe.selector);
+    vm.prank(newModule);
+    hatsSignerGate.execTransactionFromModule(address(safe), transferValue, hex"00", Enum.Operation.Call);
+  }
 }
 
 contract ExecutingFromModuleReturnDataViaHSG is WithHSGInstanceTest {
-// TODO
+  address newModule = makeAddr("newModule");
+  address recipient = makeAddr("recipient");
+
+  function setUp() public override {
+    super.setUp();
+
+    // enable a new module
+    vm.prank(owner);
+    hatsSignerGate.enableModule(newModule);
+
+    // deal the safe some eth
+    deal(address(safe), 1 ether);
+  }
+
+  function test_happy_executionSuccess() public {
+    uint256 preValue = address(safe).balance;
+    uint256 transferValue = 0.3 ether;
+    uint256 postValue = preValue - transferValue;
+
+    // have the new module submit/exec the tx, expecting a success event emission from both hsg and the newModule
+    vm.expectEmit();
+    emit IModuleManager.ExecutionFromModuleSuccess(address(hatsSignerGate));
+    vm.expectEmit();
+    emit IAvatar.ExecutionFromModuleSuccess(newModule);
+    vm.prank(newModule);
+    hatsSignerGate.execTransactionFromModuleReturnData(recipient, transferValue, hex"00", Enum.Operation.Call);
+
+    // confirm the tx succeeded by checking ETH balance changes
+    assertEq(address(safe).balance, postValue);
+    assertEq(recipient.balance, transferValue);
+  }
+
+  function test_happy_executionFailure() public {
+    // craft a call to a function that doesn't exist on a contract (we'll use Hats.sol)
+    bytes memory badCall = abi.encodeWithSignature("badCall()");
+
+    // have the new module submit/exec the tx, expecting a failure event emission from both hsg and the newModule
+    vm.expectEmit();
+    emit IModuleManager.ExecutionFromModuleFailure(address(hatsSignerGate));
+    vm.expectEmit();
+    emit IAvatar.ExecutionFromModuleFailure(newModule);
+    vm.prank(newModule);
+    hatsSignerGate.execTransactionFromModuleReturnData(address(hats), 0, badCall, Enum.Operation.Call);
+  }
+
+  function test_revert_notModule() public {
+    uint256 preValue = address(safe).balance;
+    uint256 transferValue = 0.3 ether;
+
+    // have a non-module submit/exec the tx, expecting a revert
+    vm.expectRevert(abi.encodeWithSelector(ModifierUnowned.NotAuthorized.selector, other));
+    vm.prank(other);
+    hatsSignerGate.execTransactionFromModuleReturnData(recipient, transferValue, hex"00", Enum.Operation.Call);
+
+    // confirm the tx did not succeed by checking ETH balance changes
+    assertEq(address(safe).balance, preValue);
+    assertEq(recipient.balance, 0);
+  }
+
+  function test_revert_moduleCannotCallSafe() public {
+    uint256 transferValue = 0.3 ether;
+    // try to send to the safe, expecting a revert
+    vm.expectRevert(IHatsSignerGate.ModulesCannotCallSafe.selector);
+    vm.prank(newModule);
+    hatsSignerGate.execTransactionFromModuleReturnData(address(safe), transferValue, hex"00", Enum.Operation.Call);
+  }
 }

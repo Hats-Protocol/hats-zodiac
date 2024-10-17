@@ -155,6 +155,9 @@ contract HatsSignerGate is
     // set the instance's metadata
     implementation = params.implementation;
 
+    // initialize the modules linked list
+    setupModules();
+
     // TODO set any initial modules
     // TODO set the initial guard
   }
@@ -355,8 +358,8 @@ contract HatsSignerGate is
     if (msg.sender != address(s)) revert NotCalledFromSafe();
 
     // module guard preflight check
-    if (_guard != address(0)) {
-      BaseGuard(_guard).checkTransaction(
+    if (guard != address(0)) {
+      BaseGuard(guard).checkTransaction(
         to,
         value,
         data,
@@ -430,8 +433,8 @@ contract HatsSignerGate is
     // prevent signers from disabling this guard
 
     // module guard postflight check
-    if (_guard != address(0)) {
-      BaseGuard(_guard).checkAfterExecution(bytes32(0), false);
+    if (guard != address(0)) {
+      BaseGuard(guard).checkAfterExecution(bytes32(0), false);
     }
 
     if (s.getSafeGuard() != address(this)) revert CannotDisableThisGuard(address(this));
