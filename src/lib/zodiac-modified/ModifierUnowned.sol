@@ -67,25 +67,9 @@ abstract contract ModifierUnowned is ExecutionTracker, SignatureChecker, IAvatar
     --------------------------------------------------
     */
 
-  // TODO potentially simplify to save code size
+  /// @dev Simplified version of the moduleOnly modifier from Zodiac
   modifier moduleOnly() {
-    if (modules[msg.sender] == address(0)) {
-      (bytes32 hash, address signer) = moduleTxSignedBy();
-
-      // is the signer a module?
-      if (modules[signer] == address(0)) {
-        revert NotAuthorized(msg.sender);
-      }
-
-      // is the provided signature fresh?
-      if (consumed[signer][hash]) {
-        revert HashAlreadyConsumed(hash);
-      }
-
-      consumed[signer][hash] = true;
-      emit HashExecuted(hash);
-    }
-
+    if (modules[msg.sender] == address(0)) revert NotAuthorized(msg.sender);
     _;
   }
 
