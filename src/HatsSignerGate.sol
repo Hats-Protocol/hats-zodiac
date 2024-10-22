@@ -7,6 +7,8 @@ import { SafeManagerLib } from "./lib/SafeManagerLib.sol";
 import { IHatsSignerGate } from "./interfaces/IHatsSignerGate.sol";
 import { Initializable } from "../lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
 import { BaseGuard } from "../lib/zodiac/contracts/guard/BaseGuard.sol";
+import { GuardableUnowned } from "./lib/zodiac-modified/GuardableUnowned.sol";
+import { ModifierUnowned } from "./lib/zodiac-modified/ModifierUnowned.sol";
 import { SignatureDecoder } from "../lib/safe-smart-account/contracts/common/SignatureDecoder.sol";
 import { ISafe, Enum } from "./lib/safe-interfaces/ISafe.sol";
 
@@ -15,7 +17,15 @@ import { ISafe, Enum } from "./lib/safe-interfaces/ISafe.sol";
 /// @author @spengrah
 /// @notice A Zodiac compatible contract for managing a Safe's owners and signatures via Hats Protocol.
 /// @dev This contract is designed to work with the Zodiac Module Factory, from which instances are deployed.
-contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initializable {
+// TODO need to reduce bytecode size by 0 kb
+contract HatsSignerGate is
+  IHatsSignerGate,
+  BaseGuard,
+  GuardableUnowned,
+  ModifierUnowned,
+  SignatureDecoder,
+  Initializable
+{
   using SafeManagerLib for ISafe;
 
   /*//////////////////////////////////////////////////////////////
@@ -36,6 +46,9 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
 
   /// @inheritdoc IHatsSignerGate
   address public immutable safeProxyFactory;
+
+  /// @inheritdoc IHatsSignerGate
+  string public constant version = "2.0.0";
 
   /*//////////////////////////////////////////////////////////////
                             MUTABLE STATE
@@ -68,9 +81,6 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
   /// @inheritdoc IHatsSignerGate
   address public implementation;
 
-  /// @inheritdoc IHatsSignerGate
-  string public version;
-
   /// @dev Temporary record of the existing owners on the `safe` when a transaction is submitted
   bytes32 internal _existingOwnersHash;
 
@@ -78,19 +88,17 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
   uint256 internal _guardEntries;
 
   /*//////////////////////////////////////////////////////////////
-                              MODIFIERS
+                      AUTHENTICATION FUNCTIONS
   //////////////////////////////////////////////////////////////*/
 
-  /// @notice Only the wearer of the owner hat can change this contract's settings
-  modifier onlyOwner() {
+  /// @dev Internal function to check if the caller is wearing the owner hat
+  function _checkOwner() internal view {
     if (!HATS.isWearerOfHat(msg.sender, ownerHat)) revert NotOwnerHatWearer();
-    _;
   }
 
-  /// @notice Changes to settings can only be made if the contract is not locked
-  modifier onlyUnlocked() {
+  /// @dev Internal function to check if the contract is unlocked
+  function _checkUnlocked() internal view {
     if (locked) revert Locked();
-    _;
   }
 
   /*//////////////////////////////////////////////////////////////
@@ -102,8 +110,7 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
     address _safeSingleton,
     address _safeFallbackLibrary,
     address _safeMultisendLibrary,
-    address _safeProxyFactory,
-    string memory _version
+    address _safeProxyFactory
   ) initializer {
     HATS = IHats(_hats);
     safeProxyFactory = _safeProxyFactory;
@@ -113,9 +120,6 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
 
     // set the implementation's owner hat to a nonexistent hat to prevent state changes to the implementation
     ownerHat = 1;
-
-    // set the implementation's version; this will also be set on each instance deployed from this implementation
-    version = _version;
   }
 
   /*//////////////////////////////////////////////////////////////
@@ -149,8 +153,13 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
     _setMinThreshold(params.minThreshold);
 
     // set the instance's metadata
-    version = HatsSignerGate(params.implementation).version();
     implementation = params.implementation;
+
+    // initialize the modules linked list
+    setupModules();
+
+    // TODO set any initial modules
+    // TODO set the initial guard
   }
 
   /*//////////////////////////////////////////////////////////////
@@ -179,56 +188,52 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
     uint256 toClaimCount = _signers.length;
     if (_hatIds.length != toClaimCount) revert InvalidArrayLength();
 
+    ISafe s = safe;
+
     // iterate through the arrays, adding each signer
     for (uint256 i; i < toClaimCount; ++i) {
       uint256 hatId = _hatIds[i];
       address signer = _signers[i];
 
-      // check that the hat is valid
-      if (!isValidSignerHat(hatId)) revert InvalidSignerHat(hatId);
+      // register the signer, reverting if invalid or already registered
+      _registerSigner(hatId, signer);
 
-      // don't try to add a signer that is already an owner and wearing a signer hat
-      if (safe.isOwner(signer) && claimedSignerHats[signer] == hatId) revert SignerAlreadyClaimed(signer);
+      // if the signer is not an owner, add them
+      if (!s.isOwner(signer)) {
+        // TODO optimize this: is there a way we don't have call `getOwners()` on each iteration?
+        // get the current owners
+        address[] memory owners = s.getOwners();
 
-      // check that the signer is wearing the hat
-      if (!HATS.isWearerOfHat(signer, hatId)) revert NotSignerHatWearer(signer);
+        // initiate the valid signer count at the current number of valid owners
+        uint256 signerCount = _countValidSigners(owners);
 
-      // get the current owners
-      address[] memory owners = safe.getOwners();
+        // initiate the threshold at the current value
+        uint256 threshold = s.getThreshold();
 
-      // register the hat used to claim. This will be the hat checked in `checkTransaction()` for this signer
-      claimedSignerHats[signer] = hatId;
+        // initiate the addOwnerData, to be conditionally set below
+        bytes memory addOwnerData;
 
-      // initiate the valid signer count at the current number of valid owners
-      uint256 signerCount = _countValidSigners(owners);
+        // for the first signer, check if the only owner is this contract and swap it out if so
+        if (i == 0 && owners.length == 1 && owners[0] == address(this)) {
+          addOwnerData = SafeManagerLib.encodeSwapOwnerAction(SafeManagerLib.SENTINELS, address(this), signer);
+        } else {
+          // otherwise, add the claimer as a new owner
+          unchecked {
+            // shouldn't overflow on any reasonable human scale
+            ++signerCount;
+          }
 
-      // initiate the threshold at the current value
-      uint256 threshold = safe.getThreshold();
-
-      // initiate the addOwnerData, to be conditionally set below
-      bytes memory addOwnerData;
-
-      // for the first signer, check if the only owner is this contract and swap it out if so
-
-      if (i == 0 && owners.length == 1 && owners[0] == address(this)) {
-        addOwnerData = SafeManagerLib.encodeSwapOwnerAction(SafeManagerLib.SENTINELS, address(this), signer);
-      } else {
-        // otherwise, add the claimer as a new owner
-        unchecked {
-          // shouldn't overflow on any reasonable human scale
-          ++signerCount;
+          // set the threshold to the number of valid signers, if not over the target threshold
+          if (signerCount <= targetThreshold) {
+            threshold = signerCount;
+          }
+          // set up the addOwner call
+          addOwnerData = SafeManagerLib.encodeAddOwnerWithThresholdAction(signer, threshold);
         }
 
-        // set the threshold to the number of valid signers, if not over the target threshold
-        if (signerCount <= targetThreshold) {
-          threshold = signerCount;
-        }
-        // set up the addOwner call
-        addOwnerData = SafeManagerLib.encodeAddOwnerWithThresholdAction(signer, threshold);
+        // execute the call
+        if (!s.execSafeTransactionFromHSG(addOwnerData)) revert SafeManagerLib.FailedExecAddSigner();
       }
-
-      // execute the call
-      if (!safe.execTransactionFromHSG(addOwnerData)) revert SafeManagerLib.FailedExecAddSigner();
     }
   }
 
@@ -239,45 +244,35 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
     _removeSigner(_signer);
   }
 
-  /// @inheritdoc IHatsSignerGate
-  function reconcileSignerCount() public {
-    uint256 signerCount = validSignerCount();
-
-    uint256 currentThreshold = safe.getThreshold();
-    uint256 newThreshold;
-    uint256 target = targetThreshold; // save SLOADs
-
-    if (signerCount <= target && signerCount != currentThreshold) {
-      newThreshold = signerCount;
-    } else if (signerCount > target && currentThreshold < target) {
-      newThreshold = target;
-    }
-    if (newThreshold > 0) {
-      safe.execChangeThreshold(newThreshold);
-    }
-  }
-
   /*//////////////////////////////////////////////////////////////
                         OWNER FUNCTIONS
   //////////////////////////////////////////////////////////////*/
 
   /// @inheritdoc IHatsSignerGate
-  function lock() public onlyOwner onlyUnlocked {
+  function lock() public {
+    _checkUnlocked();
+    _checkOwner();
     _lock();
   }
 
   /// @inheritdoc IHatsSignerGate
-  function setOwnerHat(uint256 _ownerHat) public onlyOwner onlyUnlocked {
+  function setOwnerHat(uint256 _ownerHat) public {
+    _checkUnlocked();
+    _checkOwner();
     _setOwnerHat(_ownerHat);
   }
 
   /// @inheritdoc IHatsSignerGate
-  function addSignerHats(uint256[] calldata _newSignerHats) external onlyOwner onlyUnlocked {
+  function addSignerHats(uint256[] calldata _newSignerHats) external {
+    _checkUnlocked();
+    _checkOwner();
     _addSignerHats(_newSignerHats);
   }
 
   /// @inheritdoc IHatsSignerGate
-  function setTargetThreshold(uint256 _targetThreshold) public onlyOwner onlyUnlocked {
+  function setTargetThreshold(uint256 _targetThreshold) public {
+    _checkUnlocked();
+    _checkOwner();
     if (_targetThreshold != targetThreshold) {
       _setTargetThreshold(_targetThreshold);
 
@@ -287,17 +282,23 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
   }
 
   /// @inheritdoc IHatsSignerGate
-  function setMinThreshold(uint256 _minThreshold) public onlyOwner onlyUnlocked {
+  function setMinThreshold(uint256 _minThreshold) public {
+    _checkUnlocked();
+    _checkOwner();
     _setMinThreshold(_minThreshold);
   }
 
   /// @inheritdoc IHatsSignerGate
-  function setClaimableFor(bool _claimableFor) public onlyOwner onlyUnlocked {
+  function setClaimableFor(bool _claimableFor) public {
+    _checkUnlocked();
+    _checkOwner();
     _setClaimableFor(_claimableFor);
   }
 
   /// @inheritdoc IHatsSignerGate
-  function detachHSG() public onlyOwner onlyUnlocked {
+  function detachHSG() public {
+    _checkUnlocked();
+    _checkOwner();
     ISafe s = safe; // save SLOAD
 
     // first remove as guard, then as module
@@ -307,8 +308,12 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
   }
 
   /// @inheritdoc IHatsSignerGate
-  function migrateToNewHSG(address _newHSG) public onlyOwner onlyUnlocked {
-    // QUESTION check if _newHSG is indeed an HSG?
+  function migrateToNewHSG(address _newHSG, uint256[] calldata _signerHatIds, address[] calldata _signersToMigrate)
+    public
+  {
+    _checkUnlocked();
+    _checkOwner();
+    // TODO check if _newHSG is indeed an HSG?
 
     ISafe s = safe; // save SLOADS
     // remove existing HSG as guard
@@ -317,6 +322,15 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
     s.execAttachNewHSG(_newHSG);
     // remove existing HSG as module
     s.execDisableHSGAsModule(_newHSG);
+
+    // if _signersToMigrate is provided, migrate them to the new HSG by calling claimSignersFor()
+    uint256 toMigrateCount = _signersToMigrate.length;
+    if (toMigrateCount > 0) {
+      // check that the arrays are the same length
+      if (_signerHatIds.length != toMigrateCount) revert InvalidArrayLength();
+
+      IHatsSignerGate(_newHSG).claimSignersFor(_signerHatIds, _signersToMigrate);
+    }
     emit Migrated(_newHSG);
   }
 
@@ -343,40 +357,51 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
     // ensure that the call is coming from the safe
     if (msg.sender != address(s)) revert NotCalledFromSafe();
 
+    // module guard preflight check
+    if (guard != address(0)) {
+      BaseGuard(guard).checkTransaction(
+        to,
+        value,
+        data,
+        operation,
+        // Zero out the redundant transaction information only used for Safe multisig transctions.
+        0,
+        0,
+        0,
+        address(0),
+        payable(0),
+        "",
+        address(0)
+      );
+    }
+
     // get the safe owners
     address[] memory owners = s.getOwners();
-    {
-      // scope to avoid stack too deep errors
-      uint256 safeOwnerCount = owners.length;
-      // uint256 validSignerCount = _countValidSigners(safe.getOwners());
-      // ensure that safe threshold is correct
-      reconcileSignerCount();
 
-      // ensure that the safe has enough owners to execute the transaction
-      if (safeOwnerCount < minThreshold) revert BelowMinThreshold(minThreshold, safeOwnerCount);
-    }
-    // get the tx hash; view function
+    // get the tx hash
     bytes32 txHash = s.getTransactionHash(
-      // Transaction info
       to,
       value,
       data,
       operation,
       safeTxGas,
-      // Payment info
       baseGas,
       gasPrice,
       gasToken,
       refundReceiver,
-      // Signature info
       // We subtract 1 since nonce was just incremented in the parent function call
       s.nonce() - 1 // view function
     );
-    uint256 threshold = s.getThreshold();
+
+    // set the threshold according to the number of valid signers
+    uint256 threshold = _setCorrectThreshold(owners);
+
+    // TODO optimize this: isValidSigner is called for every owner in _setCorrectThreshold and every signature here.
+    // can we run these checks inside the same loop?
     uint256 validSigCount = countValidSignatures(txHash, signatures, threshold);
 
     // revert if there aren't enough valid signatures
-    if (validSigCount < threshold || validSigCount < minThreshold) revert InvalidSigners();
+    if (validSigCount < threshold || validSigCount < minThreshold) revert InsufficientValidSignatures();
 
     // record existing owners for post-flight check
     // TODO use TSTORE
@@ -407,13 +432,20 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
     if (msg.sender != address(s)) revert NotCalledFromSafe();
     // prevent signers from disabling this guard
 
-    if (s.getSafeGuard() != address(this)) revert CannotDisableThisGuard(address(this));
-    // prevent signers from changing the threshold
+    // module guard postflight check
+    if (guard != address(0)) {
+      BaseGuard(guard).checkAfterExecution(bytes32(0), false);
+    }
 
-    if (s.getThreshold() != _getCorrectThreshold()) revert SignersCannotChangeThreshold();
+    if (s.getSafeGuard() != address(this)) revert CannotDisableThisGuard(address(this));
+
+    // get the owners
+    address[] memory owners = s.getOwners();
+
+    // prevent signers from changing the threshold
+    if (s.getThreshold() != _getCorrectThreshold(owners)) revert SignersCannotChangeThreshold();
 
     // prevent signers from changing the owners
-    address[] memory owners = s.getOwners();
     if (keccak256(abi.encode(owners)) != _existingOwnersHash) revert SignersCannotChangeOwners();
 
     // prevent signers from removing this module or adding any other modules
@@ -584,58 +616,73 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
     emit ClaimableForSet(_claimableFor);
   }
 
-  /// @dev Internal function to add a `_signer` to the `safe` if they are wearing a valid signer hat.
-  /// If this contract is the only owner on the `safe`, it will be swapped out for `_signer`. Otherwise, `_signer` will
-  /// be added as a new owner.
-  /// @param _hatId The hat id to use for the claim
-  /// @param _signer The address to add as a new `safe` owner
-  function _addSigner(uint256 _hatId, address _signer) internal {
+  /// @dev Internal function to register a signer's hat. Includes checks for signer/hat validity and prior registration.
+  /// @param _hatId The hat id to register
+  /// @param _signer The address to register
+  function _registerSigner(uint256 _hatId, address _signer) internal {
     // check that the hat is valid
     if (!isValidSignerHat(_hatId)) revert InvalidSignerHat(_hatId);
-
-    // don't try to add an owner that is already an owner and wearing a signer hat
-    if (safe.isOwner(_signer) && claimedSignerHats[_signer] == _hatId) revert SignerAlreadyClaimed(_signer);
 
     // check that the signer is wearing the hat
     if (!HATS.isWearerOfHat(_signer, _hatId)) revert NotSignerHatWearer(_signer);
 
-    // get the current owners
-    address[] memory owners = safe.getOwners();
+    // don't try to add an owner that has already registered
+    if (claimedSignerHats[_signer] == _hatId) revert SignerAlreadyClaimed(_signer);
 
     // register the hat used to claim. This will be the hat checked in `checkTransaction()` for this signer
     claimedSignerHats[_signer] = _hatId;
+  }
 
-    // initiate the valid signer count at the current number of valid owners
-    uint256 signerCount = _countValidSigners(owners);
+  /// @dev Internal function to add a `_signer` to the `safe` if they are wearing a valid signer hat.
+  /// If this contract is the only owner on the `safe`, it will be swapped out for `_signer`. Otherwise, `_signer` will
+  /// be added as a new owner. If the `_signer` is already an owner but has not registered their hat, they will be
+  /// registered but not re-added to the `safe`.
+  /// @param _hatId The hat id to use for the claim
+  /// @param _signer The address to add as a new `safe` owner
+  function _addSigner(uint256 _hatId, address _signer) internal {
+    // register the signer
+    _registerSigner(_hatId, _signer);
 
-    // initiate the threshold at the current value
-    uint256 threshold = safe.getThreshold();
+    // if the signer is not already an owner, add them
 
-    // initiate the addOwnerData, to be conditionally set below
-    bytes memory addOwnerData;
+    ISafe s = safe;
 
-    // if the only owner is this contract (set as an owner on initialization), replace it with _signer
-    if (owners.length == 1 && owners[0] == address(this)) {
-      // set up the swapOwner call
-      addOwnerData = SafeManagerLib.encodeSwapOwnerAction(SafeManagerLib.SENTINELS, address(this), _signer);
-    } else {
-      // otherwise, add the claimer as a new owner
-      unchecked {
-        // shouldn't overflow on any reasonable human scale
-        ++signerCount;
+    if (!s.isOwner(_signer)) {
+      // get the current owners
+      address[] memory owners = s.getOwners();
+
+      // initiate the valid signer count at the current number of valid owners
+      uint256 signerCount = _countValidSigners(owners);
+
+      // initiate the threshold at the current value
+      uint256 threshold = s.getThreshold();
+
+      // initiate the addOwnerData, to be conditionally set below
+      bytes memory addOwnerData;
+
+      // if the only owner is this contract (set as an owner on initialization), replace it with _signer
+      if (owners.length == 1 && owners[0] == address(this)) {
+        // set up the swapOwner call
+        addOwnerData = SafeManagerLib.encodeSwapOwnerAction(SafeManagerLib.SENTINELS, address(this), _signer);
+      } else {
+        // otherwise, add the claimer as a new owner
+        unchecked {
+          // shouldn't overflow on any reasonable human scale
+          ++signerCount;
+        }
+
+        // set the threshold to the number of valid signers, if not over the target threshold
+        if (signerCount <= targetThreshold) {
+          threshold = signerCount;
+        }
+
+        // set up the addOwner call
+        addOwnerData = SafeManagerLib.encodeAddOwnerWithThresholdAction(_signer, threshold);
       }
 
-      // set the threshold to the number of valid signers, if not over the target threshold
-      if (signerCount <= targetThreshold) {
-        threshold = signerCount;
-      }
-
-      // set up the addOwner call
-      addOwnerData = SafeManagerLib.encodeAddOwnerWithThresholdAction(_signer, threshold);
+      // execute the call
+      if (!s.execSafeTransactionFromHSG(addOwnerData)) revert SafeManagerLib.FailedExecAddSigner();
     }
-
-    // execute the call
-    if (!safe.execTransactionFromHSG(addOwnerData)) revert SafeManagerLib.FailedExecAddSigner();
   }
 
   /// @dev Internal function to remove a signer from the `safe`, updating the threshold if appropriate
@@ -664,20 +711,14 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
     }
 
     // execute the call
-    if (!safe.execTransactionFromHSG(removeOwnerData)) revert SafeManagerLib.FailedExecRemoveSigner();
-  }
-
-  // solhint-disallow-next-line payable-fallback
-  fallback() external {
-    // We don't revert on fallback to avoid issues in case of a Safe upgrade
-    // E.g. The expected check method might change and then the Safe would be locked.
+    if (!safe.execSafeTransactionFromHSG(removeOwnerData)) revert SafeManagerLib.FailedExecRemoveSigner();
   }
 
   /// @dev Internal function to calculate the threshold that `safe` should have, given the correct `signerCount`,
   /// `minThreshold`, and `targetThreshold`
   /// @return _threshold The correct threshold
-  function _getCorrectThreshold() internal view returns (uint256 _threshold) {
-    uint256 count = validSignerCount();
+  function _getCorrectThreshold(address[] memory _owners) internal view returns (uint256 _threshold) {
+    uint256 count = _countValidSigners(_owners);
     uint256 min = minThreshold;
     uint256 max = targetThreshold;
     if (count < min) _threshold = min;
@@ -689,5 +730,114 @@ contract HatsSignerGate is IHatsSignerGate, BaseGuard, SignatureDecoder, Initial
   function _lock() internal {
     locked = true;
     emit HSGLocked();
+  }
+
+  /// @dev Internal function to set the correct threshold for the `safe` according to the number of valid signers
+  /// @param _owners The current owners of the `safe`
+  /// @return The correct threshold for the `safe`
+  function _setCorrectThreshold(address[] memory _owners) internal returns (uint256) {
+    uint256 currentThreshold = safe.getThreshold();
+    uint256 correctThreshold = _getCorrectThreshold(_owners);
+
+    if (correctThreshold != currentThreshold) {
+      safe.execChangeThreshold(correctThreshold);
+      return correctThreshold;
+    }
+
+    return currentThreshold;
+  }
+
+  // solhint-disallow-next-line payable-fallback
+  fallback() external {
+    // We don't revert on fallback to avoid issues in case of a Safe upgrade
+    // E.g. The expected check method might change and then the Safe would be locked.
+  }
+
+  // /*//////////////////////////////////////////////////////////////
+  //                     ZODIAC MODIFIER FUNCTIONS
+  // //////////////////////////////////////////////////////////////*/
+
+  /// @dev Allows a Module to execute a transaction.
+  /// @notice Can only be called by an enabled module.
+  /// @notice Must emit ExecutionFromModuleSuccess(address module) if successful.
+  /// @notice Must emit ExecutionFromModuleFailure(address module) if unsuccessful.
+  /// @param to Destination address of module transaction.
+  /// @param value Ether value of module transaction.
+  /// @param data Data payload of module transaction.
+  /// @param operation Operation type of module transaction: 0 == call, 1 == delegate call.
+  function execTransactionFromModule(address to, uint256 value, bytes calldata data, Enum.Operation operation)
+    public
+    override
+    moduleOnly
+    returns (bool success)
+  {
+    // disallow external calls to the safe
+    if (to == address(safe)) revert ModulesCannotCallSafe();
+
+    // forward the call to the safe
+    success = safe.execTransactionFromModule(to, value, data, operation);
+
+    // emit the appropriate execution status event
+    if (success) {
+      emit ExecutionFromModuleSuccess(msg.sender);
+    } else {
+      emit ExecutionFromModuleFailure(msg.sender);
+    }
+  }
+
+  /// @dev Allows a Module to execute a transaction and return data
+  /// @notice Can only be called by an enabled module.
+  /// @notice Must emit ExecutionFromModuleSuccess(address module) if successful.
+  /// @notice Must emit ExecutionFromModuleFailure(address module) if unsuccessful.
+  /// @param to Destination address of module transaction.
+  /// @param value Ether value of module transaction.
+  /// @param data Data payload of module transaction.
+  /// @param operation Operation type of module transaction: 0 == call, 1 == delegate call.
+  function execTransactionFromModuleReturnData(address to, uint256 value, bytes calldata data, Enum.Operation operation)
+    public
+    override
+    moduleOnly
+    returns (bool success, bytes memory returnData)
+  {
+    // disallow external calls to the safe
+    if (to == address(safe)) revert ModulesCannotCallSafe();
+
+    // forward the call to the safe
+    (success, returnData) = safe.execTransactionFromModuleReturnData(to, value, data, operation);
+
+    // emit the appropriate execution status event
+    if (success) {
+      emit ExecutionFromModuleSuccess(msg.sender);
+    } else {
+      emit ExecutionFromModuleFailure(msg.sender);
+    }
+  }
+
+  /// @inheritdoc ModifierUnowned
+  /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.
+  function disableModule(address prevModule, address module) public override {
+    _checkUnlocked();
+    _checkOwner();
+    super.disableModule(prevModule, module);
+  }
+
+  /// @inheritdoc ModifierUnowned
+  /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.
+  function enableModule(address module) public override {
+    _checkUnlocked();
+    _checkOwner();
+    super.enableModule(module);
+  }
+
+  /*//////////////////////////////////////////////////////////////
+                      ZODIAC GUARD FUNCTIONS
+  //////////////////////////////////////////////////////////////*/
+
+  /// @inheritdoc GuardableUnowned
+  /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.
+  function setGuard(address guard) public override {
+    _checkUnlocked();
+    _checkOwner();
+    super.setGuard(guard);
   }
 }
