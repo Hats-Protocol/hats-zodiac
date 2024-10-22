@@ -259,7 +259,12 @@ contract TestSuite is SafeTestHelpers {
   uint256 public minThreshold;
   uint256 public targetThreshold;
   bool public locked;
-  TestGuard public testGuard;
+  TestGuard public tstGuard;
+  address[] public tstModules;
+  address public tstModule1 = makeAddr("tstModule1");
+  address public tstModule2 = makeAddr("tstModule2");
+  address public tstModule3 = makeAddr("tstModule3");
+
   // Utility variables
   address[] initSafeOwners = new address[](1);
 
@@ -284,7 +289,13 @@ contract TestSuite is SafeTestHelpers {
     (pks, signerAddresses) = _createAddressesFromPks(10);
 
     // create the test guard
-    testGuard = new TestGuard(address(hatsSignerGate));
+    tstGuard = new TestGuard(address(hatsSignerGate));
+
+    // set up the test modules array
+    tstModules = new address[](3);
+    tstModules[0] = tstModule1;
+    tstModules[1] = tstModule2;
+    tstModules[2] = tstModule3;
 
     // Set up the test hats
     uint256 signerHatCount = 5;
@@ -340,6 +351,7 @@ contract TestSuite is SafeTestHelpers {
     bool _locked,
     bool _claimableFor,
     address _hsgGuard,
+    address[] memory _hsgModules,
     bytes4 _expectedError,
     bool _verbose
   ) internal returns (HatsSignerGate) {
@@ -354,7 +366,8 @@ contract TestSuite is SafeTestHelpers {
       _safe,
       _locked,
       _claimableFor,
-      _hsgGuard
+      _hsgGuard,
+      _hsgModules
     );
     instanceDeployer.prepare2(_verbose, TEST_SALT_NONCE);
 
@@ -374,7 +387,8 @@ contract TestSuite is SafeTestHelpers {
     bool _locked,
     bool _verbose,
     bool _claimableFor,
-    address _hsgGuard
+    address _hsgGuard,
+    address[] memory _hsgModules
   ) internal returns (HatsSignerGate _hatsSignerGate, ISafe _safe) {
     // create the instance deployer
     DeployInstance instanceDeployer = new DeployInstance();
@@ -387,7 +401,8 @@ contract TestSuite is SafeTestHelpers {
       address(0),
       _locked,
       _claimableFor,
-      _hsgGuard
+      _hsgGuard,
+      _hsgModules
     );
     instanceDeployer.prepare2(_verbose, TEST_SALT_NONCE);
     _hatsSignerGate = instanceDeployer.run();
@@ -450,6 +465,7 @@ contract WithHSGInstanceTest is TestSuite {
       _locked: false,
       _claimableFor: false,
       _hsgGuard: address(0), // no guard
+      _hsgModules: new address[](0), // no modules
       _verbose: false
     });
   }

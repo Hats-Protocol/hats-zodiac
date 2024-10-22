@@ -155,10 +155,11 @@ contract HatsSignerGate is
     // set the instance's metadata
     implementation = params.implementation;
 
-    // initialize the modules linked list
+    // initialize the modules linked list, and set initial modules, if any
     setupModules();
-
-    // TODO set any initial modules
+    for (uint256 i; i < params.hsgModules.length; ++i) {
+      _enableModule(params.hsgModules[i]);
+    }
 
     // set the initial guard, if any
     if (params.hsgGuard != address(0)) _setGuard(params.hsgGuard);
@@ -837,12 +838,13 @@ contract HatsSignerGate is
     super.disableModule(prevModule, module);
   }
 
-  /// @inheritdoc ModifierUnowned
+  /// @notice Enables a module that can add transactions to the queue
   /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.
-  function enableModule(address module) public override {
+  /// @param module Address of the module to be enabled
+  function enableModule(address module) public {
     _checkUnlocked();
     _checkOwner();
-    super.enableModule(module);
+    _enableModule(module);
   }
 
   /*//////////////////////////////////////////////////////////////

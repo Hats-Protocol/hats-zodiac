@@ -82,6 +82,7 @@ contract DeployInstance is BaseScript {
   address public implementation;
   address public instance;
   address public hsgGuard;
+  address[] public hsgModules;
   uint256 public saltNonce;
 
   uint256 public ownerHat;
@@ -101,7 +102,8 @@ contract DeployInstance is BaseScript {
     address _safe,
     bool _locked,
     bool _claimableFor,
-    address _hsgGuard
+    address _hsgGuard,
+    address[] memory _hsgModules
   ) public {
     implementation = _implementation;
     ownerHat = _ownerHat;
@@ -112,6 +114,7 @@ contract DeployInstance is BaseScript {
     locked = _locked;
     claimableFor = _claimableFor;
     hsgGuard = _hsgGuard;
+    hsgModules = _hsgModules;
   }
 
   function prepare2(bool _verbose, uint256 _saltNonce) public {
@@ -141,7 +144,8 @@ contract DeployInstance is BaseScript {
       locked: locked,
       claimableFor: claimableFor,
       implementation: implementation,
-      hsgGuard: hsgGuard
+      hsgGuard: hsgGuard,
+      hsgModules: hsgModules
     });
     return params;
   }

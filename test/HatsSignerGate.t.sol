@@ -15,6 +15,16 @@ contract Deployment is TestSuite {
   // errors from dependencies
   error InvalidInitialization();
 
+  function assertCorrectModules(address[] memory _modules) public view {
+    (address[] memory pagedModules, address next) = hatsSignerGate.getModulesPaginated(SENTINELS, _modules.length);
+    assertEq(pagedModules.length, _modules.length);
+    for (uint256 i; i < _modules.length; ++i) {
+      // getModulesPaginated returns the modules in the reverse order they were added
+      assertEq(_modules[i], pagedModules[_modules.length - i - 1]);
+    }
+    assertEq(next, SENTINELS);
+  }
+
   function test_onlyHSG(bool _locked, bool _claimableFor) public {
     // deploy safe with this contract as the single owner
     address[] memory owners = new address[](1);
@@ -30,7 +40,8 @@ contract Deployment is TestSuite {
       _expectedError: bytes4(0), // no expected error
       _locked: _locked,
       _claimableFor: _claimableFor,
-      _hsgGuard: address(testGuard),
+      _hsgGuard: address(tstGuard),
+      _hsgModules: tstModules,
       _verbose: false
     });
 
@@ -43,7 +54,8 @@ contract Deployment is TestSuite {
     assertEq(address(hatsSignerGate.implementation()), address(singletonHatsSignerGate));
     assertEq(hatsSignerGate.locked(), _locked);
     assertEq(hatsSignerGate.claimableFor(), _claimableFor);
-    assertEq(address(hatsSignerGate.getGuard()), address(testGuard));
+    assertEq(address(hatsSignerGate.getGuard()), address(tstGuard));
+    assertCorrectModules(tstModules);
   }
 
   function test_andSafe(bool _locked, bool _claimableFor) public {
@@ -54,7 +66,8 @@ contract Deployment is TestSuite {
       _targetThreshold: targetThreshold,
       _locked: _locked,
       _claimableFor: _claimableFor,
-      _hsgGuard: address(testGuard),
+      _hsgGuard: address(tstGuard),
+      _hsgModules: tstModules,
       _verbose: false
     });
 
@@ -70,7 +83,8 @@ contract Deployment is TestSuite {
     assertEq(safe.getOwners()[0], address(hatsSignerGate));
     assertEq(hatsSignerGate.locked(), _locked);
     assertEq(hatsSignerGate.claimableFor(), _claimableFor);
-    assertEq(address(hatsSignerGate.getGuard()), address(testGuard));
+    assertEq(address(hatsSignerGate.getGuard()), address(tstGuard));
+    assertCorrectModules(tstModules);
   }
 
   function test_revert_reinitializeImplementation() public {
@@ -910,7 +924,8 @@ contract MigratingHSG is WithHSGInstanceTest {
       address(safe),
       false,
       false,
-      address(0) // no guard
+      address(0), // no guard
+      new address[](0) // no modules
     );
     instanceDeployer.prepare2(true, 1);
 
@@ -1404,11 +1419,11 @@ contract SettingOwnerHat is WithHSGInstanceTest {
 contract SettingHSGGuard is WithHSGInstanceTest {
   function test_happy() public {
     vm.expectEmit(true, true, true, true);
-    emit GuardableUnowned.ChangedGuard(address(testGuard));
+    emit GuardableUnowned.ChangedGuard(address(tstGuard));
     vm.prank(owner);
-    hatsSignerGate.setGuard(address(testGuard));
+    hatsSignerGate.setGuard(address(tstGuard));
 
-    assertEq(hatsSignerGate.getGuard(), address(testGuard), "guard should be testGuard");
+    assertEq(hatsSignerGate.getGuard(), address(tstGuard), "guard should be tstGuard");
   }
 
   function test_removeGuard() public {
@@ -1423,7 +1438,7 @@ contract SettingHSGGuard is WithHSGInstanceTest {
 
   function test_revert_notOwner() public {
     vm.expectRevert(IHatsSignerGate.NotOwnerHatWearer.selector);
-    hatsSignerGate.setGuard(address(testGuard));
+    hatsSignerGate.setGuard(address(tstGuard));
 
     assertEq(hatsSignerGate.getGuard(), address(0), "guard should be empty");
   }
@@ -1434,7 +1449,7 @@ contract SettingHSGGuard is WithHSGInstanceTest {
 
     vm.expectRevert(IHatsSignerGate.Locked.selector);
     vm.prank(owner);
-    hatsSignerGate.setGuard(address(testGuard));
+    hatsSignerGate.setGuard(address(tstGuard));
 
     assertEq(hatsSignerGate.getGuard(), address(0), "guard should be empty");
   }
@@ -1451,8 +1466,8 @@ contract HSGGuarding is WithHSGInstanceTest {
 
     // set it on our hsg instance
     vm.prank(owner);
-    hatsSignerGate.setGuard(address(testGuard));
-    assertEq(hatsSignerGate.getGuard(), address(testGuard), "guard should be testGuard");
+    hatsSignerGate.setGuard(address(tstGuard));
+    assertEq(hatsSignerGate.getGuard(), address(tstGuard), "guard should be tstGuard");
 
     // deal the safe some eth
     deal(address(safe), 1 ether);
@@ -1464,7 +1479,7 @@ contract HSGGuarding is WithHSGInstanceTest {
     assertEq(owners.length, signerCount, "owners should be signerCount");
   }
 
-  /// @dev a successful transaction should hit the testGuard's checkTransaction and checkAfterExecution funcs
+  /// @dev a successful transaction should hit the tstGuard's checkTransaction and checkAfterExecution funcs
   function test_executed() public {
     uint256 preNonce = safe.nonce();
     uint256 preValue = address(safe).balance;
@@ -1546,7 +1561,7 @@ contract HSGGuarding is WithHSGInstanceTest {
   // the test guard should revert in checkAfterExecution
   function test_revert_checkAfterExecution() public {
     // we make this happen by setting the test guard to disallow execution
-    testGuard.disallowExecution();
+    tstGuard.disallowExecution();
 
     // craft a basic eth transfer tx
     uint256 preNonce = safe.nonce();
@@ -1586,7 +1601,7 @@ contract HSGGuarding is WithHSGInstanceTest {
 }
 
 contract EnablingHSGModules is WithHSGInstanceTest {
-  address newModule = makeAddr("newModule");
+  address newModule = tstModule1;
 
   function test_happy() public {
     vm.expectEmit(true, true, true, true);
@@ -1617,7 +1632,7 @@ contract EnablingHSGModules is WithHSGInstanceTest {
 }
 
 contract DisablingHSGModules is WithHSGInstanceTest {
-  address newModule = makeAddr("newModule");
+  address newModule = tstModule1;
 
   function setUp() public override {
     super.setUp();
@@ -1659,7 +1674,7 @@ contract DisablingHSGModules is WithHSGInstanceTest {
 }
 
 contract ExecutingFromModuleViaHSG is WithHSGInstanceTest {
-  address newModule = makeAddr("newModule");
+  address newModule = tstModule1;
   address recipient = makeAddr("recipient");
 
   function setUp() public override {
@@ -1728,7 +1743,7 @@ contract ExecutingFromModuleViaHSG is WithHSGInstanceTest {
 }
 
 contract ExecutingFromModuleReturnDataViaHSG is WithHSGInstanceTest {
-  address newModule = makeAddr("newModule");
+  address newModule = tstModule1;
   address recipient = makeAddr("recipient");
 
   function setUp() public override {

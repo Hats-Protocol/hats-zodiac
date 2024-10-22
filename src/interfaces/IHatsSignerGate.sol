@@ -20,6 +20,7 @@ interface IHatsSignerGate {
   /// @param claimableFor Whether signer permissions can be claimed on behalf of valid hat wearers
   /// @param implementation The address of the HatsSignerGate implementation
   /// @param hsgGuard The address of the initial guard set on the HatsSignerGate instance
+  /// @param hsgModules The initial modules set on the HatsSignerGate instance
   struct SetupParams {
     uint256 ownerHat;
     uint256[] signerHats;
@@ -30,6 +31,7 @@ interface IHatsSignerGate {
     bool claimableFor;
     address implementation;
     address hsgGuard;
+    address[] hsgModules;
   }
 
   /*//////////////////////////////////////////////////////////////

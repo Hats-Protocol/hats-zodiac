@@ -90,7 +90,7 @@ abstract contract ModifierUnowned is ExecutionTracker, SignatureChecker, IAvatar
   /// @notice Enables a module that can add transactions to the queue
   /// @dev Should be overridden to restrict access, such as to an owner
   /// @param module Address of the module to be enabled
-  function enableModule(address module) public virtual {
+  function _enableModule(address module) internal virtual {
     if (module == address(0) || module == SENTINEL_MODULES) {
       revert InvalidModule(module);
     }
