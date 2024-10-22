@@ -35,17 +35,17 @@ contract HatsSignerGate is
   /// @inheritdoc IHatsSignerGate
   IHats public immutable HATS;
 
-  /// @inheritdoc IHatsSignerGate
-  address public immutable safeSingleton;
+  /// @dev The address of the Safe singleton contract used to deploy new Safes
+  address internal immutable SAFE_SINGLETON;
 
-  /// @inheritdoc IHatsSignerGate
-  address public immutable safeFallbackLibrary;
+  /// @dev The address of the Safe fallback library used to deploy new Safes
+  address internal immutable SAFE_FALLBACK_LIBRARY;
 
-  /// @inheritdoc IHatsSignerGate
-  address public immutable safeMultisendLibrary;
+  /// @dev The address of the Safe multisend library used to deploy new Safes
+  address internal immutable SAFE_MULTISEND_LIBRARY;
 
-  /// @inheritdoc IHatsSignerGate
-  address public immutable safeProxyFactory;
+  /// @dev The address of the Safe proxy factory used to deploy new Safes
+  address internal immutable SAFE_PROXY_FACTORY;
 
   /// @inheritdoc IHatsSignerGate
   string public constant version = "2.0.0";
@@ -113,10 +113,10 @@ contract HatsSignerGate is
     address _safeProxyFactory
   ) initializer {
     HATS = IHats(_hats);
-    safeProxyFactory = _safeProxyFactory;
-    safeSingleton = _safeSingleton;
-    safeFallbackLibrary = _safeFallbackLibrary;
-    safeMultisendLibrary = _safeMultisendLibrary;
+    SAFE_PROXY_FACTORY = _safeProxyFactory;
+    SAFE_SINGLETON = _safeSingleton;
+    SAFE_FALLBACK_LIBRARY = _safeFallbackLibrary;
+    SAFE_MULTISEND_LIBRARY = _safeMultisendLibrary;
 
     // set the implementation's owner hat to a nonexistent hat to prevent state changes to the implementation
     ownerHat = 1;
@@ -133,7 +133,7 @@ contract HatsSignerGate is
     // deploy a new safe if there is no provided safe
     if (params.safe == address(0)) {
       params.safe = SafeManagerLib.deploySafeAndAttachHSG(
-        safeProxyFactory, safeSingleton, safeFallbackLibrary, safeMultisendLibrary
+        SAFE_PROXY_FACTORY, SAFE_SINGLETON, SAFE_FALLBACK_LIBRARY, SAFE_MULTISEND_LIBRARY
       );
     }
 
@@ -531,6 +531,20 @@ contract HatsSignerGate is
         }
       }
     }
+  }
+
+  /// @inheritdoc IHatsSignerGate
+  function getSafeDeployParamAddresses()
+    public
+    view
+    returns (
+      address _safeSingleton,
+      address _safeFallbackLibrary,
+      address _safeMultisendLibrary,
+      address _safeProxyFactory
+    )
+  {
+    return (SAFE_SINGLETON, SAFE_FALLBACK_LIBRARY, SAFE_MULTISEND_LIBRARY, SAFE_PROXY_FACTORY);
   }
 
   /*//////////////////////////////////////////////////////////////
