@@ -62,7 +62,8 @@ contract DeployImplementation is BaseScript {
 
     if (verbose) {
       console2.log("HSG implementation", address(implementation));
-      console2.log("HSG code size", address(implementation).code.length);
+      console2.log("HSG runtime bytecode size", address(implementation).code.length);
+      console2.log("HSG runtime bytecode margin", 24_576 - (address(implementation).code.length));
       console2.log("Safe singleton", safeSingleton);
       console2.log("Safe fallback library", safeFallbackLibrary);
       console2.log("Safe multisend library", safeMultisendLibrary);
@@ -80,7 +81,7 @@ contract DeployInstance is BaseScript {
   address public hats;
   address public implementation;
   address public instance;
-
+  address public hsgGuard;
   uint256 public saltNonce;
 
   uint256 public ownerHat;
@@ -91,8 +92,7 @@ contract DeployInstance is BaseScript {
   bool public locked;
   bool public claimableFor;
 
-  function prepare(
-    bool _verbose,
+  function prepare1(
     address _implementation,
     uint256 _ownerHat,
     uint256[] memory _signersHats,
@@ -101,9 +101,8 @@ contract DeployInstance is BaseScript {
     address _safe,
     bool _locked,
     bool _claimableFor,
-    uint256 _saltNonce
+    address _hsgGuard
   ) public {
-    verbose = _verbose;
     implementation = _implementation;
     ownerHat = _ownerHat;
     signersHats = _signersHats;
@@ -112,6 +111,11 @@ contract DeployInstance is BaseScript {
     safe = _safe;
     locked = _locked;
     claimableFor = _claimableFor;
+    hsgGuard = _hsgGuard;
+  }
+
+  function prepare2(bool _verbose, uint256 _saltNonce) public {
+    verbose = _verbose;
     saltNonce = _saltNonce;
   }
 
@@ -136,7 +140,8 @@ contract DeployInstance is BaseScript {
       targetThreshold: targetThreshold,
       locked: locked,
       claimableFor: claimableFor,
-      implementation: implementation
+      implementation: implementation,
+      hsgGuard: hsgGuard
     });
     return params;
   }

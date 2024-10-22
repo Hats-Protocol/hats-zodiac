@@ -159,7 +159,9 @@ contract HatsSignerGate is
     setupModules();
 
     // TODO set any initial modules
-    // TODO set the initial guard
+
+    // set the initial guard, if any
+    if (params.hsgGuard != address(0)) _setGuard(params.hsgGuard);
   }
 
   /*//////////////////////////////////////////////////////////////
@@ -833,11 +835,12 @@ contract HatsSignerGate is
                       ZODIAC GUARD FUNCTIONS
   //////////////////////////////////////////////////////////////*/
 
-  /// @inheritdoc GuardableUnowned
+  /// @notice Set a guard that checks transactions before execution.
   /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.
-  function setGuard(address guard) public override {
+  /// @param _guard The address of the guard to be used or the 0 address to disable the guard.
+  function setGuard(address _guard) public {
     _checkUnlocked();
     _checkOwner();
-    super.setGuard(guard);
+    _setGuard(_guard);
   }
 }

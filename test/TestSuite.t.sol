@@ -10,6 +10,7 @@ import { Enum } from "../lib/safe-smart-account/contracts/common/Enum.sol";
 import { StorageAccessible } from "../lib/safe-smart-account/contracts/common/StorageAccessible.sol";
 import { ModuleProxyFactory } from "../lib/zodiac/contracts/factory/ModuleProxyFactory.sol";
 import { DeployImplementation, DeployInstance } from "../script/HatsSignerGate.s.sol";
+import { TestGuard } from "./mocks/TestGuard.sol";
 
 abstract contract SafeTestHelpers is Test {
   address public constant SENTINELS = address(0x1);
@@ -258,7 +259,7 @@ contract TestSuite is SafeTestHelpers {
   uint256 public minThreshold;
   uint256 public targetThreshold;
   bool public locked;
-
+  TestGuard public testGuard;
   // Utility variables
   address[] initSafeOwners = new address[](1);
 
@@ -281,6 +282,9 @@ contract TestSuite is SafeTestHelpers {
 
     // Create test signer addresses
     (pks, signerAddresses) = _createAddressesFromPks(10);
+
+    // create the test guard
+    testGuard = new TestGuard(address(hatsSignerGate));
 
     // Set up the test hats
     uint256 signerHatCount = 5;
@@ -335,13 +339,13 @@ contract TestSuite is SafeTestHelpers {
     address _safe,
     bool _locked,
     bool _claimableFor,
+    address _hsgGuard,
     bytes4 _expectedError,
     bool _verbose
   ) internal returns (HatsSignerGate) {
     // create the instance deployer
     DeployInstance instanceDeployer = new DeployInstance();
-    instanceDeployer.prepare(
-      _verbose,
+    instanceDeployer.prepare1(
       address(singletonHatsSignerGate),
       _ownerHat,
       _signerHats,
@@ -350,8 +354,9 @@ contract TestSuite is SafeTestHelpers {
       _safe,
       _locked,
       _claimableFor,
-      TEST_SALT_NONCE
+      _hsgGuard
     );
+    instanceDeployer.prepare2(_verbose, TEST_SALT_NONCE);
 
     if (_expectedError > 0) {
       vm.expectRevert(_expectedError);
@@ -368,12 +373,12 @@ contract TestSuite is SafeTestHelpers {
     uint256 _targetThreshold,
     bool _locked,
     bool _verbose,
-    bool _claimableFor
+    bool _claimableFor,
+    address _hsgGuard
   ) internal returns (HatsSignerGate _hatsSignerGate, ISafe _safe) {
     // create the instance deployer
     DeployInstance instanceDeployer = new DeployInstance();
-    instanceDeployer.prepare(
-      _verbose,
+    instanceDeployer.prepare1(
       address(singletonHatsSignerGate),
       _ownerHat,
       _signerHats,
@@ -382,8 +387,9 @@ contract TestSuite is SafeTestHelpers {
       address(0),
       _locked,
       _claimableFor,
-      TEST_SALT_NONCE
+      _hsgGuard
     );
+    instanceDeployer.prepare2(_verbose, TEST_SALT_NONCE);
     _hatsSignerGate = instanceDeployer.run();
     _safe = _hatsSignerGate.safe();
   }
@@ -443,6 +449,7 @@ contract WithHSGInstanceTest is TestSuite {
       _targetThreshold: targetThreshold,
       _locked: false,
       _claimableFor: false,
+      _hsgGuard: address(0), // no guard
       _verbose: false
     });
   }

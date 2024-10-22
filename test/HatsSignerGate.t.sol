@@ -30,6 +30,7 @@ contract Deployment is TestSuite {
       _expectedError: bytes4(0), // no expected error
       _locked: _locked,
       _claimableFor: _claimableFor,
+      _hsgGuard: address(testGuard),
       _verbose: false
     });
 
@@ -42,6 +43,7 @@ contract Deployment is TestSuite {
     assertEq(address(hatsSignerGate.implementation()), address(singletonHatsSignerGate));
     assertEq(hatsSignerGate.locked(), _locked);
     assertEq(hatsSignerGate.claimableFor(), _claimableFor);
+    assertEq(address(hatsSignerGate.getGuard()), address(testGuard));
   }
 
   function test_andSafe(bool _locked, bool _claimableFor) public {
@@ -52,6 +54,7 @@ contract Deployment is TestSuite {
       _targetThreshold: targetThreshold,
       _locked: _locked,
       _claimableFor: _claimableFor,
+      _hsgGuard: address(testGuard),
       _verbose: false
     });
 
@@ -67,6 +70,7 @@ contract Deployment is TestSuite {
     assertEq(safe.getOwners()[0], address(hatsSignerGate));
     assertEq(hatsSignerGate.locked(), _locked);
     assertEq(hatsSignerGate.claimableFor(), _claimableFor);
+    assertEq(address(hatsSignerGate.getGuard()), address(testGuard));
   }
 
   function test_revert_reinitializeImplementation() public {
@@ -897,8 +901,7 @@ contract MigratingHSG is WithHSGInstanceTest {
     DeployInstance instanceDeployer = new DeployInstance();
 
     // set up the deployment with the same parameters as the existing HSG (except for the nonce)
-    instanceDeployer.prepare(
-      true,
+    instanceDeployer.prepare1(
       address(singletonHatsSignerGate),
       ownerHat,
       signerHats,
@@ -907,8 +910,9 @@ contract MigratingHSG is WithHSGInstanceTest {
       address(safe),
       false,
       false,
-      1
+      address(0) // no guard
     );
+    instanceDeployer.prepare2(true, 1);
 
     // deploy the instance
     newHSG = instanceDeployer.run();
@@ -1398,14 +1402,6 @@ contract SettingOwnerHat is WithHSGInstanceTest {
 }
 
 contract SettingHSGGuard is WithHSGInstanceTest {
-  TestGuard public testGuard;
-
-  function setUp() public override {
-    super.setUp();
-
-    testGuard = new TestGuard(address(hatsSignerGate));
-  }
-
   function test_happy() public {
     vm.expectEmit(true, true, true, true);
     emit GuardableUnowned.ChangedGuard(address(testGuard));
@@ -1445,7 +1441,6 @@ contract SettingHSGGuard is WithHSGInstanceTest {
 }
 
 contract HSGGuarding is WithHSGInstanceTest {
-  TestGuard public testGuard;
   uint256 public disallowedValue = 1337;
   uint256 public goodValue = 9_000_000_000;
   address public recipient = makeAddr("recipient");
@@ -1453,9 +1448,6 @@ contract HSGGuarding is WithHSGInstanceTest {
 
   function setUp() public override {
     super.setUp();
-
-    // create a new test guard contract
-    testGuard = new TestGuard(address(hatsSignerGate));
 
     // set it on our hsg instance
     vm.prank(owner);

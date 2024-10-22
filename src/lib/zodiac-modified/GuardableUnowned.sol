@@ -17,7 +17,7 @@ contract GuardableUnowned {
 
   /// @dev Set a guard that checks transactions before execution.
   /// @param _guard The address of the guard to be used or the 0 address to disable the guard.
-  function setGuard(address _guard) public virtual {
+  function _setGuard(address _guard) internal virtual {
     if (_guard != address(0)) {
       if (!BaseGuard(_guard).supportsInterface(type(IGuard).interfaceId)) {
         revert NotIERC165Compliant(_guard);
