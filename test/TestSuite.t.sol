@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import { Test, console2 } from "../lib/forge-std/src/Test.sol";
 import { IHats } from "../lib/hats-protocol/src/Interfaces/IHats.sol";
-import { HatsSignerGate } from "../src/HatsSignerGate.sol";
+import { HatsSignerGate, IHatsSignerGate } from "../src/HatsSignerGate.sol";
 import { ISafe } from "../src/lib/safe-interfaces/ISafe.sol";
 import { SafeProxyFactory } from "../lib/safe-smart-account/contracts/proxies/SafeProxyFactory.sol";
 import { Enum } from "../lib/safe-smart-account/contracts/common/Enum.sol";
@@ -256,8 +256,7 @@ contract TestSuite is SafeTestHelpers {
   HatsSignerGate public hatsSignerGate;
 
   // Test params
-  uint256 public minThreshold;
-  uint256 public targetThreshold;
+  IHatsSignerGate.ThresholdConfig public thresholdConfig;
   bool public locked;
   TestGuard public tstGuard;
   address[] public tstModules;
@@ -316,8 +315,11 @@ contract TestSuite is SafeTestHelpers {
     signerHat = signerHats[0];
 
     // Set default test HSG params
-    minThreshold = 2;
-    targetThreshold = 2;
+    thresholdConfig = IHatsSignerGate.ThresholdConfig({
+      thresholdType: IHatsSignerGate.TargetThresholdType.ABSOLUTE,
+      min: 2,
+      target: 2
+    });
   }
 
   /*//////////////////////////////////////////////////////////////
@@ -345,8 +347,7 @@ contract TestSuite is SafeTestHelpers {
   function _deployHSG(
     uint256 _ownerHat,
     uint256[] memory _signerHats,
-    uint256 _minThreshold,
-    uint256 _targetThreshold,
+    IHatsSignerGate.ThresholdConfig memory _thresholdConfig,
     address _safe,
     bool _locked,
     bool _claimableFor,
@@ -361,8 +362,7 @@ contract TestSuite is SafeTestHelpers {
       address(singletonHatsSignerGate),
       _ownerHat,
       _signerHats,
-      _minThreshold,
-      _targetThreshold,
+      _thresholdConfig,
       _safe,
       _locked,
       _claimableFor,
@@ -382,8 +382,7 @@ contract TestSuite is SafeTestHelpers {
   function _deployHSGAndSafe(
     uint256 _ownerHat,
     uint256[] memory _signerHats,
-    uint256 _minThreshold,
-    uint256 _targetThreshold,
+    IHatsSignerGate.ThresholdConfig memory _thresholdConfig,
     bool _locked,
     bool _verbose,
     bool _claimableFor,
@@ -396,8 +395,7 @@ contract TestSuite is SafeTestHelpers {
       address(singletonHatsSignerGate),
       _ownerHat,
       _signerHats,
-      _minThreshold,
-      _targetThreshold,
+      _thresholdConfig,
       address(0),
       _locked,
       _claimableFor,
@@ -451,6 +449,25 @@ contract TestSuite is SafeTestHelpers {
       assertTrue(hatsSignerGate.validSignerHats(_signerHats[i]));
     }
   }
+
+  function assertCorrectModules(address[] memory _modules) public view {
+    (address[] memory pagedModules, address next) = hatsSignerGate.getModulesPaginated(SENTINELS, _modules.length);
+    assertEq(pagedModules.length, _modules.length);
+    for (uint256 i; i < _modules.length; ++i) {
+      // getModulesPaginated returns the modules in the reverse order they were added
+      assertEq(_modules[i], pagedModules[_modules.length - i - 1]);
+    }
+    assertEq(next, SENTINELS);
+  }
+
+  function assertEq(IHatsSignerGate.ThresholdConfig memory _actual, IHatsSignerGate.ThresholdConfig memory _expected)
+    public
+    pure
+  {
+    assertEq(uint8(_actual.thresholdType), uint8(_expected.thresholdType), "incorrect threshold type");
+    assertEq(_actual.min, _expected.min, "incorrect min");
+    assertEq(_actual.target, _expected.target, "incorrect target");
+  }
 }
 
 contract WithHSGInstanceTest is TestSuite {
@@ -460,8 +477,7 @@ contract WithHSGInstanceTest is TestSuite {
     (hatsSignerGate, safe) = _deployHSGAndSafe({
       _ownerHat: ownerHat,
       _signerHats: signerHats,
-      _minThreshold: minThreshold,
-      _targetThreshold: targetThreshold,
+      _thresholdConfig: thresholdConfig,
       _locked: false,
       _claimableFor: false,
       _hsgGuard: address(0), // no guard

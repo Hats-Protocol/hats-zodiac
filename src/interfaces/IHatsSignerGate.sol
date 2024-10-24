@@ -7,15 +7,33 @@ import { IHats } from "../../lib/hats-protocol/src/Interfaces/IHats.sol";
 /// @notice Interface for the HatsSignerGate contract
 interface IHatsSignerGate {
   /*//////////////////////////////////////////////////////////////
-                            STRUCTS
+                            DATA TYPES
   //////////////////////////////////////////////////////////////*/
+
+  /// @notice The type of target threshold
+  /// @param ABSOLUTE An absolute number of signatures
+  /// @param PROPORTIONAL A percentage of the total number of signers, in basis points (10000 = 100%)
+  enum TargetThresholdType {
+    ABSOLUTE, // 0
+    PROPORTIONAL // 1
+
+  }
+
+  /// @notice Struct for the threshold configuration
+  /// @param thresholdType The type of target threshold, either ABSOLUTE or PROPORTIONAL
+  /// @param min The minimum threshold
+  /// @param target The target threshold
+  struct ThresholdConfig {
+    TargetThresholdType thresholdType;
+    uint120 min;
+    uint120 target;
+  }
 
   /// @notice Struct for the parameters passed to the `setUp` function
   /// @param ownerHat The ID of the owner hat
   /// @param signerHats The IDs of the signer hats
   /// @param safe The address of the safe
-  /// @param minThreshold The minimum signature threshold
-  /// @param targetThreshold The target signature threshold
+  /// @param thresholdConfig The threshold configuration
   /// @param locked Whether the contract is locked
   /// @param claimableFor Whether signer permissions can be claimed on behalf of valid hat wearers
   /// @param implementation The address of the HatsSignerGate implementation
@@ -25,8 +43,7 @@ interface IHatsSignerGate {
     uint256 ownerHat;
     uint256[] signerHats;
     address safe;
-    uint256 minThreshold;
-    uint256 targetThreshold;
+    ThresholdConfig thresholdConfig;
     bool locked;
     bool claimableFor;
     address implementation;
@@ -56,11 +73,9 @@ interface IHatsSignerGate {
   /// @notice Can't remove a signer if they're still wearing the signer hat
   error StillWearsSignerHat(address signer);
 
-  /// @notice Target threshold must greater than `minThreshold`
-  error InvalidTargetThreshold();
-
-  /// @notice Min threshold cannot be higher than `targetThreshold`
-  error InvalidMinThreshold();
+  /// @notice Invalid threshold configuration
+  // TODO enumerate all the conditions that cause this error
+  error InvalidThresholdConfig();
 
   /// @notice Signers already on the `safe` cannot claim twice
   error SignerAlreadyClaimed(address signer);
@@ -102,11 +117,8 @@ interface IHatsSignerGate {
                               EVENTS
   //////////////////////////////////////////////////////////////*/
 
-  /// @notice Emitted when a new target signature threshold for the `safe` is set
-  event TargetThresholdSet(uint256 threshold);
-
-  /// @notice Emitted when a new minimum signature threshold for the `safe` is set
-  event MinThresholdSet(uint256 threshold);
+  /// @notice Emitted when the threshold configuration is set
+  event ThresholdConfigSet(ThresholdConfig thresholdConfig);
 
   /// @notice Emitted when new approved signer hats are added
   event SignerHatsAdded(uint256[] newSignerHats);
@@ -152,11 +164,8 @@ interface IHatsSignerGate {
   /// @notice The `safe` to which this contract is attached
   function safe() external view returns (ISafe);
 
-  /// @notice The minimum signature threshold for the `safe`
-  function minThreshold() external view returns (uint256);
-
-  /// @notice The highest level signature threshold for the `safe`
-  function targetThreshold() external view returns (uint256);
+  /// @notice The threshold configuration
+  function thresholdConfig() external view returns (ThresholdConfig memory);
 
   /// @notice The address of the HatsSignerGate implementation
   function implementation() external view returns (address);
@@ -221,16 +230,10 @@ interface IHatsSignerGate {
   /// @param _newSignerHats Array of hat ids to add as approved signer hats
   function addSignerHats(uint256[] calldata _newSignerHats) external;
 
-  /// @notice Sets a new target threshold, and changes `safe`'s threshold if appropriate
+  /// @notice Sets a new threshold configuration
   /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.
-  /// @param _targetThreshold The new target threshold to set
-  function setTargetThreshold(uint256 _targetThreshold) external;
-
-  /// @notice Sets a new minimum threshold
-  /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.
-  /// Reverts if `_minThreshold` is greater than `targetThreshold`
-  /// @param _minThreshold The new minimum threshold
-  function setMinThreshold(uint256 _minThreshold) external;
+  /// @param _thresholdConfig The new threshold configuration
+  function setThresholdConfig(ThresholdConfig memory _thresholdConfig) external;
 
   /// @notice Sets whether signer permissions can be claimed on behalf of valid hat wearers
   /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.
