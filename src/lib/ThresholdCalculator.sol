@@ -49,8 +49,11 @@ contract ThresholdCalculator {
   function _getCorrectThreshold(uint256 numOwners) internal view returns (uint256 correctThreshold)   {
     uint256 min = minThreshold;
     uint256 max = targetThreshold;
-    if (numOwners < min) correctThreshold = min;
-    else if (numOwners > max) correctThreshold = max;
-    else correctThreshold = numOwners;
+    
+    if (numOwners > max) {
+        correctThreshold = max;
+    } else {
+        correctThreshold = numOwners;
+    }
   }    
 }

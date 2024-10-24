@@ -40,6 +40,8 @@ interface IHatsSignerGate {
 
   /// @notice Signers are not allowed to disable the HatsSignerGate guard
   error CannotDisableThisGuard(address guard);
+  
+  error FailedUpdatingSafeThreshold();
 
   /// @notice Only the wearer of the owner Hat can make changes to this contract
   error NotOwnerHatWearer();
@@ -55,12 +57,6 @@ interface IHatsSignerGate {
 
   /// @notice Can't remove a signer if they're still wearing the signer hat
   error StillWearsSignerHat(address signer);
-
-  /// @notice Target threshold must greater than `minThreshold`
-  error InvalidTargetThreshold();
-
-  /// @notice Min threshold cannot be higher than `targetThreshold`
-  error InvalidMinThreshold();
 
   /// @notice Signers already on the `safe` cannot claim twice
   error SignerAlreadyClaimed(address signer);
@@ -101,12 +97,6 @@ interface IHatsSignerGate {
   /*//////////////////////////////////////////////////////////////
                               EVENTS
   //////////////////////////////////////////////////////////////*/
-
-  /// @notice Emitted when a new target signature threshold for the `safe` is set
-  event TargetThresholdSet(uint256 threshold);
-
-  /// @notice Emitted when a new minimum signature threshold for the `safe` is set
-  event MinThresholdSet(uint256 threshold);
 
   /// @notice Emitted when new approved signer hats are added
   event SignerHatsAdded(uint256[] newSignerHats);
@@ -151,12 +141,6 @@ interface IHatsSignerGate {
 
   /// @notice The `safe` to which this contract is attached
   function safe() external view returns (ISafe);
-
-  /// @notice The minimum signature threshold for the `safe`
-  function minThreshold() external view returns (uint256);
-
-  /// @notice The highest level signature threshold for the `safe`
-  function targetThreshold() external view returns (uint256);
 
   /// @notice The address of the HatsSignerGate implementation
   function implementation() external view returns (address);

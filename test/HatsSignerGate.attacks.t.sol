@@ -4,6 +4,7 @@ pragma solidity ^0.8.13;
 import { Test, console2 } from "../lib/forge-std/src/Test.sol";
 import { WithHSGInstanceTest, Enum } from "./TestSuite.t.sol";
 import { IHatsSignerGate } from "../src/interfaces/IHatsSignerGate.sol";
+import { ThresholdCalculator } from "../src/lib/ThresholdCalculator.sol";
 
 contract AttacksScenarios is WithHSGInstanceTest {
   function testSignersCannotAddNewModules() public {
@@ -136,7 +137,7 @@ contract AttacksScenarios is WithHSGInstanceTest {
 
     // set target threshold to 1 — should fail
     vm.prank(owner);
-    vm.expectRevert(IHatsSignerGate.InvalidTargetThreshold.selector);
+    vm.expectRevert(ThresholdCalculator.InvalidTargetThreshold.selector);
     hatsSignerGate.setTargetThreshold(1);
   }
 

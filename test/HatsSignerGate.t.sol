@@ -10,6 +10,7 @@ import { IModuleManager } from "../src/lib/safe-interfaces/IModuleManager.sol";
 import { GuardableUnowned } from "../src/lib/zodiac-modified/GuardableUnowned.sol";
 import { ModifierUnowned } from "../src/lib/zodiac-modified/ModifierUnowned.sol";
 import { TestGuard } from "./mocks/TestGuard.sol";
+import { ThresholdCalculator } from "../src/lib/ThresholdCalculator.sol";
 
 contract Deployment is TestSuite {
   // errors from dependencies
@@ -149,7 +150,7 @@ contract SettingTargetThreshold is WithHSGInstanceTest {
 
     vm.prank(owner);
     vm.expectEmit(false, false, false, true);
-    emit IHatsSignerGate.TargetThresholdSet(3);
+    emit ThresholdCalculator.TargetThresholdSet(3);
     hatsSignerGate.setTargetThreshold(3);
 
     assertEq(hatsSignerGate.targetThreshold(), 3);
@@ -161,7 +162,7 @@ contract SettingTargetThreshold is WithHSGInstanceTest {
 
     vm.prank(owner);
     vm.expectEmit(false, false, false, true);
-    emit IHatsSignerGate.TargetThresholdSet(3);
+    emit ThresholdCalculator.TargetThresholdSet(3);
 
     hatsSignerGate.setTargetThreshold(3);
 
@@ -174,7 +175,7 @@ contract SettingTargetThreshold is WithHSGInstanceTest {
 
     vm.prank(owner);
     vm.expectEmit(false, false, false, true);
-    emit IHatsSignerGate.TargetThresholdSet(4);
+    emit ThresholdCalculator.TargetThresholdSet(4);
 
     hatsSignerGate.setTargetThreshold(4);
 
@@ -207,7 +208,7 @@ contract SettingMinThreshold is WithHSGInstanceTest {
     hatsSignerGate.setTargetThreshold(3);
 
     vm.expectEmit(false, false, false, true);
-    emit IHatsSignerGate.MinThresholdSet(3);
+    emit ThresholdCalculator.MinThresholdSet(3);
 
     vm.prank(owner);
     hatsSignerGate.setMinThreshold(3);
@@ -217,7 +218,7 @@ contract SettingMinThreshold is WithHSGInstanceTest {
 
   function testSetInvalidMinThreshold() public {
     vm.prank(owner);
-    vm.expectRevert(IHatsSignerGate.InvalidMinThreshold.selector);
+    vm.expectRevert(ThresholdCalculator.InvalidMinThreshold.selector);
     hatsSignerGate.setMinThreshold(3);
   }
 
