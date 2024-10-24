@@ -710,6 +710,8 @@ contract HatsSignerGate is
     address[] memory owners = safe.getOwners();
     uint256 validSigners = _countValidSigners(owners);
 
+    delete claimedSignerHats[_signer];
+
     if (validSigners < 2 && owners.length == 1) {
       // signerCount could be 0 after reconcileSignerCount
       // make address(this) the only owner
