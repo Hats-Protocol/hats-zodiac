@@ -11,6 +11,7 @@ import { GuardableUnowned } from "./lib/zodiac-modified/GuardableUnowned.sol";
 import { ModifierUnowned } from "./lib/zodiac-modified/ModifierUnowned.sol";
 import { SignatureDecoder } from "../lib/safe-smart-account/contracts/common/SignatureDecoder.sol";
 import { ISafe, Enum } from "./lib/safe-interfaces/ISafe.sol";
+import { ThresholdCalculator } from "./lib/ThresholdCalculator.sol";
 
 /// @title HatsSignerGate
 /// @author Haberdasher Labs
@@ -24,6 +25,7 @@ contract HatsSignerGate is
   GuardableUnowned,
   ModifierUnowned,
   SignatureDecoder,
+  ThresholdCalculator,
   Initializable
 {
   using SafeManagerLib for ISafe;
@@ -65,12 +67,6 @@ contract HatsSignerGate is
 
   /// @inheritdoc IHatsSignerGate
   ISafe public safe;
-
-  /// @inheritdoc IHatsSignerGate
-  uint256 public minThreshold;
-
-  /// @inheritdoc IHatsSignerGate
-  uint256 public targetThreshold;
 
   /// @inheritdoc IHatsSignerGate
   bool public locked;
@@ -189,6 +185,10 @@ contract HatsSignerGate is
     if (_hatIds.length != toClaimCount) revert InvalidArrayLength();
 
     ISafe s = safe;
+    uint256 threshold = s.getThreshold();
+    address[] memory owners = s.getOwners();
+
+    bool initialOwnersState = owners.length == 1 && owners[0] == address(this);
 
     // iterate through the arrays, adding each signer
     for (uint256 i; i < toClaimCount; ++i) {
@@ -200,35 +200,21 @@ contract HatsSignerGate is
 
       // if the signer is not an owner, add them
       if (!s.isOwner(signer)) {
-        // TODO optimize this: is there a way we don't have call `getOwners()` on each iteration?
-        // get the current owners
-        address[] memory owners = s.getOwners();
-
-        // initiate the valid signer count at the current number of valid owners
-        uint256 signerCount = _countValidSigners(owners);
-
-        // initiate the threshold at the current value
-        uint256 threshold = s.getThreshold();
-
         // initiate the addOwnerData, to be conditionally set below
         bytes memory addOwnerData;
+        bool isLastOwner = i == toClaimCount - 1;
 
         // for the first signer, check if the only owner is this contract and swap it out if so
-        if (i == 0 && owners.length == 1 && owners[0] == address(this)) {
+        if (i == 0 && initialOwnersState) {
           addOwnerData = SafeManagerLib.encodeSwapOwnerAction(SafeManagerLib.SENTINELS, address(this), signer);
-        } else {
+        }  else {
           // otherwise, add the claimer as a new owner
-          unchecked {
-            // shouldn't overflow on any reasonable human scale
-            ++signerCount;
+          if (isLastOwner){
+            uint256 correctThreshold = _getCorrectThreshold(owners.length + toClaimCount);
+            addOwnerData = SafeManagerLib.encodeAddOwnerWithThresholdAction(signer, correctThreshold);
+          } else {
+            addOwnerData = SafeManagerLib.encodeAddOwnerWithThresholdAction(signer, threshold);
           }
-
-          // set the threshold to the number of valid signers, if not over the target threshold
-          if (signerCount <= targetThreshold) {
-            threshold = signerCount;
-          }
-          // set up the addOwner call
-          addOwnerData = SafeManagerLib.encodeAddOwnerWithThresholdAction(signer, threshold);
         }
 
         // execute the call
@@ -558,15 +544,7 @@ contract HatsSignerGate is
     emit SignerHatsAdded(_newSignerHats);
   }
 
-  /// @dev Internal function to set the target threshold. Reverts if `_targetThreshold` is lower than `minThreshold`
-  /// @param _targetThreshold The new target threshold to set
-  function _setTargetThreshold(uint256 _targetThreshold) internal {
-    // target threshold cannot be lower than min threshold
-    if (_targetThreshold < minThreshold) revert InvalidTargetThreshold();
-
-    targetThreshold = _targetThreshold;
-    emit TargetThresholdSet(_targetThreshold);
-  }
+  
 
   /// @dev Internal function to set the threshold for the `safe`
   /// @param _threshold The threshold to set on the `safe`
@@ -583,15 +561,7 @@ contract HatsSignerGate is
     }
   }
 
-  /// @dev Internal function to set a new minimum threshold. Only callable by a wearer of the owner hat.
-  /// Reverts if `_minThreshold` is greater than `targetThreshold`
-  /// @param _minThreshold The new minimum threshold
-  function _setMinThreshold(uint256 _minThreshold) internal {
-    if (_minThreshold > targetThreshold) revert InvalidMinThreshold();
-
-    minThreshold = _minThreshold;
-    emit MinThresholdSet(_minThreshold);
-  }
+  
 
   /// @dev Internal function to count the number of valid signers in an array of addresses
   /// @param owners The addresses to check for validity
