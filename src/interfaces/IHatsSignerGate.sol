@@ -19,6 +19,8 @@ interface IHatsSignerGate {
   /// @param locked Whether the contract is locked
   /// @param claimableFor Whether signer permissions can be claimed on behalf of valid hat wearers
   /// @param implementation The address of the HatsSignerGate implementation
+  /// @param hsgGuard The address of the initial guard set on the HatsSignerGate instance
+  /// @param hsgModules The initial modules set on the HatsSignerGate instance
   struct SetupParams {
     uint256 ownerHat;
     uint256[] signerHats;
@@ -28,6 +30,8 @@ interface IHatsSignerGate {
     bool locked;
     bool claimableFor;
     address implementation;
+    address hsgGuard;
+    address[] hsgModules;
   }
 
   /*//////////////////////////////////////////////////////////////
@@ -128,18 +132,6 @@ interface IHatsSignerGate {
 
   /// @notice The Hats Protocol contract address
   function HATS() external view returns (IHats);
-
-  /// @notice The Safe singleton contract address
-  function safeSingleton() external view returns (address);
-
-  /// @notice The Safe fallback library contract address
-  function safeFallbackLibrary() external view returns (address);
-
-  /// @notice The Safe multisend library contract address
-  function safeMultisendLibrary() external view returns (address);
-
-  /// @notice The Safe proxy factory contract address
-  function safeProxyFactory() external view returns (address);
 
   /// @notice The version of this HatsSignerGate contract
   function version() external view returns (string memory);
@@ -291,4 +283,19 @@ interface IHatsSignerGate {
     external
     view
     returns (uint256 validSigCount);
+
+  /// @notice Returns the addresses of the Safe contracts used to deploy new Safes
+  /// @return _safeSingleton The address of the Safe singleton used to deploy new Safes
+  /// @return _safeFallbackLibrary The address of the Safe fallback library used to deploy new Safes
+  /// @return _safeMultisendLibrary The address of the Safe multisend library used to deploy new Safes
+  /// @return _safeProxyFactory The address of the Safe proxy factory used to deploy new Safes
+  function getSafeDeployParamAddresses()
+    external
+    view
+    returns (
+      address _safeSingleton,
+      address _safeFallbackLibrary,
+      address _safeMultisendLibrary,
+      address _safeProxyFactory
+    );
 }
