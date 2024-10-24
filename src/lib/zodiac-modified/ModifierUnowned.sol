@@ -2,14 +2,13 @@
 pragma solidity >=0.7.0 <0.9.0;
 
 import { Enum } from "../../lib/safe-interfaces/ISafe.sol";
-import { ExecutionTracker } from "../../../lib/zodiac/contracts/signature/ExecutionTracker.sol";
 import { IAvatar } from "../../../lib/zodiac/contracts/interfaces/IAvatar.sol";
-import { SignatureChecker } from "../../../lib/zodiac/contracts/signature/SignatureChecker.sol";
 
 /// @title ModifierUnowned - A contract that sits between a Module and an Avatar and enforces some additional logic.
 /// @author Gnosis Guild
-/// @dev Modified from Zodiac's Modifier to enable inheriting contracts to use their preferred owner logic.
-abstract contract ModifierUnowned is ExecutionTracker, SignatureChecker, IAvatar {
+/// @dev Modified from Zodiac's Modifier to enable inheriting contracts to use their preferred owner logic
+/// and to simplify the moduleOnly modifier.
+abstract contract ModifierUnowned is IAvatar {
   address internal constant SENTINEL_MODULES = address(0x1);
   /// Mapping of modules.
   mapping(address => address) internal modules;
@@ -67,25 +66,9 @@ abstract contract ModifierUnowned is ExecutionTracker, SignatureChecker, IAvatar
     --------------------------------------------------
     */
 
-  // TODO potentially simplify to save code size
+  /// @dev Simplified version of the moduleOnly modifier from Zodiac
   modifier moduleOnly() {
-    if (modules[msg.sender] == address(0)) {
-      (bytes32 hash, address signer) = moduleTxSignedBy();
-
-      // is the signer a module?
-      if (modules[signer] == address(0)) {
-        revert NotAuthorized(msg.sender);
-      }
-
-      // is the provided signature fresh?
-      if (consumed[signer][hash]) {
-        revert HashAlreadyConsumed(hash);
-      }
-
-      consumed[signer][hash] = true;
-      emit HashExecuted(hash);
-    }
-
+    if (modules[msg.sender] == address(0)) revert NotAuthorized(msg.sender);
     _;
   }
 
@@ -106,7 +89,7 @@ abstract contract ModifierUnowned is ExecutionTracker, SignatureChecker, IAvatar
   /// @notice Enables a module that can add transactions to the queue
   /// @dev Should be overridden to restrict access, such as to an owner
   /// @param module Address of the module to be enabled
-  function enableModule(address module) public virtual {
+  function _enableModule(address module) internal virtual {
     if (module == address(0) || module == SENTINEL_MODULES) {
       revert InvalidModule(module);
     }
