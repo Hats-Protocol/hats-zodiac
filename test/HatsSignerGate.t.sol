@@ -315,6 +315,24 @@ contract RemovingSigners is WithHSGInstanceTest {
     assertEq(safe.getOwners().length, 1);
     assertEq(safe.getOwners()[0], address(hatsSignerGate));
     assertEq(hatsSignerGate.validSignerCount(), 0);
+    assertEq(hatsSignerGate.claimedSignerHats(signerAddresses[0]), 0);
+
+    assertEq(safe.getThreshold(), 1);
+  }
+
+  function testValidSignerCanClaimAfterPrevRemoved() public {
+    _addSignersSameHat(1, signerHat);
+
+    _setSignerValidity(signerAddresses[0], signerHat, false);
+    hatsSignerGate.removeSigner(signerAddresses[0]);
+    _setSignerValidity(signerAddresses[0], signerHat, true);
+
+    _addSignersSameHat(1, signerHat);
+
+    assertEq(safe.getOwners().length, 1);
+    assertEq(safe.getOwners()[0], signerAddresses[0]);
+    assertEq(hatsSignerGate.validSignerCount(), 1);
+    assertEq(hatsSignerGate.claimedSignerHats(signerAddresses[0]), signerHat);
 
     assertEq(safe.getThreshold(), 1);
   }
