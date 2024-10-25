@@ -163,6 +163,7 @@ Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 103.31s (100.54s CP
 |-----------------------------------------------------|-----------------|--------|--------|--------|---------|
 | Deployment Cost                                     | Deployment Size |        |        |        |         |
 | 1447213                                             | 6424            |        |        |        |         |
+| 1447213                                             | 6424            |        |        |        |         |
 | Function Name                                       | min             | avg    | median | max    | # calls |
 | prepare1                                            | 254403          | 365218 | 382510 | 382750 | 580     |
 | prepare2                                            | 46041           | 48819  | 48829  | 48829  | 580     |
