@@ -821,7 +821,7 @@ contract HatsSignerGate is
   //                     ZODIAC MODIFIER FUNCTIONS
   // //////////////////////////////////////////////////////////////*/
 
-  /// @dev Allows a Module to execute a transaction.
+  /// @dev Allows a Module to execute a call. Delegatecalls are not allowed.
   /// @notice Can only be called by an enabled module.
   /// @notice Must emit ExecutionFromModuleSuccess(address module) if successful.
   /// @notice Must emit ExecutionFromModuleFailure(address module) if unsuccessful.
@@ -835,8 +835,8 @@ contract HatsSignerGate is
     moduleOnly
     returns (bool success)
   {
-    // disallow delegatecalls to unapproved targets
-    if (operation == Enum.Operation.DelegateCall) _checkDelegatecallTarget(to);
+    // disallow delegatecalls
+    if (operation == Enum.Operation.DelegateCall) revert ModulesCannotDelegatecall();
 
     // disallow external calls to the safe
     if (to == address(safe)) revert ModulesCannotCallSafe();
@@ -852,7 +852,7 @@ contract HatsSignerGate is
     }
   }
 
-  /// @dev Allows a Module to execute a transaction and return data
+  /// @dev Allows a Module to execute a call with return data. Delegatecalls are not allowed.
   /// @notice Can only be called by an enabled module.
   /// @notice Must emit ExecutionFromModuleSuccess(address module) if successful.
   /// @notice Must emit ExecutionFromModuleFailure(address module) if unsuccessful.
@@ -866,8 +866,8 @@ contract HatsSignerGate is
     moduleOnly
     returns (bool success, bytes memory returnData)
   {
-    // disallow delegatecalls to unapproved targets
-    if (operation == Enum.Operation.DelegateCall) _checkDelegatecallTarget(to);
+    // disallow delegatecalls
+    if (operation == Enum.Operation.DelegateCall) revert ModulesCannotDelegatecall();
 
     // disallow external calls to the safe
     if (to == address(safe)) revert ModulesCannotCallSafe();

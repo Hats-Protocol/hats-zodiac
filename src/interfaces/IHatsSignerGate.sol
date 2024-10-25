@@ -98,6 +98,9 @@ interface IHatsSignerGate {
   /// @dev This ensures that modules cannot change any of the `safe`'s settings
   error ModulesCannotCallSafe();
 
+  /// @notice Modules enabled on HSG cannot delegatecall
+  error ModulesCannotDelegatecall();
+
   /// @notice The delegatecall target is not enabled
   error DelegatecallTargetNotEnabled();
 
@@ -259,12 +262,12 @@ interface IHatsSignerGate {
   function migrateToNewHSG(address _newHSG, uint256[] calldata _signerHatIds, address[] calldata _signersToMigrate)
     external;
 
-  /// @notice Enables a delegatecall target. Enabled targets can be delegatecalled by the `safe` or its modules.
+  /// @notice Enables a target contract to be delegatecall-able by the `safe`.
   /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.
   /// @param _target The target addressto enable
   function enableDelegatecallTarget(address _target) external;
 
-  /// @notice Disables a delegatecall target. Disabled targets cannot be delegatecalled by the `safe` or its modules.
+  /// @notice Disables a target contract from being delegatecall-able by the `safe`.
   /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.
   /// @param _target The target address to disable
   function disableDelegatecallTarget(address _target) external;

@@ -1871,43 +1871,14 @@ contract ExecutingFromModuleViaHSG is WithHSGInstanceTest {
     hatsSignerGate.execTransactionFromModule(address(safe), transferValue, hex"00", Enum.Operation.Call);
   }
 
-  function test_revert_delegatecallTargetNotEnabled() public {
+  function test_revert_delegateCallsNotAllowed() public {
     address target = makeAddr("target");
 
     bytes memory data = abi.encodeWithSignature("maliciousCall()");
 
-    vm.expectRevert(IHatsSignerGate.DelegatecallTargetNotEnabled.selector);
+    vm.expectRevert(IHatsSignerGate.ModulesCannotDelegatecall.selector);
     vm.prank(newModule);
     hatsSignerGate.execTransactionFromModule(target, 0, data, Enum.Operation.DelegateCall);
-  }
-
-  function test_happy_delegateCall() public {
-    // encode a call that we know will be successful
-    bytes memory data = abi.encodeWithSelector(IHats.isWearerOfHat.selector, signerAddresses[0], signerHat);
-
-    // wrap it in a multisend call
-    bytes memory multisendData = abi.encodePacked(
-      Enum.Operation.Call, // 0 for call; 1 for delegatecall
-      address(hats), // to
-      uint256(0), // value
-      uint256(data.length), // data length
-      data // data
-    );
-
-    // encode the multisend call
-    bytes memory multisendCall = abi.encodeWithSelector(MultiSend.multiSend.selector, multisendData);
-
-    // have the new module send the multisend call to each of the default delegatecall targets
-    for (uint256 i; i < defaultDelegatecallTargets.length; ++i) {
-      vm.expectEmit();
-      emit IModuleManager.ExecutionFromModuleSuccess(address(hatsSignerGate));
-      vm.expectEmit();
-      emit IAvatar.ExecutionFromModuleSuccess(newModule);
-      vm.prank(newModule);
-      hatsSignerGate.execTransactionFromModule(
-        defaultDelegatecallTargets[i], 0, multisendCall, Enum.Operation.DelegateCall
-      );
-    }
   }
 }
 
@@ -1979,43 +1950,14 @@ contract ExecutingFromModuleReturnDataViaHSG is WithHSGInstanceTest {
     hatsSignerGate.execTransactionFromModuleReturnData(address(safe), transferValue, hex"00", Enum.Operation.Call);
   }
 
-  function test_revert_delegatecallTargetNotEnabled() public {
+  function test_revert_delegateCallsNotAllowed() public {
     address target = makeAddr("target");
 
     bytes memory data = abi.encodeWithSignature("maliciousCall()");
 
-    vm.expectRevert(IHatsSignerGate.DelegatecallTargetNotEnabled.selector);
+    vm.expectRevert(IHatsSignerGate.ModulesCannotDelegatecall.selector);
     vm.prank(newModule);
     hatsSignerGate.execTransactionFromModuleReturnData(target, 0, data, Enum.Operation.DelegateCall);
-  }
-
-  function test_success_defaultDelegatecallTargets() public {
-    // encode a call that we know will be successful
-    bytes memory data = abi.encodeWithSelector(IHats.isWearerOfHat.selector, signerAddresses[0], signerHat);
-
-    // wrap it in a multisend call
-    bytes memory multisendData = abi.encodePacked(
-      Enum.Operation.Call, // 0 for call; 1 for delegatecall
-      address(hats), // to
-      uint256(0), // value
-      uint256(data.length), // data length
-      data // data
-    );
-
-    // encode the multisend call
-    bytes memory multisendCall = abi.encodeWithSelector(MultiSend.multiSend.selector, multisendData);
-
-    // have the new module send the multisend call to each of the default delegatecall targets
-    for (uint256 i; i < defaultDelegatecallTargets.length; ++i) {
-      vm.expectEmit();
-      emit IModuleManager.ExecutionFromModuleSuccess(address(hatsSignerGate));
-      vm.expectEmit();
-      emit IAvatar.ExecutionFromModuleSuccess(newModule);
-      vm.prank(newModule);
-      hatsSignerGate.execTransactionFromModuleReturnData(
-        defaultDelegatecallTargets[i], 0, multisendCall, Enum.Operation.DelegateCall
-      );
-    }
   }
 }
 
