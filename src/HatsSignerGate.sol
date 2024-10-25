@@ -166,6 +166,14 @@ contract HatsSignerGate is
 
     // set the initial guard, if any
     if (params.hsgGuard != address(0)) _setGuard(params.hsgGuard);
+
+    // enable default delegatecall targets
+    _setDelegatecallTarget(0xA238CBeb142c10Ef7Ad8442C6D1f9E89e07e7761, true); // multisend v1.3.0 "canonical"
+    _setDelegatecallTarget(0x998739BFdAAdde7C933B942a68053933098f9EDa, true); // multisend v1.3.0 "eip155"
+    _setDelegatecallTarget(0x40A2aCCbd92BCA938b02010E17A5b8929b49130D, true); // multisend-call-only v1.3.0 "canonical"
+    _setDelegatecallTarget(0xA1dabEF33b3B82c7814B6D82A79e50F4AC44102B, true); // multisend-call-only v1.3.0 "eip155"
+    _setDelegatecallTarget(0x38869bf66a61cF6bDB996A6aE40D5853Fd43B526, true); // multisend v1.4.1 "canonical"
+    _setDelegatecallTarget(0x9641d764fc13c8B624c04430C7356C1C7C8102e2, true); // multisend-call-only v1.4.1 "eip155"
   }
 
   /*//////////////////////////////////////////////////////////////
@@ -345,8 +353,7 @@ contract HatsSignerGate is
     _checkUnlocked();
     _checkOwner();
 
-    enabledDelegatecallTargets[_target] = true;
-    emit DelegatecallTargetEnabled(_target, true);
+    _setDelegatecallTarget(_target, true);
   }
 
   /// @inheritdoc IHatsSignerGate
@@ -354,8 +361,7 @@ contract HatsSignerGate is
     _checkUnlocked();
     _checkOwner();
 
-    enabledDelegatecallTargets[_target] = false;
-    emit DelegatecallTargetEnabled(_target, false);
+    _setDelegatecallTarget(_target, false);
   }
 
   /*//////////////////////////////////////////////////////////////
@@ -363,6 +369,7 @@ contract HatsSignerGate is
   //////////////////////////////////////////////////////////////*/
 
   /// @inheritdoc BaseGuard
+  /// @notice Only approved delegatecall targets are allowed
   function checkTransaction(
     address to,
     uint256 value,
@@ -376,6 +383,9 @@ contract HatsSignerGate is
     bytes memory signatures,
     address // msgSender
   ) external override {
+    // disallow delegatecalls to unapproved targets
+    if (operation == Enum.Operation.DelegateCall) _checkDelegatecallTarget(to);
+
     ISafe s = safe; // save SLOADs
 
     // ensure that the call is coming from the safe
@@ -787,6 +797,20 @@ contract HatsSignerGate is
     return currentThreshold;
   }
 
+  /// @dev Internal function to set a delegatecall target
+  /// @param _target The address to set
+  /// @param _enabled Whether to enable or disable the target
+  function _setDelegatecallTarget(address _target, bool _enabled) internal {
+    enabledDelegatecallTargets[_target] = _enabled;
+    emit DelegatecallTargetEnabled(_target, _enabled);
+  }
+
+  /// @dev Internal function to check that a delegatecall target is enabled
+  /// @param _target The address to check
+  function _checkDelegatecallTarget(address _target) internal view {
+    if (!enabledDelegatecallTargets[_target]) revert DelegatecallTargetNotEnabled();
+  }
+
   // solhint-disallow-next-line payable-fallback
   fallback() external {
     // We don't revert on fallback to avoid issues in case of a Safe upgrade
@@ -811,6 +835,9 @@ contract HatsSignerGate is
     moduleOnly
     returns (bool success)
   {
+    // disallow delegatecalls to unapproved targets
+    if (operation == Enum.Operation.DelegateCall) _checkDelegatecallTarget(to);
+
     // disallow external calls to the safe
     if (to == address(safe)) revert ModulesCannotCallSafe();
 
@@ -839,6 +866,9 @@ contract HatsSignerGate is
     moduleOnly
     returns (bool success, bytes memory returnData)
   {
+    // disallow delegatecalls to unapproved targets
+    if (operation == Enum.Operation.DelegateCall) _checkDelegatecallTarget(to);
+
     // disallow external calls to the safe
     if (to == address(safe)) revert ModulesCannotCallSafe();
 

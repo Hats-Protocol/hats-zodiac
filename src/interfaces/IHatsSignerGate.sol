@@ -98,6 +98,9 @@ interface IHatsSignerGate {
   /// @dev This ensures that modules cannot change any of the `safe`'s settings
   error ModulesCannotCallSafe();
 
+  /// @notice The delegatecall target is not enabled
+  error DelegatecallTargetNotEnabled();
+
   /*//////////////////////////////////////////////////////////////
                               EVENTS
   //////////////////////////////////////////////////////////////*/
