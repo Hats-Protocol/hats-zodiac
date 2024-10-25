@@ -1828,3 +1828,72 @@ contract ExecutingFromModuleReturnDataViaHSG is WithHSGInstanceTest {
     hatsSignerGate.execTransactionFromModuleReturnData(address(safe), transferValue, hex"00", Enum.Operation.Call);
   }
 }
+
+contract EnablingDelegatecallTargets is WithHSGInstanceTest {
+  address newTarget = makeAddr("newTarget");
+
+  function test_happy() public {
+    vm.expectEmit();
+    emit IHatsSignerGate.DelegatecallTargetEnabled(newTarget, true);
+    vm.prank(owner);
+    hatsSignerGate.enableDelegatecallTarget(newTarget);
+
+    assertTrue(hatsSignerGate.enabledDelegatecallTargets(newTarget), "new target should be enabled");
+  }
+
+  function test_revert_notOwner() public {
+    vm.expectRevert(IHatsSignerGate.NotOwnerHatWearer.selector);
+    hatsSignerGate.enableDelegatecallTarget(newTarget);
+
+    assertFalse(hatsSignerGate.enabledDelegatecallTargets(newTarget), "new target should not be enabled");
+  }
+
+  function test_revert_locked() public {
+    vm.prank(owner);
+    hatsSignerGate.lock();
+
+    vm.expectRevert(IHatsSignerGate.Locked.selector);
+    vm.prank(owner);
+    hatsSignerGate.enableDelegatecallTarget(newTarget);
+
+    assertFalse(hatsSignerGate.enabledDelegatecallTargets(newTarget), "new target should not be enabled");
+  }
+}
+
+contract DisablingDelegatecallTargets is WithHSGInstanceTest {
+  address newTarget = makeAddr("newTarget");
+
+  function setUp() public override {
+    super.setUp();
+
+    vm.prank(owner);
+    hatsSignerGate.enableDelegatecallTarget(newTarget);
+  }
+
+  function test_happy() public {
+    vm.expectEmit();
+    emit IHatsSignerGate.DelegatecallTargetEnabled(newTarget, false);
+    vm.prank(owner);
+    hatsSignerGate.disableDelegatecallTarget(newTarget);
+
+    assertFalse(hatsSignerGate.enabledDelegatecallTargets(newTarget), "new target should be disabled");
+  }
+
+  function test_revert_notOwner() public {
+    vm.expectRevert(IHatsSignerGate.NotOwnerHatWearer.selector);
+    hatsSignerGate.disableDelegatecallTarget(newTarget);
+
+    assertTrue(hatsSignerGate.enabledDelegatecallTargets(newTarget), "new target should still be enabled");
+  }
+
+  function test_revert_locked() public {
+    vm.prank(owner);
+    hatsSignerGate.lock();
+
+    vm.expectRevert(IHatsSignerGate.Locked.selector);
+    vm.prank(owner);
+    hatsSignerGate.disableDelegatecallTarget(newTarget);
+
+    assertTrue(hatsSignerGate.enabledDelegatecallTargets(newTarget), "new target should still be enabled");
+  }
+}

@@ -61,6 +61,9 @@ contract HatsSignerGate is
   mapping(address => uint256) public claimedSignerHats;
 
   /// @inheritdoc IHatsSignerGate
+  mapping(address => bool) public enabledDelegatecallTargets;
+
+  /// @inheritdoc IHatsSignerGate
   uint256 public ownerHat;
 
   /// @inheritdoc IHatsSignerGate
@@ -335,6 +338,24 @@ contract HatsSignerGate is
       IHatsSignerGate(_newHSG).claimSignersFor(_signerHatIds, _signersToMigrate);
     }
     emit Migrated(_newHSG);
+  }
+
+  /// @inheritdoc IHatsSignerGate
+  function enableDelegatecallTarget(address _target) public {
+    _checkUnlocked();
+    _checkOwner();
+
+    enabledDelegatecallTargets[_target] = true;
+    emit DelegatecallTargetEnabled(_target, true);
+  }
+
+  /// @inheritdoc IHatsSignerGate
+  function disableDelegatecallTarget(address _target) public {
+    _checkUnlocked();
+    _checkOwner();
+
+    enabledDelegatecallTargets[_target] = false;
+    emit DelegatecallTargetEnabled(_target, false);
   }
 
   /*//////////////////////////////////////////////////////////////
