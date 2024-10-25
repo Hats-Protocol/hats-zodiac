@@ -168,12 +168,9 @@ contract HatsSignerGate is
     if (params.hsgGuard != address(0)) _setGuard(params.hsgGuard);
 
     // enable default delegatecall targets
-    _setDelegatecallTarget(0xA238CBeb142c10Ef7Ad8442C6D1f9E89e07e7761, true); // multisend v1.3.0 "canonical"
-    _setDelegatecallTarget(0x998739BFdAAdde7C933B942a68053933098f9EDa, true); // multisend v1.3.0 "eip155"
     _setDelegatecallTarget(0x40A2aCCbd92BCA938b02010E17A5b8929b49130D, true); // multisend-call-only v1.3.0 "canonical"
     _setDelegatecallTarget(0xA1dabEF33b3B82c7814B6D82A79e50F4AC44102B, true); // multisend-call-only v1.3.0 "eip155"
-    _setDelegatecallTarget(0x38869bf66a61cF6bDB996A6aE40D5853Fd43B526, true); // multisend v1.4.1 "canonical"
-    _setDelegatecallTarget(0x9641d764fc13c8B624c04430C7356C1C7C8102e2, true); // multisend-call-only v1.4.1 "eip155"
+    _setDelegatecallTarget(0x9641d764fc13c8B624c04430C7356C1C7C8102e2, true); // multisend-call-only v1.4.1 "canonical"
   }
 
   /*//////////////////////////////////////////////////////////////

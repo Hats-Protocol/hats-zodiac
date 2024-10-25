@@ -284,7 +284,7 @@ contract AttacksScenarios is WithHSGInstanceTest {
 
     // now get the safe tx hash and have attacker sign it with a collaborator
     bytes32 safeTxHash = safe.getTransactionHash(
-      safeMultisendLibrary, // to
+      defaultDelegatecallTargets[0], // to an approved delegatecall target
       0, // value
       multisend, // data
       Enum.Operation.DelegateCall, // operation
@@ -308,7 +308,7 @@ contract AttacksScenarios is WithHSGInstanceTest {
         */
     vm.expectRevert(bytes("GS013"));
     safe.execTransaction(
-      safeMultisendLibrary,
+      defaultDelegatecallTargets[0], // to an approved delegatecall target
       0,
       multisend,
       Enum.Operation.DelegateCall,
