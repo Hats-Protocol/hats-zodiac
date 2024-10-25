@@ -84,11 +84,15 @@ contract HatsSignerGate is
   /// @inheritdoc IHatsSignerGate
   address public implementation;
 
+  /*//////////////////////////////////////////////////////////////
+                          TRANSIENT STATE
+  //////////////////////////////////////////////////////////////*/
+
   /// @dev Temporary record of the existing owners on the `safe` when a transaction is submitted
-  bytes32 internal _existingOwnersHash;
+  bytes32 transient _existingOwnersHash;
 
   /// @dev A simple re-entrency guard
-  uint256 internal _guardEntries;
+  uint256 transient _guardEntries;
 
   /*//////////////////////////////////////////////////////////////
                       AUTHENTICATION FUNCTIONS
@@ -435,10 +439,8 @@ contract HatsSignerGate is
     if (validSigCount < threshold || validSigCount < minThreshold) revert InsufficientValidSignatures();
 
     // record existing owners for post-flight check
-    // TODO use TSTORE
     _existingOwnersHash = keccak256(abi.encode(owners));
 
-    // TODO use TSTORE
     unchecked {
       ++_guardEntries;
     }
