@@ -150,7 +150,12 @@ contract SettingThresholdConfig is WithHSGInstanceTest {
     assertEq(hatsSignerGate.thresholdConfig(), newConfig);
 
     // check that the safe threshold was updated correctly
-    uint256 expectedThreshold = _signerCount < _target ? _signerCount : _target;
+    uint256 expectedThreshold;
+    if (_signerCount > _target) {
+      expectedThreshold = _target;
+    } else {
+      expectedThreshold = _signerCount;
+    }
     assertEq(safe.getThreshold(), expectedThreshold, "incorrect safe threshold");
   }
 
@@ -175,7 +180,13 @@ contract SettingThresholdConfig is WithHSGInstanceTest {
     assertEq(hatsSignerGate.thresholdConfig(), newConfig);
 
     // check that the safe threshold was updated correctly
-    uint256 expectedThreshold = ((_signerCount * hatsSignerGate.thresholdConfig().target) + 9999) / 10_000;
+    uint256 target = hatsSignerGate.thresholdConfig().target;
+    uint256 min = hatsSignerGate.thresholdConfig().min;
+    uint256 expectedThreshold = ((_signerCount * target) + 9999) / 10_000;
+    if (expectedThreshold < min) expectedThreshold = min;
+    if (expectedThreshold > _signerCount) {
+      expectedThreshold = _signerCount;
+    }
     assertEq(safe.getThreshold(), expectedThreshold, "incorrect safe threshold");
   }
 
