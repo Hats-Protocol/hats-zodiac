@@ -676,6 +676,8 @@ contract HatsSignerGate is
     bytes memory removeOwnerData;
     address[] memory owners = safe.getOwners();
 
+    delete claimedSignerHats[_signer];
+
     if (owners.length == 1) {
       // make address(this) the only owner
       removeOwnerData = SafeManagerLib.encodeSwapOwnerAction(SafeManagerLib.SENTINELS, _signer, address(this));

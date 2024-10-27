@@ -2,14 +2,13 @@
 pragma solidity >=0.7.0 <0.9.0;
 
 import { Enum } from "../../lib/safe-interfaces/ISafe.sol";
-import { ExecutionTracker } from "../../../lib/zodiac/contracts/signature/ExecutionTracker.sol";
 import { IAvatar } from "../../../lib/zodiac/contracts/interfaces/IAvatar.sol";
-import { SignatureChecker } from "../../../lib/zodiac/contracts/signature/SignatureChecker.sol";
 
 /// @title ModifierUnowned - A contract that sits between a Module and an Avatar and enforces some additional logic.
 /// @author Gnosis Guild
-/// @dev Modified from Zodiac's Modifier to enable inheriting contracts to use their preferred owner logic.
-abstract contract ModifierUnowned is ExecutionTracker, SignatureChecker, IAvatar {
+/// @dev Modified from Zodiac's Modifier to enable inheriting contracts to use their preferred owner logic
+/// and to simplify the moduleOnly modifier.
+abstract contract ModifierUnowned is IAvatar {
   address internal constant SENTINEL_MODULES = address(0x1);
   /// Mapping of modules.
   mapping(address => address) internal modules;
