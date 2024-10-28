@@ -192,9 +192,11 @@ contract HatsSignerGate is
     uint256 threshold = s.getThreshold();
     address[] memory owners = s.getOwners();
 
+    // check if the only owner is this contract, meaning no owners have been added yet
     bool isInitialOwnersState = owners.length == 1 && owners[0] == address(this);
-    uint256 newNumOnwers = owners.length;
 
+    // count the number of owners after the claim
+    uint256 newNumOnwers = owners.length;
     // iterate through the arrays, adding each signer
     for (uint256 i; i < toClaimCount; ++i) {
       uint256 hatId = _hatIds[i];
@@ -222,14 +224,10 @@ contract HatsSignerGate is
       }
     }
 
-    // calculate the correct threshold
-    uint256 newThreshold = _getCorrectThreshold(newNumOnwers);
-    // the threshold cannot be higher than the number of owners
-    if (newThreshold > newNumOnwers) newThreshold = newNumOnwers;
-
-    // update the safe threshold
+    // update the static threshold if necessary
+    uint256 newThreshold = _updatedStaticThreshold(newNumOnwers);
     if (newThreshold != threshold) {
-      if (!s.execChangeThreshold(newThreshold)) revert SafeManagerLib.FailedExecAddSigner();
+      safe.execChangeThreshold(newThreshold);
     }
   }
 
@@ -656,10 +654,8 @@ contract HatsSignerGate is
         // set up the swapOwner call
         addOwnerData = SafeManagerLib.encodeSwapOwnerAction(SafeManagerLib.SENTINELS, address(this), _signer);
       } else {
-        // set the threshold to the correct threshold
-        uint256 newNumOwners = owners.length + 1;
-        uint256 newThreshold = _getCorrectThreshold(newNumOwners);
-        if (newThreshold > newNumOwners) newThreshold = newNumOwners;
+        // update the threshold
+        uint256 newThreshold = _updatedStaticThreshold(owners.length + 1);
         // set up the addOwner call
         addOwnerData = SafeManagerLib.encodeAddOwnerWithThresholdAction(_signer, newThreshold);
       }
@@ -682,10 +678,8 @@ contract HatsSignerGate is
       // make address(this) the only owner
       removeOwnerData = SafeManagerLib.encodeSwapOwnerAction(SafeManagerLib.SENTINELS, _signer, address(this));
     } else {
-      // ensure that the threshold is correct
-      uint256 newOwnerCount = owners.length - 1;
-      uint256 newThreshold = _getCorrectThreshold(newOwnerCount);
-      if (newThreshold > newOwnerCount) newThreshold = newOwnerCount;
+      // update the threshold
+      uint256 newThreshold = _updatedStaticThreshold(owners.length - 1);
 
       removeOwnerData =
         SafeManagerLib.encodeRemoveOwnerAction(SafeManagerLib.findPrevOwner(owners, _signer), _signer, newThreshold);
@@ -714,6 +708,14 @@ contract HatsSignerGate is
       _threshold = ((numOwners * config.target) + 9999) / 10_000;
       // ensure that the threshold is not lower than 1
       if (_threshold < config.min) _threshold = config.min;
+    }
+  }
+
+  function _updatedStaticThreshold(uint256 numOwners) internal view returns (uint256 _threshold) {
+    _threshold = _getCorrectThreshold(numOwners);
+    // the static threshold cannot be higher than the number of owners
+    if (_threshold > numOwners) {
+      _threshold = numOwners;
     }
   }
 
