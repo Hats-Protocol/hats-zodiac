@@ -834,11 +834,8 @@ contract HatsSignerGate is
     moduleOnly
     returns (bool success)
   {
-    // disallow delegatecalls
-    if (operation == Enum.Operation.DelegateCall) revert ModulesCannotDelegatecall();
-
-    // disallow external calls to the safe
-    if (to == address(safe)) revert ModulesCannotCallSafe();
+    // preflight checks
+    _checkModuleTransaction(to, operation);
 
     // forward the call to the safe
     success = safe.execTransactionFromModule(to, value, data, operation);
@@ -849,6 +846,9 @@ contract HatsSignerGate is
     } else {
       emit ExecutionFromModuleFailure(msg.sender);
     }
+
+    // postflight checks
+    _checkAfterModuleExecution();
   }
 
   /// @dev Allows a Module to execute a call with return data. Delegatecalls are not allowed.
@@ -865,11 +865,8 @@ contract HatsSignerGate is
     moduleOnly
     returns (bool success, bytes memory returnData)
   {
-    // disallow delegatecalls
-    if (operation == Enum.Operation.DelegateCall) revert ModulesCannotDelegatecall();
-
-    // disallow external calls to the safe
-    if (to == address(safe)) revert ModulesCannotCallSafe();
+    // preflight checks
+    _checkModuleTransaction(to, operation);
 
     // forward the call to the safe
     (success, returnData) = safe.execTransactionFromModuleReturnData(to, value, data, operation);
@@ -880,6 +877,9 @@ contract HatsSignerGate is
     } else {
       emit ExecutionFromModuleFailure(msg.sender);
     }
+
+    // postflight checks
+    _checkAfterModuleExecution();
   }
 
   /// @inheritdoc ModifierUnowned
@@ -911,4 +911,21 @@ contract HatsSignerGate is
     _checkOwner();
     _setGuard(_guard);
   }
+
+  /// @dev Internal function to check that a module transaction is valid
+  /// @param _to The destination address of the transaction
+  /// @param _operation The operation type of the transaction
+  function _checkModuleTransaction(address _to, Enum.Operation _operation)
+    internal
+    view
+  {
+    // disallow delegatecalls
+    if (_operation == Enum.Operation.DelegateCall) revert ModulesCannotDelegatecall();
+
+    // disallow external calls to the safe
+    if (_to == address(safe)) revert ModulesCannotCallSafe();
+  }
+
+  /// @dev Internal function to check that a module transaction has been executed successfully
+  function _checkAfterModuleExecution() internal view { }
 }
