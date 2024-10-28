@@ -211,7 +211,7 @@ contract HatsSignerGate is
         // for the first signer, check if the only owner is this contract and swap it out if so
         if (i == 0 && isInitialOwnersState) {
           addOwnerData = SafeManagerLib.encodeSwapOwnerAction(SafeManagerLib.SENTINELS, address(this), signer);
-        }  else {
+        } else {
           // otherwise, add the claimer as a new owner
           addOwnerData = SafeManagerLib.encodeAddOwnerWithThresholdAction(signer, threshold);
           newNumOnwers++;
@@ -222,7 +222,7 @@ contract HatsSignerGate is
       }
     }
 
-    // calculate the correct threshold 
+    // calculate the correct threshold
     uint256 newThreshold = _getCorrectThreshold(newNumOnwers);
     // the threshold cannot be higher than the number of owners
     if (newThreshold > newNumOnwers) newThreshold = newNumOnwers;
@@ -279,7 +279,7 @@ contract HatsSignerGate is
       newThreshold = owners.length;
     }
 
-    if (newThreshold != safe.getThreshold()){
+    if (newThreshold != safe.getThreshold()) {
       safe.execChangeThreshold(newThreshold);
     }
   }
@@ -392,7 +392,7 @@ contract HatsSignerGate is
     uint256 threshold = s.getThreshold();
 
     if (threshold != correctThreshold) revert InsufficientValidSignatures();
-    
+
     uint256 validSigCount = countValidSignatures(txHash, signatures, threshold);
 
     // revert if there aren't enough valid signatures
