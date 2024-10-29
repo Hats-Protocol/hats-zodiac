@@ -61,6 +61,9 @@ contract HatsSignerGate is
   mapping(address => uint256) public claimedSignerHats;
 
   /// @inheritdoc IHatsSignerGate
+  mapping(address => bool) public enabledDelegatecallTargets;
+
+  /// @inheritdoc IHatsSignerGate
   uint256 public ownerHat;
 
   /// @inheritdoc IHatsSignerGate
@@ -78,11 +81,15 @@ contract HatsSignerGate is
   /// @inheritdoc IHatsSignerGate
   address public implementation;
 
+  /*//////////////////////////////////////////////////////////////
+                          TRANSIENT STATE
+  //////////////////////////////////////////////////////////////*/
+
   /// @dev Temporary record of the existing owners on the `safe` when a transaction is submitted
-  bytes32 internal _existingOwnersHash;
+  bytes32 transient _existingOwnersHash;
 
   /// @dev A simple re-entrency guard
-  uint256 internal _guardEntries;
+  uint256 transient _guardEntries;
 
   /*//////////////////////////////////////////////////////////////
                       AUTHENTICATION FUNCTIONS
@@ -160,6 +167,11 @@ contract HatsSignerGate is
 
     // set the initial guard, if any
     if (params.hsgGuard != address(0)) _setGuard(params.hsgGuard);
+
+    // enable default delegatecall targets
+    _setDelegatecallTarget(0x40A2aCCbd92BCA938b02010E17A5b8929b49130D, true); // multisend-call-only v1.3.0 "canonical"
+    _setDelegatecallTarget(0xA1dabEF33b3B82c7814B6D82A79e50F4AC44102B, true); // multisend-call-only v1.3.0 "eip155"
+    _setDelegatecallTarget(0x9641d764fc13c8B624c04430C7356C1C7C8102e2, true); // multisend-call-only v1.4.1 "canonical"
   }
 
   /*//////////////////////////////////////////////////////////////
@@ -331,11 +343,28 @@ contract HatsSignerGate is
     emit Migrated(_newHSG);
   }
 
+  /// @inheritdoc IHatsSignerGate
+  function enableDelegatecallTarget(address _target) public {
+    _checkUnlocked();
+    _checkOwner();
+
+    _setDelegatecallTarget(_target, true);
+  }
+
+  /// @inheritdoc IHatsSignerGate
+  function disableDelegatecallTarget(address _target) public {
+    _checkUnlocked();
+    _checkOwner();
+
+    _setDelegatecallTarget(_target, false);
+  }
+
   /*//////////////////////////////////////////////////////////////
                       ZODIAC GUARD FUNCTIONS
   //////////////////////////////////////////////////////////////*/
 
   /// @inheritdoc BaseGuard
+  /// @notice Only approved delegatecall targets are allowed
   function checkTransaction(
     address to,
     uint256 value,
@@ -349,6 +378,9 @@ contract HatsSignerGate is
     bytes memory signatures,
     address // msgSender
   ) external override {
+    // disallow delegatecalls to unapproved targets
+    if (operation == Enum.Operation.DelegateCall) _checkDelegatecallTarget(to);
+
     ISafe s = safe; // save SLOADs
 
     // ensure that the call is coming from the safe
@@ -405,10 +437,8 @@ contract HatsSignerGate is
     if (validSigCount < threshold) revert InsufficientValidSignatures();
 
     // record existing owners for post-flight check
-    // TODO use TSTORE
     _existingOwnersHash = keccak256(abi.encode(owners));
 
-    // TODO use TSTORE
     unchecked {
       ++_guardEntries;
     }
@@ -742,6 +772,20 @@ contract HatsSignerGate is
     emit HSGLocked();
   }
 
+  /// @dev Internal function to set a delegatecall target
+  /// @param _target The address to set
+  /// @param _enabled Whether to enable or disable the target
+  function _setDelegatecallTarget(address _target, bool _enabled) internal {
+    enabledDelegatecallTargets[_target] = _enabled;
+    emit DelegatecallTargetEnabled(_target, _enabled);
+  }
+
+  /// @dev Internal function to check that a delegatecall target is enabled
+  /// @param _target The address to check
+  function _checkDelegatecallTarget(address _target) internal view {
+    if (!enabledDelegatecallTargets[_target]) revert DelegatecallTargetNotEnabled();
+  }
+
   // solhint-disallow-next-line payable-fallback
   fallback() external {
     // We don't revert on fallback to avoid issues in case of a Safe upgrade
@@ -752,7 +796,7 @@ contract HatsSignerGate is
   //                     ZODIAC MODIFIER FUNCTIONS
   // //////////////////////////////////////////////////////////////*/
 
-  /// @dev Allows a Module to execute a transaction.
+  /// @dev Allows a Module to execute a call. Delegatecalls are not allowed.
   /// @notice Can only be called by an enabled module.
   /// @notice Must emit ExecutionFromModuleSuccess(address module) if successful.
   /// @notice Must emit ExecutionFromModuleFailure(address module) if unsuccessful.
@@ -766,8 +810,8 @@ contract HatsSignerGate is
     moduleOnly
     returns (bool success)
   {
-    // disallow external calls to the safe
-    if (to == address(safe)) revert ModulesCannotCallSafe();
+    // preflight checks
+    _checkModuleTransaction(to, operation);
 
     // forward the call to the safe
     success = safe.execTransactionFromModule(to, value, data, operation);
@@ -778,9 +822,12 @@ contract HatsSignerGate is
     } else {
       emit ExecutionFromModuleFailure(msg.sender);
     }
+
+    // postflight checks
+    _checkAfterModuleExecution();
   }
 
-  /// @dev Allows a Module to execute a transaction and return data
+  /// @dev Allows a Module to execute a call with return data. Delegatecalls are not allowed.
   /// @notice Can only be called by an enabled module.
   /// @notice Must emit ExecutionFromModuleSuccess(address module) if successful.
   /// @notice Must emit ExecutionFromModuleFailure(address module) if unsuccessful.
@@ -794,8 +841,8 @@ contract HatsSignerGate is
     moduleOnly
     returns (bool success, bytes memory returnData)
   {
-    // disallow external calls to the safe
-    if (to == address(safe)) revert ModulesCannotCallSafe();
+    // preflight checks
+    _checkModuleTransaction(to, operation);
 
     // forward the call to the safe
     (success, returnData) = safe.execTransactionFromModuleReturnData(to, value, data, operation);
@@ -806,6 +853,9 @@ contract HatsSignerGate is
     } else {
       emit ExecutionFromModuleFailure(msg.sender);
     }
+
+    // postflight checks
+    _checkAfterModuleExecution();
   }
 
   /// @inheritdoc ModifierUnowned
@@ -837,4 +887,21 @@ contract HatsSignerGate is
     _checkOwner();
     _setGuard(_guard);
   }
+
+  /// @dev Internal function to check that a module transaction is valid
+  /// @param _to The destination address of the transaction
+  /// @param _operation The operation type of the transaction
+  function _checkModuleTransaction(address _to, Enum.Operation _operation)
+    internal
+    view
+  {
+    // disallow delegatecalls
+    if (_operation == Enum.Operation.DelegateCall) revert ModulesCannotDelegatecall();
+
+    // disallow external calls to the safe
+    if (_to == address(safe)) revert ModulesCannotCallSafe();
+  }
+
+  /// @dev Internal function to check that a module transaction has been executed successfully
+  function _checkAfterModuleExecution() internal view { }
 }
