@@ -166,8 +166,9 @@ contract SettingThresholdConfig is WithHSGInstanceTest {
 
     // check that the safe threshold was updated correctly
     uint256 expectedThreshold;
-    if (_signerCount > _target) {
-      expectedThreshold = _target;
+    uint256 target = hatsSignerGate.thresholdConfig().target;
+    if (_signerCount > target) {
+      expectedThreshold = target;
     } else {
       expectedThreshold = _signerCount;
     }
