@@ -189,7 +189,7 @@ interface IHatsSignerGate {
   /// {IHatsSignerGate.SetupParams}
   function setUp(bytes calldata initializeParams) external payable;
 
-  /// @notice Claims signer permissions for a valid wearer of `_hatId` on behalf of `_signer`.
+  /// @notice Claims signer permissions for the caller. Must be a valid wearer of `_hatId`.
   /// @dev If the `_signer` is not already an owner on the `safe`, they are added as a new owner.
   /// @param _hatId The hat id to claim signer rights for
   function claimSigner(uint256 _hatId) external;
@@ -210,11 +210,6 @@ interface IHatsSignerGate {
   /// @notice Removes an invalid signer from the `safe`, updating the threshold if appropriate
   /// @param _signer The address to remove if not a valid signer
   function removeSigner(address _signer) external;
-
-  /// @notice Tallies the number of existing `safe` owners that wear a signer hat and updates the `safe` threshold if
-  /// necessary
-  /// @dev Does NOT remove invalid `safe` owners
-  // function reconcileSignerCount() external;
 
   /// @notice Irreversibly locks the contract, preventing any further changes to the contract's settings.
   /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.

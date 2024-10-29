@@ -189,7 +189,9 @@ contract HatsSignerGate is
     if (_hatIds.length != toClaimCount) revert InvalidArrayLength();
 
     ISafe s = safe;
+    // get the current threshold
     uint256 threshold = s.getThreshold();
+    // get the current owners
     address[] memory owners = s.getOwners();
 
     // check if the only owner is this contract, meaning no owners have been added yet
@@ -197,6 +199,7 @@ contract HatsSignerGate is
 
     // count the number of owners after the claim
     uint256 newNumOnwers = owners.length;
+
     // iterate through the arrays, adding each signer
     for (uint256 i; i < toClaimCount; ++i) {
       uint256 hatId = _hatIds[i];
@@ -224,8 +227,8 @@ contract HatsSignerGate is
       }
     }
 
-    // update the static threshold if necessary
-    uint256 newThreshold = _updatedStaticThreshold(newNumOnwers);
+    // update the threshold if necessary
+    uint256 newThreshold = _getThreshold(newNumOnwers);
     if (newThreshold != threshold) {
       safe.execChangeThreshold(newThreshold);
     }
@@ -269,17 +272,17 @@ contract HatsSignerGate is
     _checkOwner();
     _setThresholdConfig(_config);
 
-    // update the safe threshold
+    // update the safe's threshold to match the new config
     address[] memory owners = safe.getOwners();
-    uint256 newThreshold = _getCorrectThreshold(owners.length);
-    // console2.log("correct threshold", newThreshold);
+    // get the required amount of valid signatures according to the new threshold config
+    // and the current number of owners
+    uint256 newThreshold = _getRequiredValidSignatures(owners.length);
+    // the safe's threshold cannot be higher than the number of owners (safe's invariant)
     if (newThreshold > owners.length) {
       newThreshold = owners.length;
     }
 
-    if (newThreshold != safe.getThreshold()) {
-      safe.execChangeThreshold(newThreshold);
-    }
+    safe.execChangeThreshold(newThreshold);
   }
 
   /// @inheritdoc IHatsSignerGate
@@ -386,10 +389,15 @@ contract HatsSignerGate is
 
     // get the safe owners
     address[] memory owners = s.getOwners();
-    uint256 correctThreshold = _getCorrectThreshold(owners.length);
+    // get the required amount of valid signatures according to the current number of owners and the threshold config
+    uint256 requiredValidSignatures = _getRequiredValidSignatures(owners.length);
+    // get the current threshold from the safe
     uint256 threshold = s.getThreshold();
 
-    if (threshold != correctThreshold) revert InsufficientValidSignatures();
+    // the safe's threshold is always the minimum between the required amount of valid signatures and the number of
+    // owners. if the threshold is lower than the required amount of valid signatures, it means that there are currently
+    // not enough owners to approve the tx
+    if (threshold != requiredValidSignatures) revert InsufficientValidSignatures();
 
     uint256 validSigCount = countValidSignatures(txHash, signatures, threshold);
 
@@ -436,7 +444,7 @@ contract HatsSignerGate is
     address[] memory owners = s.getOwners();
 
     // prevent signers from changing the threshold
-    if (s.getThreshold() != _getCorrectThreshold(owners.length)) revert SignersCannotChangeThreshold();
+    if (s.getThreshold() != _getRequiredValidSignatures(owners.length)) revert SignersCannotChangeThreshold();
 
     // prevent signers from changing the owners
     if (keccak256(abi.encode(owners)) != _existingOwnersHash) revert SignersCannotChangeOwners();
@@ -570,9 +578,11 @@ contract HatsSignerGate is
     emit SignerHatsAdded(_newSignerHats);
   }
 
+  /// @dev Internal function to set the threshold config
+  /// @param _config the new threshold config
   function _setThresholdConfig(ThresholdConfig memory _config) internal {
     if (_config.thresholdType == TargetThresholdType.ABSOLUTE) {
-      // absolute targetthreshold cannot be lower than min threshold
+      // absolute target threshold cannot be lower than min threshold
       if (_config.target < _config.min) revert InvalidThresholdConfig();
     } else if (_config.thresholdType == TargetThresholdType.PROPORTIONAL) {
       // proportional threshold cannot be greater than 100%
@@ -655,7 +665,7 @@ contract HatsSignerGate is
         addOwnerData = SafeManagerLib.encodeSwapOwnerAction(SafeManagerLib.SENTINELS, address(this), _signer);
       } else {
         // update the threshold
-        uint256 newThreshold = _updatedStaticThreshold(owners.length + 1);
+        uint256 newThreshold = _getThreshold(owners.length + 1);
         // set up the addOwner call
         addOwnerData = SafeManagerLib.encodeAddOwnerWithThresholdAction(_signer, newThreshold);
       }
@@ -679,7 +689,7 @@ contract HatsSignerGate is
       removeOwnerData = SafeManagerLib.encodeSwapOwnerAction(SafeManagerLib.SENTINELS, _signer, address(this));
     } else {
       // update the threshold
-      uint256 newThreshold = _updatedStaticThreshold(owners.length - 1);
+      uint256 newThreshold = _getThreshold(owners.length - 1);
 
       removeOwnerData =
         SafeManagerLib.encodeRemoveOwnerAction(SafeManagerLib.findPrevOwner(owners, _signer), _signer, newThreshold);
@@ -689,31 +699,38 @@ contract HatsSignerGate is
     if (!safe.execSafeTransactionFromHSG(removeOwnerData)) revert SafeManagerLib.FailedExecRemoveSigner();
   }
 
-  /// @dev Internal function to calculate the threshold that `safe` should have, given the correct `signerCount` and
-  /// threshold config
-  /// @return _threshold The correct threshold
-  function _getCorrectThreshold(uint256 numOwners) internal view returns (uint256 _threshold) {
+  /// @dev Internal function to calculate the required amount of valid signatures according to the current number of
+  /// owners in the safe and the threshold config
+  /// @param numOwners The number of owners in the safe
+  /// @return _requiredValidSignatures The required amount of valid signatures
+  function _getRequiredValidSignatures(uint256 numOwners) internal view returns (uint256 _requiredValidSignatures) {
     // get the threshold config
     ThresholdConfig memory config = _thresholdConfig;
 
     // calculate the correct threshold
     if (config.thresholdType == TargetThresholdType.ABSOLUTE) {
       // ABSOLUTE
-      if (numOwners < config.min) _threshold = config.min;
-      else if (numOwners > config.target) _threshold = config.target;
-      else _threshold = numOwners;
+      if (numOwners < config.min) _requiredValidSignatures = config.min;
+      else if (numOwners > config.target) _requiredValidSignatures = config.target;
+      else _requiredValidSignatures = numOwners;
     } else {
       // PROPORTIONAL
       // add 9999 to round up
-      _threshold = ((numOwners * config.target) + 9999) / 10_000;
-      // ensure that the threshold is not lower than 1
-      if (_threshold < config.min) _threshold = config.min;
+      _requiredValidSignatures = ((numOwners * config.target) + 9999) / 10_000;
+      // ensure that the threshold is not lower than the min threshold
+      if (_requiredValidSignatures < config.min) _requiredValidSignatures = config.min;
     }
   }
 
-  function _updatedStaticThreshold(uint256 numOwners) internal view returns (uint256 _threshold) {
-    _threshold = _getCorrectThreshold(numOwners);
-    // the static threshold cannot be higher than the number of owners
+  /// @dev Internal function to get the safe's threshold according to the current number of owners and the threshold
+  /// config. The threshold is always the minimum between the required amount of valid signatures and the number of
+  /// owners
+  /// @param numOwners The number of owners in the safe
+  /// @return _threshold The safe's threshold
+  function _getThreshold(uint256 numOwners) internal view returns (uint256 _threshold) {
+    // get the required amount of valid signatures according to the current number of owners and the threshold config
+    _threshold = _getRequiredValidSignatures(numOwners);
+    // the threshold cannot be higher than the number of owners
     if (_threshold > numOwners) {
       _threshold = numOwners;
     }
