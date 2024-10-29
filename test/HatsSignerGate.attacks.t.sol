@@ -35,8 +35,13 @@ contract AttacksScenarios is WithHSGInstanceTest {
 
   function testTargetSigAttackFails() public {
     // set target threshold to 5
+    IHatsSignerGate.ThresholdConfig memory newConfig = IHatsSignerGate.ThresholdConfig({
+      thresholdType: IHatsSignerGate.TargetThresholdType.ABSOLUTE,
+      min: 2,
+      target: 5
+    });
     vm.prank(owner);
-    hatsSignerGate.setTargetThreshold(5);
+    hatsSignerGate.setThresholdConfig(newConfig);
     // initially there are 5 signers
     _addSignersSameHat(5, signerHat);
 
@@ -82,7 +87,9 @@ contract AttacksScenarios is WithHSGInstanceTest {
   }
 
   function testRemoveSignerCorrectlyUpdates() public {
-    assertEq(hatsSignerGate.targetThreshold(), 2, "target threshold");
+    // sanity check that the min threshold is 2
+    assertEq(hatsSignerGate.thresholdConfig().min, 2);
+
     // start with 5 valid signers
     _addSignersSameHat(5, signerHat);
 
@@ -98,7 +105,7 @@ contract AttacksScenarios is WithHSGInstanceTest {
 
     // signer count should be 4 and threshold at target
     assertEq(hatsSignerGate.validSignerCount(), 4, "valid signer count");
-    assertEq(safe.getThreshold(), hatsSignerGate.targetThreshold(), "ending threshold");
+    assertEq(safe.getThreshold(), hatsSignerGate.thresholdConfig().target, "ending threshold");
   }
 
   function testCanClaimToReplaceInvalidSignerAtMaxSigner() public {
@@ -118,26 +125,32 @@ contract AttacksScenarios is WithHSGInstanceTest {
   function testSetTargetThresholdUpdatesThresholdCorrectly() public {
     // set target threshold to 5
     vm.prank(owner);
-    hatsSignerGate.setTargetThreshold(5);
+    hatsSignerGate.setThresholdConfig(
+      IHatsSignerGate.ThresholdConfig({ thresholdType: IHatsSignerGate.TargetThresholdType.ABSOLUTE, min: 2, target: 5 })
+    );
     // add 5 valid signers
     _addSignersSameHat(5, signerHat);
     // one loses their hat
     _setSignerValidity(signerAddresses[4], signerHat, false);
     // lower target threshold to 4
     vm.prank(owner);
-    hatsSignerGate.setTargetThreshold(4);
+    hatsSignerGate.setThresholdConfig(
+      IHatsSignerGate.ThresholdConfig({ thresholdType: IHatsSignerGate.TargetThresholdType.ABSOLUTE, min: 2, target: 4 })
+    );
     // since hatsSignerGate.validSignerCount() is also 4, the threshold should also be 4
     assertEq(safe.getThreshold(), 4, "threshold");
   }
 
-  function testSetTargetTresholdCannotSetBelowMinThreshold() public {
-    assertEq(hatsSignerGate.minThreshold(), 2, "min threshold");
-    assertEq(hatsSignerGate.targetThreshold(), 2, "target threshold");
+  function testSetTargetThresholdCannotSetBelowMinThreshold() public {
+    assertEq(hatsSignerGate.thresholdConfig().min, 2, "min threshold");
+    assertEq(hatsSignerGate.thresholdConfig().target, 2, "target threshold");
 
     // set target threshold to 1 — should fail
     vm.prank(owner);
-    vm.expectRevert(IHatsSignerGate.InvalidTargetThreshold.selector);
-    hatsSignerGate.setTargetThreshold(1);
+    vm.expectRevert(IHatsSignerGate.InvalidThresholdConfig.selector);
+    hatsSignerGate.setThresholdConfig(
+      IHatsSignerGate.ThresholdConfig({ thresholdType: IHatsSignerGate.TargetThresholdType.ABSOLUTE, min: 2, target: 1 })
+    );
   }
 
   function testAttackerCannotExploitSigHandlingDifferences() public {
@@ -145,7 +158,9 @@ contract AttacksScenarios is WithHSGInstanceTest {
     _addSignersSameHat(4, signerHat);
     // set target threshold (and therefore actual threshold) to 3
     vm.prank(owner);
-    hatsSignerGate.setTargetThreshold(3);
+    hatsSignerGate.setThresholdConfig(
+      IHatsSignerGate.ThresholdConfig({ thresholdType: IHatsSignerGate.TargetThresholdType.ABSOLUTE, min: 2, target: 3 })
+    );
     assertEq(safe.getThreshold(), 3, "initial threshold");
     assertEq(safe.nonce(), 0, "pre nonce");
     // invalidate the 3rd signer, who will be our attacker

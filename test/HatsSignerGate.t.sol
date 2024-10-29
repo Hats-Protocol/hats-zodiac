@@ -16,16 +16,6 @@ contract Deployment is TestSuite {
   // errors from dependencies
   error InvalidInitialization();
 
-  function assertCorrectModules(address[] memory _modules) public view {
-    (address[] memory pagedModules, address next) = hatsSignerGate.getModulesPaginated(SENTINELS, _modules.length);
-    assertEq(pagedModules.length, _modules.length);
-    for (uint256 i; i < _modules.length; ++i) {
-      // getModulesPaginated returns the modules in the reverse order they were added
-      assertEq(_modules[i], pagedModules[_modules.length - i - 1]);
-    }
-    assertEq(next, SENTINELS);
-  }
-
   function test_onlyHSG(bool _locked, bool _claimableFor) public {
     // deploy safe with this contract as the single owner
     address[] memory owners = new address[](1);
@@ -35,8 +25,7 @@ contract Deployment is TestSuite {
     hatsSignerGate = _deployHSG({
       _ownerHat: ownerHat,
       _signerHats: signerHats,
-      _minThreshold: minThreshold,
-      _targetThreshold: targetThreshold,
+      _thresholdConfig: thresholdConfig,
       _safe: address(testSafe),
       _expectedError: bytes4(0), // no expected error
       _locked: _locked,
@@ -48,8 +37,7 @@ contract Deployment is TestSuite {
 
     assertEq(hatsSignerGate.ownerHat(), ownerHat);
     assertValidSignerHats(signerHats);
-    assertEq(hatsSignerGate.minThreshold(), minThreshold);
-    assertEq(hatsSignerGate.targetThreshold(), targetThreshold);
+    assertEq(hatsSignerGate.thresholdConfig(), thresholdConfig);
     assertEq(address(hatsSignerGate.HATS()), address(hats));
     assertEq(address(hatsSignerGate.safe()), address(testSafe));
     assertEq(address(hatsSignerGate.implementation()), address(singletonHatsSignerGate));
@@ -70,8 +58,7 @@ contract Deployment is TestSuite {
     (hatsSignerGate, safe) = _deployHSGAndSafe({
       _ownerHat: ownerHat,
       _signerHats: signerHats,
-      _minThreshold: minThreshold,
-      _targetThreshold: targetThreshold,
+      _thresholdConfig: thresholdConfig,
       _locked: _locked,
       _claimableFor: _claimableFor,
       _hsgGuard: address(tstGuard),
@@ -81,8 +68,7 @@ contract Deployment is TestSuite {
 
     assertEq(hatsSignerGate.ownerHat(), ownerHat);
     assertValidSignerHats(signerHats);
-    assertEq(hatsSignerGate.minThreshold(), minThreshold);
-    assertEq(hatsSignerGate.targetThreshold(), targetThreshold);
+    assertEq(hatsSignerGate.thresholdConfig(), thresholdConfig);
     assertEq(address(hatsSignerGate.HATS()), address(hats));
     assertEq(address(hatsSignerGate.safe()), address(safe));
     assertEq(address(hatsSignerGate.implementation()), address(singletonHatsSignerGate));
@@ -103,9 +89,8 @@ contract Deployment is TestSuite {
   }
 
   function test_revert_reinitializeImplementation() public {
-    bytes memory initializeParams = abi.encode(
-      ownerHat, signerHats, address(safe), minThreshold, targetThreshold, false, address(singletonHatsSignerGate)
-    );
+    bytes memory initializeParams =
+      abi.encode(ownerHat, signerHats, address(safe), thresholdConfig, false, address(singletonHatsSignerGate));
     vm.expectRevert(InvalidInitialization.selector);
     singletonHatsSignerGate.setUp(initializeParams);
   }
@@ -158,51 +143,132 @@ contract AddingSignerHats is WithHSGInstanceTest {
   }
 }
 
-contract SettingTargetThreshold is WithHSGInstanceTest {
-  function testSetTargetThreshold() public {
-    _addSignersSameHat(1, signerHat);
+contract SettingThresholdConfig is WithHSGInstanceTest {
+  function test_happy_absolute(uint120 _min, uint120 _target, uint256 _signerCount) public {
+    vm.assume(_min > 0);
+    vm.assume(_target >= _min);
+    _signerCount = bound(_signerCount, 1, signerAddresses.length);
 
+    _addSignersSameHat(_signerCount, signerHat);
+
+    IHatsSignerGate.ThresholdConfig memory newConfig = IHatsSignerGate.ThresholdConfig({
+      thresholdType: IHatsSignerGate.TargetThresholdType.ABSOLUTE,
+      min: _min,
+      target: _target
+    });
+
+    vm.expectEmit();
+    emit IHatsSignerGate.ThresholdConfigSet(newConfig);
     vm.prank(owner);
-    vm.expectEmit(false, false, false, true);
-    emit IHatsSignerGate.TargetThresholdSet(3);
-    hatsSignerGate.setTargetThreshold(3);
+    hatsSignerGate.setThresholdConfig(newConfig);
 
-    assertEq(hatsSignerGate.targetThreshold(), 3);
+    assertEq(hatsSignerGate.thresholdConfig(), newConfig);
+
+    // check that the safe threshold was updated correctly
+    uint256 expectedThreshold;
+    uint256 target = hatsSignerGate.thresholdConfig().target;
+    if (_signerCount > target) {
+      expectedThreshold = target;
+    } else {
+      expectedThreshold = _signerCount;
+    }
+    assertEq(safe.getThreshold(), expectedThreshold, "incorrect safe threshold");
+  }
+
+  function test_happy_proportional(uint120 _min, uint120 _target, uint256 _signerCount) public {
+    vm.assume(_min > 0);
+    vm.assume(_target < 10_000);
+    _signerCount = bound(_signerCount, 1, signerAddresses.length);
+
+    _addSignersSameHat(_signerCount, signerHat);
+
+    IHatsSignerGate.ThresholdConfig memory newConfig = IHatsSignerGate.ThresholdConfig({
+      thresholdType: IHatsSignerGate.TargetThresholdType.PROPORTIONAL,
+      min: _min,
+      target: _target
+    });
+
+    vm.expectEmit();
+    emit IHatsSignerGate.ThresholdConfigSet(newConfig);
+    vm.prank(owner);
+    hatsSignerGate.setThresholdConfig(newConfig);
+
+    assertEq(hatsSignerGate.thresholdConfig(), newConfig);
+
+    // check that the safe threshold was updated correctly
+    uint256 target = hatsSignerGate.thresholdConfig().target;
+    uint256 min = hatsSignerGate.thresholdConfig().min;
+    uint256 expectedThreshold = ((_signerCount * target) + 9999) / 10_000;
+    if (expectedThreshold < min) expectedThreshold = min;
+    if (expectedThreshold > _signerCount) {
+      expectedThreshold = _signerCount;
+    }
+    assertEq(safe.getThreshold(), expectedThreshold, "incorrect safe threshold");
+  }
+
+  function test_revert_absolute_invalidConfig(uint120 _min, uint120 _target) public {
+    vm.assume(_min > 0);
+    // invalid condition
+    vm.assume(_target < _min);
+
+    IHatsSignerGate.ThresholdConfig memory invalidConfig = IHatsSignerGate.ThresholdConfig({
+      thresholdType: IHatsSignerGate.TargetThresholdType.ABSOLUTE,
+      min: _min,
+      target: _target
+    });
+
+    vm.expectRevert(IHatsSignerGate.InvalidThresholdConfig.selector);
+    vm.prank(owner);
+    hatsSignerGate.setThresholdConfig(invalidConfig);
+
     assertEq(safe.getThreshold(), 1);
   }
 
-  function testSetTargetThreshold3of4() public {
-    _addSignersSameHat(4, signerHat);
+  function test_revert_proportional_invalidConfig(uint120 _target) public {
+    vm.assume(_target > 10_000);
 
+    IHatsSignerGate.ThresholdConfig memory invalidConfig = IHatsSignerGate.ThresholdConfig({
+      thresholdType: IHatsSignerGate.TargetThresholdType.PROPORTIONAL,
+      min: 1,
+      target: _target
+    });
+
+    vm.expectRevert(IHatsSignerGate.InvalidThresholdConfig.selector);
     vm.prank(owner);
-    vm.expectEmit(false, false, false, true);
-    emit IHatsSignerGate.TargetThresholdSet(3);
+    hatsSignerGate.setThresholdConfig(invalidConfig);
 
-    hatsSignerGate.setTargetThreshold(3);
-
-    assertEq(hatsSignerGate.targetThreshold(), 3);
-    assertEq(safe.getThreshold(), 3);
+    assertEq(safe.getThreshold(), 1);
   }
 
-  function testSetTargetThreshold4of4() public {
-    _addSignersSameHat(4, signerHat);
+  function test_revert_invalidConfigType(uint8 _invalidType) public {
+    vm.assume(_invalidType > 1);
 
+    bytes memory invalidConfigBytes = abi.encodePacked(_invalidType, uint120(1), uint120(3));
+
+    bytes memory setThresholdConfigCallData =
+      abi.encodeWithSelector(hatsSignerGate.setThresholdConfig.selector, invalidConfigBytes);
+
+    vm.expectRevert(IHatsSignerGate.InvalidThresholdConfig.selector);
     vm.prank(owner);
-    vm.expectEmit(false, false, false, true);
-    emit IHatsSignerGate.TargetThresholdSet(4);
+    (bool success,) = address(hatsSignerGate).call(setThresholdConfigCallData);
+    assertFalse(success);
 
-    hatsSignerGate.setTargetThreshold(4);
-
-    assertEq(hatsSignerGate.targetThreshold(), 4);
-    assertEq(safe.getThreshold(), 4);
+    assertEq(safe.getThreshold(), 1);
   }
 
-  function testNonOwnerHatWearerCannotSetTargetThreshold() public {
+  function test_revert_notOwnerHatWearer() public {
+    IHatsSignerGate.ThresholdConfig memory newConfig = IHatsSignerGate.ThresholdConfig({
+      thresholdType: IHatsSignerGate.TargetThresholdType.ABSOLUTE,
+      min: 1,
+      target: 3
+    });
+
     vm.prank(other);
     vm.expectRevert(IHatsSignerGate.NotOwnerHatWearer.selector);
-    hatsSignerGate.setTargetThreshold(3);
+    hatsSignerGate.setThresholdConfig(newConfig);
 
-    assertEq(hatsSignerGate.targetThreshold(), 2);
+    assertEq(hatsSignerGate.thresholdConfig(), thresholdConfig);
+
     assertEq(safe.getThreshold(), 1);
   }
 
@@ -210,47 +276,17 @@ contract SettingTargetThreshold is WithHSGInstanceTest {
     vm.prank(owner);
     hatsSignerGate.lock();
 
-    vm.expectRevert(IHatsSignerGate.Locked.selector);
-    vm.prank(owner);
-    hatsSignerGate.setTargetThreshold(3);
-  }
-}
-
-contract SettingMinThreshold is WithHSGInstanceTest {
-  function testSetMinThreshold() public {
-    vm.prank(owner);
-    hatsSignerGate.setTargetThreshold(3);
-
-    vm.expectEmit(false, false, false, true);
-    emit IHatsSignerGate.MinThresholdSet(3);
-
-    vm.prank(owner);
-    hatsSignerGate.setMinThreshold(3);
-
-    assertEq(hatsSignerGate.minThreshold(), 3);
-  }
-
-  function testSetInvalidMinThreshold() public {
-    vm.prank(owner);
-    vm.expectRevert(IHatsSignerGate.InvalidMinThreshold.selector);
-    hatsSignerGate.setMinThreshold(3);
-  }
-
-  function testNonOwnerCannotSetMinThreshold() public {
-    vm.prank(other);
-    vm.expectRevert(IHatsSignerGate.NotOwnerHatWearer.selector);
-    hatsSignerGate.setMinThreshold(1);
-
-    assertEq(hatsSignerGate.minThreshold(), 2);
-  }
-
-  function test_revert_locked() public {
-    vm.prank(owner);
-    hatsSignerGate.lock();
+    IHatsSignerGate.ThresholdConfig memory newConfig = IHatsSignerGate.ThresholdConfig({
+      thresholdType: IHatsSignerGate.TargetThresholdType.ABSOLUTE,
+      min: 1,
+      target: 3
+    });
 
     vm.expectRevert(IHatsSignerGate.Locked.selector);
     vm.prank(owner);
-    hatsSignerGate.setMinThreshold(3);
+    hatsSignerGate.setThresholdConfig(newConfig);
+
+    assertEq(safe.getThreshold(), 1);
   }
 }
 
@@ -467,7 +503,6 @@ contract ExecutingTransactions is WithHSGInstanceTest {
     assertEq(address(safe).balance, postValue);
     assertEq(destAddress.balance, transferValue);
     assertEq(safe.nonce(), preNonce + 1);
-    // emit log_uint(address(safe).balance);
   }
 
   function testExecTxByNonHatWearersReverts() public {
@@ -1049,8 +1084,7 @@ contract MigratingHSG is WithHSGInstanceTest {
       address(singletonHatsSignerGate),
       ownerHat,
       signerHats,
-      minThreshold,
-      targetThreshold,
+      thresholdConfig,
       address(safe),
       false,
       false,

@@ -87,8 +87,7 @@ contract DeployInstance is BaseScript {
 
   uint256 public ownerHat;
   uint256[] public signersHats;
-  uint256 public minThreshold;
-  uint256 public targetThreshold;
+  IHatsSignerGate.ThresholdConfig public thresholdConfig;
   address public safe;
   bool public locked;
   bool public claimableFor;
@@ -97,8 +96,7 @@ contract DeployInstance is BaseScript {
     address _implementation,
     uint256 _ownerHat,
     uint256[] memory _signersHats,
-    uint256 _minThreshold,
-    uint256 _targetThreshold,
+    IHatsSignerGate.ThresholdConfig memory _thresholdConfig,
     address _safe,
     bool _locked,
     bool _claimableFor,
@@ -108,8 +106,7 @@ contract DeployInstance is BaseScript {
     implementation = _implementation;
     ownerHat = _ownerHat;
     signersHats = _signersHats;
-    minThreshold = _minThreshold;
-    targetThreshold = _targetThreshold;
+    thresholdConfig = _thresholdConfig;
     safe = _safe;
     locked = _locked;
     claimableFor = _claimableFor;
@@ -139,8 +136,7 @@ contract DeployInstance is BaseScript {
       ownerHat: ownerHat,
       signerHats: signersHats,
       safe: safe,
-      minThreshold: minThreshold,
-      targetThreshold: targetThreshold,
+      thresholdConfig: thresholdConfig,
       locked: locked,
       claimableFor: claimableFor,
       implementation: implementation,

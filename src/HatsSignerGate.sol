@@ -69,11 +69,8 @@ contract HatsSignerGate is
   /// @inheritdoc IHatsSignerGate
   ISafe public safe;
 
-  /// @inheritdoc IHatsSignerGate
-  uint256 public minThreshold;
-
-  /// @inheritdoc IHatsSignerGate
-  uint256 public targetThreshold;
+  /// @dev The threshold configuration
+  ThresholdConfig internal _thresholdConfig;
 
   /// @inheritdoc IHatsSignerGate
   bool public locked;
@@ -93,6 +90,8 @@ contract HatsSignerGate is
 
   /// @dev A simple re-entrency guard
   uint256 transient _guardEntries;
+
+  uint256 transient _existingThreshold;
 
   /*//////////////////////////////////////////////////////////////
                       AUTHENTICATION FUNCTIONS
@@ -156,10 +155,10 @@ contract HatsSignerGate is
     // set the instance's safe and signer parameters
     safe = ISafe(params.safe);
     _addSignerHats(params.signerHats);
-    _setTargetThreshold(params.targetThreshold);
-    _setMinThreshold(params.minThreshold);
+    _setThresholdConfig(params.thresholdConfig);
 
     // set the instance's metadata
+    // TODO can we get this from the clone bytecode?
     implementation = params.implementation;
 
     // initialize the modules linked list, and set initial modules, if any
@@ -204,6 +203,16 @@ contract HatsSignerGate is
     if (_hatIds.length != toClaimCount) revert InvalidArrayLength();
 
     ISafe s = safe;
+    // get the current threshold
+    uint256 threshold = s.getThreshold();
+    // get the current owners
+    address[] memory owners = s.getOwners();
+
+    // check if the only owner is this contract, meaning no owners have been added yet
+    bool isInitialOwnersState = owners.length == 1 && owners[0] == address(this);
+
+    // count the number of owners after the claim
+    uint256 newNumOnwers = owners.length;
 
     // iterate through the arrays, adding each signer
     for (uint256 i; i < toClaimCount; ++i) {
@@ -215,40 +224,27 @@ contract HatsSignerGate is
 
       // if the signer is not an owner, add them
       if (!s.isOwner(signer)) {
-        // TODO optimize this: is there a way we don't have call `getOwners()` on each iteration?
-        // get the current owners
-        address[] memory owners = s.getOwners();
-
-        // initiate the valid signer count at the current number of valid owners
-        uint256 signerCount = _countValidSigners(owners);
-
-        // initiate the threshold at the current value
-        uint256 threshold = s.getThreshold();
-
         // initiate the addOwnerData, to be conditionally set below
         bytes memory addOwnerData;
 
         // for the first signer, check if the only owner is this contract and swap it out if so
-        if (i == 0 && owners.length == 1 && owners[0] == address(this)) {
+        if (i == 0 && isInitialOwnersState) {
           addOwnerData = SafeManagerLib.encodeSwapOwnerAction(SafeManagerLib.SENTINELS, address(this), signer);
         } else {
           // otherwise, add the claimer as a new owner
-          unchecked {
-            // shouldn't overflow on any reasonable human scale
-            ++signerCount;
-          }
-
-          // set the threshold to the number of valid signers, if not over the target threshold
-          if (signerCount <= targetThreshold) {
-            threshold = signerCount;
-          }
-          // set up the addOwner call
           addOwnerData = SafeManagerLib.encodeAddOwnerWithThresholdAction(signer, threshold);
+          newNumOnwers++;
         }
 
         // execute the call
         if (!s.execSafeTransactionFromHSG(addOwnerData)) revert SafeManagerLib.FailedExecAddSigner();
       }
+    }
+
+    // update the threshold if necessary
+    uint256 newThreshold = _getNewThreshold(newNumOnwers);
+    if (newThreshold != threshold) {
+      safe.execChangeThreshold(newThreshold);
     }
   }
 
@@ -285,22 +281,22 @@ contract HatsSignerGate is
   }
 
   /// @inheritdoc IHatsSignerGate
-  function setTargetThreshold(uint256 _targetThreshold) public {
+  function setThresholdConfig(ThresholdConfig calldata _config) public {
     _checkUnlocked();
     _checkOwner();
-    if (_targetThreshold != targetThreshold) {
-      _setTargetThreshold(_targetThreshold);
+    _setThresholdConfig(_config);
 
-      uint256 signerCount = validSignerCount();
-      if (signerCount > 1) _setSafeThreshold(_targetThreshold, signerCount);
+    // update the safe's threshold to match the new config
+    address[] memory owners = safe.getOwners();
+    // get the required amount of valid signatures according to the new threshold config
+    // and the current number of owners
+    uint256 newThreshold = _getRequiredValidSignatures(owners.length);
+    // the safe's threshold cannot be higher than the number of owners (safe's invariant)
+    if (newThreshold > owners.length) {
+      newThreshold = owners.length;
     }
-  }
 
-  /// @inheritdoc IHatsSignerGate
-  function setMinThreshold(uint256 _minThreshold) public {
-    _checkUnlocked();
-    _checkOwner();
-    _setMinThreshold(_minThreshold);
+    safe.execChangeThreshold(newThreshold);
   }
 
   /// @inheritdoc IHatsSignerGate
@@ -410,9 +406,6 @@ contract HatsSignerGate is
       );
     }
 
-    // get the safe owners
-    address[] memory owners = s.getOwners();
-
     // get the tx hash
     bytes32 txHash = s.getTransactionHash(
       to,
@@ -428,18 +421,28 @@ contract HatsSignerGate is
       s.nonce() - 1 // view function
     );
 
-    // set the threshold according to the number of valid signers
-    uint256 threshold = _setCorrectThreshold(owners);
+    // get the safe owners
+    address[] memory owners = s.getOwners();
+    // get the required amount of valid signatures according to the current number of owners and the threshold config
+    uint256 requiredValidSignatures = _getRequiredValidSignatures(owners.length);
+    // get the current threshold from the safe
+    uint256 threshold = s.getThreshold();
 
-    // TODO optimize this: isValidSigner is called for every owner in _setCorrectThreshold and every signature here.
-    // can we run these checks inside the same loop?
+    // the safe's threshold is always the minimum between the required amount of valid signatures and the number of
+    // owners. if the threshold is lower than the required amount of valid signatures, it means that there are currently
+    // not enough owners to approve the tx
+    if (threshold != requiredValidSignatures) revert InsufficientValidSignatures();
+
     uint256 validSigCount = countValidSignatures(txHash, signatures, threshold);
 
     // revert if there aren't enough valid signatures
-    if (validSigCount < threshold || validSigCount < minThreshold) revert InsufficientValidSignatures();
+    if (validSigCount < threshold) revert InsufficientValidSignatures();
 
     // record existing owners for post-flight check
     _existingOwnersHash = keccak256(abi.encode(owners));
+
+    // record existing threshold for post-flight check
+    _existingThreshold = threshold;
 
     unchecked {
       ++_guardEntries;
@@ -472,14 +475,11 @@ contract HatsSignerGate is
 
     if (s.getSafeGuard() != address(this)) revert CannotDisableThisGuard(address(this));
 
-    // get the owners
-    address[] memory owners = s.getOwners();
-
     // prevent signers from changing the threshold
-    if (s.getThreshold() != _getCorrectThreshold(owners)) revert SignersCannotChangeThreshold();
+    if (s.getThreshold() != _existingThreshold) revert SignersCannotChangeThreshold();
 
     // prevent signers from changing the owners
-    if (keccak256(abi.encode(owners)) != _existingOwnersHash) revert SignersCannotChangeOwners();
+    if (keccak256(abi.encode(s.getOwners())) != _existingOwnersHash) revert SignersCannotChangeOwners();
 
     // prevent signers from removing this module or adding any other modules
     (address[] memory modulesWith1, address next) = s.getModulesWith1();
@@ -499,6 +499,11 @@ contract HatsSignerGate is
   /*//////////////////////////////////////////////////////////////
                           VIEW FUNCTIONS
   //////////////////////////////////////////////////////////////*/
+
+  /// @inheritdoc IHatsSignerGate
+  function thresholdConfig() public view returns (ThresholdConfig memory) {
+    return _thresholdConfig;
+  }
 
   /// @inheritdoc IHatsSignerGate
   function isValidSigner(address _account) public view returns (bool valid) {
@@ -605,39 +610,25 @@ contract HatsSignerGate is
     emit SignerHatsAdded(_newSignerHats);
   }
 
-  /// @dev Internal function to set the target threshold. Reverts if `_targetThreshold` is lower than `minThreshold`
-  /// @param _targetThreshold The new target threshold to set
-  function _setTargetThreshold(uint256 _targetThreshold) internal {
-    // target threshold cannot be lower than min threshold
-    if (_targetThreshold < minThreshold) revert InvalidTargetThreshold();
-
-    targetThreshold = _targetThreshold;
-    emit TargetThresholdSet(_targetThreshold);
-  }
-
-  /// @dev Internal function to set the threshold for the `safe`
-  /// @param _threshold The threshold to set on the `safe`
-  /// @param _signerCount The number of valid signers on the `safe`; should be calculated from `validSignerCount()`
-  function _setSafeThreshold(uint256 _threshold, uint256 _signerCount) internal {
-    uint256 newThreshold = _threshold;
-
-    // ensure that txs can't execute if fewer signers than target threshold
-    if (_signerCount <= _threshold) {
-      newThreshold = _signerCount;
+  /// @dev Internal function to set the threshold config
+  /// @param _config the new threshold config
+  function _setThresholdConfig(ThresholdConfig memory _config) internal {
+    if (_config.thresholdType == TargetThresholdType.ABSOLUTE) {
+      // absolute target threshold cannot be lower than min threshold
+      if (_config.target < _config.min) revert InvalidThresholdConfig();
+    } else if (_config.thresholdType == TargetThresholdType.PROPORTIONAL) {
+      // proportional threshold cannot be greater than 100%
+      if (_config.target > 10_000) revert InvalidThresholdConfig();
+    } else {
+      // invalid threshold type
+      revert InvalidThresholdConfig();
     }
-    if (newThreshold != safe.getThreshold()) {
-      safe.execChangeThreshold(newThreshold);
-    }
-  }
 
-  /// @dev Internal function to set a new minimum threshold. Only callable by a wearer of the owner hat.
-  /// Reverts if `_minThreshold` is greater than `targetThreshold`
-  /// @param _minThreshold The new minimum threshold
-  function _setMinThreshold(uint256 _minThreshold) internal {
-    if (_minThreshold > targetThreshold) revert InvalidMinThreshold();
+    // set the threshold config
+    _thresholdConfig = _config;
 
-    minThreshold = _minThreshold;
-    emit MinThresholdSet(_minThreshold);
+    // log the change
+    emit ThresholdConfigSet(_config);
   }
 
   /// @dev Internal function to count the number of valid signers in an array of addresses
@@ -690,19 +681,12 @@ contract HatsSignerGate is
     // register the signer
     _registerSigner(_hatId, _signer);
 
-    // if the signer is not already an owner, add them
-
     ISafe s = safe;
 
+    // if the signer is not already an owner, add them
     if (!s.isOwner(_signer)) {
       // get the current owners
       address[] memory owners = s.getOwners();
-
-      // initiate the valid signer count at the current number of valid owners
-      uint256 signerCount = _countValidSigners(owners);
-
-      // initiate the threshold at the current value
-      uint256 threshold = s.getThreshold();
 
       // initiate the addOwnerData, to be conditionally set below
       bytes memory addOwnerData;
@@ -712,19 +696,10 @@ contract HatsSignerGate is
         // set up the swapOwner call
         addOwnerData = SafeManagerLib.encodeSwapOwnerAction(SafeManagerLib.SENTINELS, address(this), _signer);
       } else {
-        // otherwise, add the claimer as a new owner
-        unchecked {
-          // shouldn't overflow on any reasonable human scale
-          ++signerCount;
-        }
-
-        // set the threshold to the number of valid signers, if not over the target threshold
-        if (signerCount <= targetThreshold) {
-          threshold = signerCount;
-        }
-
+        // update the threshold
+        uint256 newThreshold = _getNewThreshold(owners.length + 1);
         // set up the addOwner call
-        addOwnerData = SafeManagerLib.encodeAddOwnerWithThresholdAction(_signer, threshold);
+        addOwnerData = SafeManagerLib.encodeAddOwnerWithThresholdAction(_signer, newThreshold);
       }
 
       // execute the call
@@ -738,22 +713,15 @@ contract HatsSignerGate is
   function _removeSigner(address _signer) internal {
     bytes memory removeOwnerData;
     address[] memory owners = safe.getOwners();
-    uint256 validSigners = _countValidSigners(owners);
 
     delete claimedSignerHats[_signer];
 
-    if (validSigners < 2 && owners.length == 1) {
-      // signerCount could be 0 after reconcileSignerCount
+    if (owners.length == 1) {
       // make address(this) the only owner
       removeOwnerData = SafeManagerLib.encodeSwapOwnerAction(SafeManagerLib.SENTINELS, _signer, address(this));
     } else {
-      uint256 currentThreshold = safe.getThreshold();
-      uint256 newThreshold = currentThreshold;
-
-      // ensure that txs can't execute if fewer signers than target threshold
-      if (validSigners <= targetThreshold) {
-        newThreshold = validSigners;
-      }
+      // update the threshold
+      uint256 newThreshold = _getNewThreshold(owners.length - 1);
 
       removeOwnerData =
         SafeManagerLib.encodeRemoveOwnerAction(SafeManagerLib.findPrevOwner(owners, _signer), _signer, newThreshold);
@@ -763,37 +731,47 @@ contract HatsSignerGate is
     if (!safe.execSafeTransactionFromHSG(removeOwnerData)) revert SafeManagerLib.FailedExecRemoveSigner();
   }
 
-  /// @dev Internal function to calculate the threshold that `safe` should have, given the correct `signerCount`,
-  /// `minThreshold`, and `targetThreshold`
-  /// @return _threshold The correct threshold
-  function _getCorrectThreshold(address[] memory _owners) internal view returns (uint256 _threshold) {
-    uint256 count = _countValidSigners(_owners);
-    uint256 min = minThreshold;
-    uint256 max = targetThreshold;
-    if (count < min) _threshold = min;
-    else if (count > max) _threshold = max;
-    else _threshold = count;
+  /// @dev Internal function to calculate the required amount of valid signatures according to the current number of
+  /// owners in the safe and the threshold config
+  /// @param numOwners The number of owners in the safe
+  /// @return _requiredValidSignatures The required amount of valid signatures
+  function _getRequiredValidSignatures(uint256 numOwners) internal view returns (uint256 _requiredValidSignatures) {
+    // get the threshold config
+    ThresholdConfig memory config = _thresholdConfig;
+
+    // calculate the correct threshold
+    if (config.thresholdType == TargetThresholdType.ABSOLUTE) {
+      // ABSOLUTE
+      if (numOwners < config.min) _requiredValidSignatures = config.min;
+      else if (numOwners > config.target) _requiredValidSignatures = config.target;
+      else _requiredValidSignatures = numOwners;
+    } else {
+      // PROPORTIONAL
+      // add 9999 to round up
+      _requiredValidSignatures = ((numOwners * config.target) + 9999) / 10_000;
+      // ensure that the threshold is not lower than the min threshold
+      if (_requiredValidSignatures < config.min) _requiredValidSignatures = config.min;
+    }
+  }
+
+  /// @dev Internal function to get the safe's threshold according to the current number of owners and the threshold
+  /// config. The threshold is always the minimum between the required amount of valid signatures and the number of
+  /// owners
+  /// @param numOwners The number of owners in the safe
+  /// @return _threshold The safe's threshold
+  function _getNewThreshold(uint256 numOwners) internal view returns (uint256 _threshold) {
+    // get the required amount of valid signatures according to the current number of owners and the threshold config
+    _threshold = _getRequiredValidSignatures(numOwners);
+    // the threshold cannot be higher than the number of owners
+    if (_threshold > numOwners) {
+      _threshold = numOwners;
+    }
   }
 
   /// @dev Locks the contract, preventing any further owner changes
   function _lock() internal {
     locked = true;
     emit HSGLocked();
-  }
-
-  /// @dev Internal function to set the correct threshold for the `safe` according to the number of valid signers
-  /// @param _owners The current owners of the `safe`
-  /// @return The correct threshold for the `safe`
-  function _setCorrectThreshold(address[] memory _owners) internal returns (uint256) {
-    uint256 currentThreshold = safe.getThreshold();
-    uint256 correctThreshold = _getCorrectThreshold(_owners);
-
-    if (correctThreshold != currentThreshold) {
-      safe.execChangeThreshold(correctThreshold);
-      return correctThreshold;
-    }
-
-    return currentThreshold;
   }
 
   /// @dev Internal function to set a delegatecall target
