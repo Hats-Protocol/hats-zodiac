@@ -240,7 +240,7 @@ contract HatsSignerGate is
     }
 
     // update the threshold if necessary
-    uint256 newThreshold = _getThreshold(newNumOnwers);
+    uint256 newThreshold = _getNewThreshold(newNumOnwers);
     if (newThreshold != threshold) {
       safe.execChangeThreshold(newThreshold);
     }
@@ -695,7 +695,7 @@ contract HatsSignerGate is
         addOwnerData = SafeManagerLib.encodeSwapOwnerAction(SafeManagerLib.SENTINELS, address(this), _signer);
       } else {
         // update the threshold
-        uint256 newThreshold = _getThreshold(owners.length + 1);
+        uint256 newThreshold = _getNewThreshold(owners.length + 1);
         // set up the addOwner call
         addOwnerData = SafeManagerLib.encodeAddOwnerWithThresholdAction(_signer, newThreshold);
       }
@@ -719,7 +719,7 @@ contract HatsSignerGate is
       removeOwnerData = SafeManagerLib.encodeSwapOwnerAction(SafeManagerLib.SENTINELS, _signer, address(this));
     } else {
       // update the threshold
-      uint256 newThreshold = _getThreshold(owners.length - 1);
+      uint256 newThreshold = _getNewThreshold(owners.length - 1);
 
       removeOwnerData =
         SafeManagerLib.encodeRemoveOwnerAction(SafeManagerLib.findPrevOwner(owners, _signer), _signer, newThreshold);
@@ -757,7 +757,7 @@ contract HatsSignerGate is
   /// owners
   /// @param numOwners The number of owners in the safe
   /// @return _threshold The safe's threshold
-  function _getThreshold(uint256 numOwners) internal view returns (uint256 _threshold) {
+  function _getNewThreshold(uint256 numOwners) internal view returns (uint256 _threshold) {
     // get the required amount of valid signatures according to the current number of owners and the threshold config
     _threshold = _getRequiredValidSignatures(numOwners);
     // the threshold cannot be higher than the number of owners
