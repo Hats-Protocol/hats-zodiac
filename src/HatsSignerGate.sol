@@ -9,6 +9,7 @@ import { Initializable } from "../lib/openzeppelin-contracts-upgradeable/contrac
 import { BaseGuard } from "../lib/zodiac/contracts/guard/BaseGuard.sol";
 import { GuardableUnowned } from "./lib/zodiac-modified/GuardableUnowned.sol";
 import { ModifierUnowned } from "./lib/zodiac-modified/ModifierUnowned.sol";
+import { Multicallable } from "../lib/solady/src/utils/Multicallable.sol";
 import { SignatureDecoder } from "../lib/safe-smart-account/contracts/common/SignatureDecoder.sol";
 import { ISafe, Enum } from "./lib/safe-interfaces/ISafe.sol";
 
@@ -23,6 +24,7 @@ contract HatsSignerGate is
   BaseGuard,
   GuardableUnowned,
   ModifierUnowned,
+  Multicallable,
   SignatureDecoder,
   Initializable
 {
