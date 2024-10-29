@@ -38,7 +38,7 @@ abstract contract SafeTestHelpers is Test {
     );
   }
 
-  function _getTxHash(address _to, uint256 _value, bytes memory _data, ISafe _safe)
+  function _getTxHash(address _to, uint256 _value, Enum.Operation _operation, bytes memory _data, ISafe _safe)
     internal
     view
     returns (bytes32 txHash)
@@ -47,7 +47,7 @@ abstract contract SafeTestHelpers is Test {
       _to,
       _value,
       _data,
-      Enum.Operation.Call,
+      _operation,
       // not using the refunder
       0,
       0,
@@ -236,6 +236,12 @@ contract TestSuite is SafeTestHelpers {
   address public toggle = makeAddr("toggle");
   address public other = makeAddr("other");
 
+  // Test delegatecall targets
+  address[] public defaultDelegatecallTargets;
+  address public v1_3_0_callOnly_canonical = 0x40A2aCCbd92BCA938b02010E17A5b8929b49130D;
+  address public v1_3_0_callOnly_eip155 = 0xA1dabEF33b3B82c7814B6D82A79e50F4AC44102B;
+  address public v1_4_1_callOnly_canonical = 0x9641d764fc13c8B624c04430C7356C1C7C8102e2;
+
   // Test hats
   uint256 public tophat;
   uint256 public ownerHat;
@@ -296,6 +302,12 @@ contract TestSuite is SafeTestHelpers {
     tstModules[0] = tstModule1;
     tstModules[1] = tstModule2;
     tstModules[2] = tstModule3;
+
+    // set up the default delegatecall targets array
+    defaultDelegatecallTargets = new address[](3);
+    defaultDelegatecallTargets[0] = v1_3_0_callOnly_canonical;
+    defaultDelegatecallTargets[1] = v1_3_0_callOnly_eip155;
+    defaultDelegatecallTargets[2] = v1_4_1_callOnly_canonical;
 
     // Set up the test hats
     uint256 signerHatCount = 5;

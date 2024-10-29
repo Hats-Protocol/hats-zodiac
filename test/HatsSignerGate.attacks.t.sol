@@ -11,7 +11,7 @@ contract AttacksScenarios is WithHSGInstanceTest {
 
     _addSignersSameHat(2, signerHat);
 
-    bytes32 txHash = _getTxHash(address(safe), 0, addModuleData, safe);
+    bytes32 txHash = _getTxHash(address(safe), 0, Enum.Operation.Call, addModuleData, safe);
 
     bytes memory signatures = _createNSigsForTx(txHash, 2);
 
@@ -61,7 +61,7 @@ contract AttacksScenarios is WithHSGInstanceTest {
 
     // have just 2 of 5 signers sign it
     // create the tx
-    bytes32 txHash = _getTxHash(destAddress, transferValue, hex"00", safe);
+    bytes32 txHash = _getTxHash(destAddress, transferValue, Enum.Operation.Call, hex"00", safe);
     // have them sign it
     bytes memory signatures = _createNSigsForTx(txHash, 2);
 
@@ -284,7 +284,7 @@ contract AttacksScenarios is WithHSGInstanceTest {
 
     // now get the safe tx hash and have attacker sign it with a collaborator
     bytes32 safeTxHash = safe.getTransactionHash(
-      safeMultisendLibrary, // to
+      defaultDelegatecallTargets[0], // to an approved delegatecall target
       0, // value
       multisend, // data
       Enum.Operation.DelegateCall, // operation
@@ -308,7 +308,7 @@ contract AttacksScenarios is WithHSGInstanceTest {
         */
     vm.expectRevert(bytes("GS013"));
     safe.execTransaction(
-      safeMultisendLibrary,
+      defaultDelegatecallTargets[0], // to an approved delegatecall target
       0,
       multisend,
       Enum.Operation.DelegateCall,

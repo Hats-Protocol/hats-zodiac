@@ -2,7 +2,7 @@
   "100": {
     "hatsProtocol": "0x3bc1A0Ad72417f2d411118085256fC53CBdDd137",
     "safeFallbackLibrary": "0xfd0732Dc9E303f09fCEf3a7388Ad10A83459Ec99",
-    "safeMultisendLibrary": "0x38869bf66a61cF6bDB996A6aE40D5853Fd43B526",
+    "safeMultisendLibrary": "0x9641d764fc13c8B624c04430C7356C1C7C8102e2",
     "safeProxyFactory": "0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67",
     "safeSingleton": "0x29fcB43b46531BcA003ddC8FCB67FFE91900C762",
     "zodiacModuleFactory": "0x000000000000aDdB49795b0f9bA5BC298cDda236"
@@ -10,7 +10,7 @@
   "1": {
     "hatsProtocol": "0x3bc1A0Ad72417f2d411118085256fC53CBdDd137",
     "safeFallbackLibrary": "0xfd0732Dc9E303f09fCEf3a7388Ad10A83459Ec99",
-    "safeMultisendLibrary": "0x38869bf66a61cF6bDB996A6aE40D5853Fd43B526",
+    "safeMultisendLibrary": "0x9641d764fc13c8B624c04430C7356C1C7C8102e2",
     "safeProxyFactory": "0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67",
     "safeSingleton": "0x29fcB43b46531BcA003ddC8FCB67FFE91900C762",
     "zodiacModuleFactory": "0x000000000000aDdB49795b0f9bA5BC298cDda236"
@@ -18,7 +18,7 @@
   "10": {
     "hatsProtocol": "0x3bc1A0Ad72417f2d411118085256fC53CBdDd137",
     "safeFallbackLibrary": "0xfd0732Dc9E303f09fCEf3a7388Ad10A83459Ec99",
-    "safeMultisendLibrary": "0x38869bf66a61cF6bDB996A6aE40D5853Fd43B526",
+    "safeMultisendLibrary": "0x9641d764fc13c8B624c04430C7356C1C7C8102e2",
     "safeProxyFactory": "0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67",
     "safeSingleton": "0x29fcB43b46531BcA003ddC8FCB67FFE91900C762",
     "zodiacModuleFactory": "0x000000000000aDdB49795b0f9bA5BC298cDda236"
@@ -26,7 +26,7 @@
   "137": {
     "hatsProtocol": "0x3bc1A0Ad72417f2d411118085256fC53CBdDd137",
     "safeFallbackLibrary": "0xfd0732Dc9E303f09fCEf3a7388Ad10A83459Ec99",
-    "safeMultisendLibrary": "0x38869bf66a61cF6bDB996A6aE40D5853Fd43B526",
+    "safeMultisendLibrary": "0x9641d764fc13c8B624c04430C7356C1C7C8102e2",
     "safeProxyFactory": "0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67",
     "safeSingleton": "0x29fcB43b46531BcA003ddC8FCB67FFE91900C762",
     "zodiacModuleFactory": "0x000000000000aDdB49795b0f9bA5BC298cDda236"
@@ -34,7 +34,7 @@
   "42161": {
     "hatsProtocol": "0x3bc1A0Ad72417f2d411118085256fC53CBdDd137",
     "safeFallbackLibrary": "0xfd0732Dc9E303f09fCEf3a7388Ad10A83459Ec99",
-    "safeMultisendLibrary": "0x38869bf66a61cF6bDB996A6aE40D5853Fd43B526",
+    "safeMultisendLibrary": "0x9641d764fc13c8B624c04430C7356C1C7C8102e2",
     "safeProxyFactory": "0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67",
     "safeSingleton": "0x29fcB43b46531BcA003ddC8FCB67FFE91900C762",
     "zodiacModuleFactory": "0x000000000000aDdB49795b0f9bA5BC298cDda236"
@@ -42,7 +42,7 @@
   "11155111": {
     "hatsProtocol": "0x3bc1A0Ad72417f2d411118085256fC53CBdDd137",
     "safeFallbackLibrary": "0xfd0732Dc9E303f09fCEf3a7388Ad10A83459Ec99",
-    "safeMultisendLibrary": "0x38869bf66a61cF6bDB996A6aE40D5853Fd43B526",
+    "safeMultisendLibrary": "0x9641d764fc13c8B624c04430C7356C1C7C8102e2",
     "safeProxyFactory": "0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67",
     "safeSingleton": "0x29fcB43b46531BcA003ddC8FCB67FFE91900C762",
     "zodiacModuleFactory": "0x000000000000aDdB49795b0f9bA5BC298cDda236"
@@ -50,7 +50,7 @@
   "8453": {
     "hatsProtocol": "0x3bc1A0Ad72417f2d411118085256fC53CBdDd137",
     "safeFallbackLibrary": "0xfd0732Dc9E303f09fCEf3a7388Ad10A83459Ec99",
-    "safeMultisendLibrary": "0x38869bf66a61cF6bDB996A6aE40D5853Fd43B526",
+    "safeMultisendLibrary": "0x9641d764fc13c8B624c04430C7356C1C7C8102e2",
     "safeProxyFactory": "0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67",
     "safeSingleton": "0x29fcB43b46531BcA003ddC8FCB67FFE91900C762",
     "zodiacModuleFactory": "0x000000000000aDdB49795b0f9bA5BC298cDda236"
@@ -58,7 +58,7 @@
   "42220": {
     "hatsProtocol": "0x3bc1A0Ad72417f2d411118085256fC53CBdDd137",
     "safeFallbackLibrary": "0xfd0732Dc9E303f09fCEf3a7388Ad10A83459Ec99",
-    "safeMultisendLibrary": "0x38869bf66a61cF6bDB996A6aE40D5853Fd43B526",
+    "safeMultisendLibrary": "0x9641d764fc13c8B624c04430C7356C1C7C8102e2",
     "safeProxyFactory": "0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67",
     "safeSingleton": "0x29fcB43b46531BcA003ddC8FCB67FFE91900C762",
     "zodiacModuleFactory": "0x000000000000aDdB49795b0f9bA5BC298cDda236"

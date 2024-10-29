@@ -98,6 +98,12 @@ interface IHatsSignerGate {
   /// @dev This ensures that modules cannot change any of the `safe`'s settings
   error ModulesCannotCallSafe();
 
+  /// @notice Modules enabled on HSG cannot delegatecall
+  error ModulesCannotDelegatecall();
+
+  /// @notice The delegatecall target is not enabled
+  error DelegatecallTargetNotEnabled();
+
   /*//////////////////////////////////////////////////////////////
                               EVENTS
   //////////////////////////////////////////////////////////////*/
@@ -126,6 +132,9 @@ interface IHatsSignerGate {
   /// @notice Emitted when HSG has been migrated to a new HSG
   event Migrated(address newHSG);
 
+  /// @notice Emitted when a delegatecall target is enabled
+  event DelegatecallTargetEnabled(address target, bool enabled);
+
   /*//////////////////////////////////////////////////////////////
                           CONSTANTS
   //////////////////////////////////////////////////////////////*/
@@ -145,6 +154,9 @@ interface IHatsSignerGate {
 
   /// @notice Tracks the hat ids worn by users who have "claimed signer"
   function claimedSignerHats(address) external view returns (uint256);
+
+  /// @notice Tracks enabled delegatecall targets. Enabled targets can be delegatecalled by the `safe`
+  function enabledDelegatecallTargets(address) external view returns (bool);
 
   /// @notice The owner hat
   function ownerHat() external view returns (uint256);
@@ -249,6 +261,16 @@ interface IHatsSignerGate {
   /// signers to migrate. `_newHSG` must have claimableFor==TRUE to migrate signers.
   function migrateToNewHSG(address _newHSG, uint256[] calldata _signerHatIds, address[] calldata _signersToMigrate)
     external;
+
+  /// @notice Enables a target contract to be delegatecall-able by the `safe`.
+  /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.
+  /// @param _target The target addressto enable
+  function enableDelegatecallTarget(address _target) external;
+
+  /// @notice Disables a target contract from being delegatecall-able by the `safe`.
+  /// @dev Only callable by a wearer of the owner hat, and only if the contract is not locked.
+  /// @param _target The target address to disable
+  function disableDelegatecallTarget(address _target) external;
 
   /*//////////////////////////////////////////////////////////////
                           VIEW FUNCTIONS
