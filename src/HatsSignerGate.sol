@@ -214,7 +214,7 @@ contract HatsSignerGate is
     bool isInitialOwnersState = owners.length == 1 && owners[0] == address(this);
 
     // count the number of owners after the claim
-    uint256 newNumOnwers = owners.length;
+    uint256 newNumOwners = owners.length;
 
     // iterate through the arrays, adding each signer
     for (uint256 i; i < toClaimCount; ++i) {
@@ -235,7 +235,7 @@ contract HatsSignerGate is
         } else {
           // otherwise, add the claimer as a new owner
           addOwnerData = SafeManagerLib.encodeAddOwnerWithThresholdAction(signer, threshold);
-          newNumOnwers++;
+          newNumOwners++;
         }
 
         // execute the call
@@ -244,7 +244,7 @@ contract HatsSignerGate is
     }
 
     // update the threshold if necessary
-    uint256 newThreshold = _getNewThreshold(newNumOnwers);
+    uint256 newThreshold = _getNewThreshold(newNumOwners);
     if (newThreshold != threshold) {
       safe.execChangeThreshold(newThreshold);
     }
