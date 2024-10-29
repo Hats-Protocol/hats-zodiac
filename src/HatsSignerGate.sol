@@ -91,6 +91,8 @@ contract HatsSignerGate is
   /// @dev A simple re-entrency guard
   uint256 transient _guardEntries;
 
+  uint256 transient _existingThreshold;
+
   /*//////////////////////////////////////////////////////////////
                       AUTHENTICATION FUNCTIONS
   //////////////////////////////////////////////////////////////*/
@@ -439,6 +441,9 @@ contract HatsSignerGate is
     // record existing owners for post-flight check
     _existingOwnersHash = keccak256(abi.encode(owners));
 
+    // record existing threshold for post-flight check
+    _existingThreshold = threshold;
+
     unchecked {
       ++_guardEntries;
     }
@@ -470,14 +475,11 @@ contract HatsSignerGate is
 
     if (s.getSafeGuard() != address(this)) revert CannotDisableThisGuard(address(this));
 
-    // get the owners
-    address[] memory owners = s.getOwners();
-
     // prevent signers from changing the threshold
-    if (s.getThreshold() != _getRequiredValidSignatures(owners.length)) revert SignersCannotChangeThreshold();
+    if (s.getThreshold() != _existingThreshold) revert SignersCannotChangeThreshold();
 
     // prevent signers from changing the owners
-    if (keccak256(abi.encode(owners)) != _existingOwnersHash) revert SignersCannotChangeOwners();
+    if (keccak256(abi.encode(s.getOwners())) != _existingOwnersHash) revert SignersCannotChangeOwners();
 
     // prevent signers from removing this module or adding any other modules
     (address[] memory modulesWith1, address next) = s.getModulesWith1();
