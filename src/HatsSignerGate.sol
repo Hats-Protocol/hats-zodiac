@@ -193,7 +193,7 @@ contract HatsSignerGate is
   /// @inheritdoc IHatsSignerGate
   function claimSigner(uint256 _hatId) public {
     // register the signer
-    _registerSigner({_hatId: _hatId, _signer: msg.sender, _allowReregistration: true});
+    _registerSigner({ _hatId: _hatId, _signer: msg.sender, _allowReregistration: true });
 
     // add the signer
     _addSigner(msg.sender);
@@ -205,7 +205,7 @@ contract HatsSignerGate is
     if (!claimableFor) revert NotClaimableFor();
 
     // register the signer, reverting if invalid or already registered
-    _registerSigner({_hatId: _hatId, _signer: _signer, _allowReregistration: false});
+    _registerSigner({ _hatId: _hatId, _signer: _signer, _allowReregistration: false });
 
     // add the signer
     _addSigner(_signer);
@@ -238,7 +238,7 @@ contract HatsSignerGate is
       address signer = _signers[i];
 
       // register the signer, reverting if invalid or already registered
-      _registerSigner({_hatId: hatId, _signer: signer, _allowReregistration: false});
+      _registerSigner({ _hatId: hatId, _signer: signer, _allowReregistration: false });
 
       // if the signer is not an owner, add them
       if (!s.isOwner(signer)) {
