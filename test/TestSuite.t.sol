@@ -431,6 +431,8 @@ contract TestSuite is SafeTestHelpers {
   function _addSignersSameHat(uint256 _count, uint256 _hat) internal {
     for (uint256 i = 0; i < _count; ++i) {
       _setSignerValidity(signerAddresses[i], _hat, true);
+      vm.expectEmit();
+      emit IHatsSignerGate.Registered(_hat, signerAddresses[i]);
       vm.prank(signerAddresses[i]);
       hatsSignerGate.claimSigner(_hat);
     }
@@ -476,7 +478,7 @@ contract TestSuite is SafeTestHelpers {
 
   function assertValidSignerHats(uint256[] memory _signerHats) public view {
     for (uint256 i = 0; i < _signerHats.length; ++i) {
-      assertTrue(hatsSignerGate.validSignerHats(_signerHats[i]));
+      assertTrue(hatsSignerGate.isValidSignerHat(_signerHats[i]));
     }
   }
 
