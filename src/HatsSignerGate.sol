@@ -188,7 +188,11 @@ contract HatsSignerGate is
 
   /// @inheritdoc IHatsSignerGate
   function claimSigner(uint256 _hatId) public {
-    _addSigner(_hatId, msg.sender);
+    // register the signer
+    _registerSigner({_hatId: _hatId, _signer: msg.sender, _allowReregistration: true});
+
+    // add the signer
+    _addSigner(msg.sender);
   }
 
   /// @inheritdoc IHatsSignerGate
@@ -196,7 +200,11 @@ contract HatsSignerGate is
     // check that signer permissions are claimable for
     if (!claimableFor) revert NotClaimableFor();
 
-    _addSigner(_hatId, _signer);
+    // register the signer, reverting if invalid or already registered
+    _registerSigner({_hatId: _hatId, _signer: _signer, _allowReregistration: false});
+
+    // add the signer
+    _addSigner(_signer);
   }
 
   /// @inheritdoc IHatsSignerGate
@@ -226,7 +234,7 @@ contract HatsSignerGate is
       address signer = _signers[i];
 
       // register the signer, reverting if invalid or already registered
-      _registerSigner(hatId, signer);
+      _registerSigner({_hatId: hatId, _signer: signer, _allowReregistration: false});
 
       // if the signer is not an owner, add them
       if (!s.isOwner(signer)) {
@@ -658,18 +666,27 @@ contract HatsSignerGate is
     emit ClaimableForSet(_claimableFor);
   }
 
-  /// @dev Internal function to register a signer's hat. Includes checks for signer/hat validity and prior registration.
+  /// @dev Internal function to register a signer's hat if they are wearing a valid signer hat.
   /// @param _hatId The hat id to register
   /// @param _signer The address to register
-  function _registerSigner(uint256 _hatId, address _signer) internal {
+  /// @param _allowReregistration Whether to allow registration of a different hat for an existing signer
+  function _registerSigner(uint256 _hatId, address _signer, bool _allowReregistration) internal {
     // check that the hat is valid
     if (!isValidSignerHat(_hatId)) revert InvalidSignerHat(_hatId);
 
     // check that the signer is wearing the hat
     if (!HATS.isWearerOfHat(_signer, _hatId)) revert NotSignerHatWearer(_signer);
 
-    // don't try to add an owner that has already registered
-    if (claimedSignerHats[_signer] == _hatId) revert SignerAlreadyClaimed(_signer);
+    // get the current registered hat
+    uint256 registeredHat = claimedSignerHats[_signer];
+
+    // disallow re-registering a different hat for an existing signer, if specified
+    if (!_allowReregistration) {
+      if (registeredHat != 0) revert ReregistrationNotAllowed();
+    }
+
+    // don't try to add an owner that has already registered with the same hat
+    if (registeredHat == _hatId) revert SignerAlreadyRegistered(_signer);
 
     // register the hat used to claim. This will be the hat checked in `checkTransaction()` for this signer
     claimedSignerHats[_signer] = _hatId;
@@ -678,16 +695,11 @@ contract HatsSignerGate is
     emit Registered(_hatId, _signer);
   }
 
-  /// @dev Internal function to add a `_signer` to the `safe` if they are wearing a valid signer hat.
+  /// @dev Internal function to add a `_signer` to the `safe` if they are not already an owner.
   /// If this contract is the only owner on the `safe`, it will be swapped out for `_signer`. Otherwise, `_signer` will
-  /// be added as a new owner. If the `_signer` is already an owner but has not registered their hat, they will be
-  /// registered but not re-added to the `safe`.
-  /// @param _hatId The hat id to use for the claim
+  /// be added as a new owner.
   /// @param _signer The address to add as a new `safe` owner
-  function _addSigner(uint256 _hatId, address _signer) internal {
-    // register the signer
-    _registerSigner(_hatId, _signer);
-
+  function _addSigner(address _signer) internal {
     ISafe s = safe;
 
     // if the signer is not already an owner, add them

@@ -348,7 +348,7 @@ contract ClaimingSigners is WithHSGInstanceTest {
 
     vm.prank(signerAddresses[1]);
 
-    vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.SignerAlreadyClaimed.selector, signerAddresses[1]));
+    vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.SignerAlreadyRegistered.selector, signerAddresses[1]));
 
     hatsSignerGate.claimSigner(signerHat);
 
@@ -1309,7 +1309,7 @@ contract ClaimingSignerFor is WithHSGInstanceTest {
     assertEq(safe.getOwners().length, 1);
   }
 
-  function test_revert_alreadyClaimed() public {
+  function test_revert_alreadyRegistered() public {
     _setSignerValidity(signerAddresses[0], signerHat, true);
 
     vm.prank(owner);
@@ -1317,8 +1317,19 @@ contract ClaimingSignerFor is WithHSGInstanceTest {
 
     hatsSignerGate.claimSignerFor(signerHat, signerAddresses[0]);
 
-    vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.SignerAlreadyClaimed.selector, signerAddresses[0]));
-    hatsSignerGate.claimSignerFor(signerHat, signerAddresses[0]);
+    // add a new signer hat
+    uint256 newSignerHat = signerHats[1];
+    uint256[] memory newSignerHats = new uint256[](1);
+    newSignerHats[0] = newSignerHat;
+    vm.prank(owner);
+    hatsSignerGate.addSignerHats(newSignerHats);
+
+    // make the signer valid for the new signer hat
+    _setSignerValidity(signerAddresses[0], newSignerHat, true);
+
+    // try to claim for the signer again, expecting a revert
+    vm.expectRevert(IHatsSignerGate.ReregistrationNotAllowed.selector);
+    hatsSignerGate.claimSignerFor(newSignerHat, signerAddresses[0]);
 
     assertEq(hatsSignerGate.validSignerCount(), 1);
     assertEq(safe.getOwners().length, 1);
@@ -1543,7 +1554,7 @@ contract ClaimingSignersFor is WithHSGInstanceTest {
     hatsSignerGate.claimSignersFor(hatIds, claimers);
   }
 
-  function test_revert_alreadyClaimed(uint256 _signerCount, uint256 _alreadyClaimedIndex) public {
+  function test_revert_alreadyRegistered(uint256 _signerCount, uint256 _alreadyClaimedIndex) public {
     _signerCount = bound(_signerCount, 2, signerAddresses.length);
     _alreadyClaimedIndex = bound(_alreadyClaimedIndex, 0, _signerCount - 1);
 
@@ -1569,9 +1580,7 @@ contract ClaimingSignersFor is WithHSGInstanceTest {
       hatIds[i] = signerHat;
     }
 
-    vm.expectRevert(
-      abi.encodeWithSelector(IHatsSignerGate.SignerAlreadyClaimed.selector, signerAddresses[_alreadyClaimedIndex])
-    );
+    vm.expectRevert(IHatsSignerGate.ReregistrationNotAllowed.selector);
     hatsSignerGate.claimSignersFor(hatIds, claimers);
   }
 

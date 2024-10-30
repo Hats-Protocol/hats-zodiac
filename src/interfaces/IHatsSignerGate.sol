@@ -78,7 +78,7 @@ interface IHatsSignerGate {
   error InvalidThresholdConfig();
 
   /// @notice Signers already on the `safe` cannot claim twice
-  error SignerAlreadyClaimed(address signer);
+  error SignerAlreadyRegistered(address signer);
 
   /// @notice Can only claim signer with a valid signer hat
   error InvalidSignerHat(uint256 hatId);
@@ -115,6 +115,9 @@ interface IHatsSignerGate {
 
   /// @notice The delegatecall target is not enabled
   error DelegatecallTargetNotEnabled();
+
+  /// @notice Reregistration is not allowed on behalf of an existing signer
+  error ReregistrationNotAllowed();
 
   /*//////////////////////////////////////////////////////////////
                               EVENTS
