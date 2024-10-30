@@ -274,7 +274,7 @@ contract HatsSignerGate is
   }
 
   /// @inheritdoc IHatsSignerGate
-  function removeSigner(address _signer) public virtual {
+  function removeSigner(address _signer) public {
     if (isValidSigner(_signer)) revert StillWearsSignerHat();
 
     _removeSigner(_signer);
@@ -609,9 +609,8 @@ contract HatsSignerGate is
   /// @param owners The addresses to check for validity
   /// @return signerCount The number of valid signers in `owners`
   function _countValidSigners(address[] memory owners) internal view returns (uint256 signerCount) {
-    uint256 length = owners.length;
     // count the existing safe owners that wear the signer hat
-    for (uint256 i; i < length; ++i) {
+    for (uint256 i; i < owners.length; ++i) {
       if (isValidSigner(owners[i])) {
         // shouldn't overflow given reasonable owners array length
         unchecked {
@@ -691,7 +690,8 @@ contract HatsSignerGate is
     // get the current registered hat
     uint256 registeredHat = claimedSignerHats[_signer];
 
-    // disallow re-registering a different hat for an existing signer that is still wearing their currently-registered hat, if specified
+    // disallow re-registering a different hat for an existing signer that is still wearing their currently-registered
+    // hat, if specified
     if (!_allowReregistration) {
       if (HATS.isWearerOfHat(_signer, registeredHat)) {
         revert ReregistrationNotAllowed();
@@ -975,8 +975,9 @@ contract HatsSignerGate is
     // if the length is 0, we know this module has been removed
     // per Safe ModuleManager.sol#137, "If all entries fit into a single page, the next pointer will be 0x1", ie
     // SENTINELS. Therefore, if `next` is not SENTINELS, we know another module has been added.
-    if (modulesWith1.length == 0 || next != SafeManagerLib.SENTINELS) revert CannotChangeModules();
-    // ...and that the only module is this contract
-    else if (modulesWith1[0] != address(this)) revert CannotChangeModules();
+    // We also check that the only module is this contract
+    if (modulesWith1.length == 0 || next != SafeManagerLib.SENTINELS || modulesWith1[0] != address(this)) {
+      revert CannotChangeModules();
+    }
   }
 }

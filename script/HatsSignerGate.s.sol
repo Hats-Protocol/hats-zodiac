@@ -62,8 +62,15 @@ contract DeployImplementation is BaseScript {
 
     if (verbose) {
       console2.log("HSG implementation", address(implementation));
-      console2.log("HSG runtime bytecode size", address(implementation).code.length);
-      console2.log("HSG runtime bytecode margin", 24_576 - (address(implementation).code.length));
+      console2.log("HSG runtime bytecode size:", address(implementation).code.length);
+
+      uint256 codeLength = address(implementation).code.length;
+      if (codeLength > 24_576) {
+        console2.log("HSG runtime bytecode margin: negative", codeLength - 24_576);
+      } else {
+        console2.log("HSG runtime bytecode margin: positive", 24_576 - codeLength);
+      }
+
       console2.log("Safe singleton", safeSingleton);
       console2.log("Safe fallback library", safeFallbackLibrary);
       console2.log("Safe multisend library", safeMultisendLibrary);
