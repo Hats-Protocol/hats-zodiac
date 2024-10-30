@@ -462,7 +462,7 @@ contract HatsSignerGate is
     );
 
     // count the number of valid signatures and revert if there aren't enough
-    if (countValidSignatures(txHash, signatures, threshold) < threshold) revert InsufficientValidSignatures();
+    if (_countValidSignatures(txHash, signatures, threshold) < threshold) revert InsufficientValidSignatures();
 
     /// @dev This is a reentrancy guard designed to work with the `checkAfterExecution()` function. It allows reentrancy
     /// into this contract so that the `checkAfterExecution()` function can be called by the `safe`, but it only allows
@@ -539,49 +539,6 @@ contract HatsSignerGate is
   }
 
   /// @inheritdoc IHatsSignerGate
-  function countValidSignatures(bytes32 dataHash, bytes memory signatures, uint256 sigCount)
-    public
-    view
-    returns (uint256 validSigCount)
-  {
-    // There cannot be an owner with address 0.
-    address currentOwner;
-    uint8 v;
-    bytes32 r;
-    bytes32 s;
-    uint256 i;
-
-    for (i; i < sigCount; ++i) {
-      (v, r, s) = signatureSplit(signatures, i);
-      if (v == 0) {
-        // If v is 0 then it is a contract signature
-        // When handling contract signatures the address of the contract is encoded into r
-        currentOwner = address(uint160(uint256(r)));
-      } else if (v == 1) {
-        // If v is 1 then it is an approved hash
-        // When handling approved hashes the address of the approver is encoded into r
-        currentOwner = address(uint160(uint256(r)));
-      } else if (v > 30) {
-        // If v > 30 then default va (27,28) has been adjusted for eth_sign flow
-        // To support eth_sign and similar we adjust v and hash the messageHash with the Ethereum message prefix before
-        // applying ecrecover
-        currentOwner = ecrecover(keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", dataHash)), v - 4, r, s);
-      } else {
-        // Default is the ecrecover flow with the provided data hash
-        // Use ecrecover with the messageHash for EOA signatures
-        currentOwner = ecrecover(dataHash, v, r, s);
-      }
-
-      if (isValidSigner(currentOwner)) {
-        // shouldn't overflow given reasonable sigCount
-        unchecked {
-          ++validSigCount;
-        }
-      }
-    }
-  }
-
-  /// @inheritdoc IHatsSignerGate
   function getSafeDeployParamAddresses()
     public
     view
@@ -654,6 +611,55 @@ contract HatsSignerGate is
         // shouldn't overflow given reasonable owners array length
         unchecked {
           ++signerCount;
+        }
+      }
+    }
+  }
+
+  /// @dev Counts the number of hats-valid signatures within a set of `signatures`
+  /// @dev modified from
+  /// https://github.com/safe-global/safe-contracts/blob/c36bcab46578a442862d043e12a83fec41143dec/contracts/Safe.sol#L240
+  /// @param dataHash The signed data
+  /// @param signatures The set of signatures to check
+  /// @param sigCount The number of signatures to check
+  /// @return validSigCount The number of hats-valid signatures
+  function _countValidSignatures(bytes32 dataHash, bytes memory signatures, uint256 sigCount)
+    internal
+    view
+    returns (uint256 validSigCount)
+  {
+    // There cannot be an owner with address 0.
+    address currentOwner;
+    uint8 v;
+    bytes32 r;
+    bytes32 s;
+    uint256 i;
+
+    for (i; i < sigCount; ++i) {
+      (v, r, s) = signatureSplit(signatures, i);
+      if (v == 0) {
+        // If v is 0 then it is a contract signature
+        // When handling contract signatures the address of the contract is encoded into r
+        currentOwner = address(uint160(uint256(r)));
+      } else if (v == 1) {
+        // If v is 1 then it is an approved hash
+        // When handling approved hashes the address of the approver is encoded into r
+        currentOwner = address(uint160(uint256(r)));
+      } else if (v > 30) {
+        // If v > 30 then default va (27,28) has been adjusted for eth_sign flow
+        // To support eth_sign and similar we adjust v and hash the messageHash with the Ethereum message prefix before
+        // applying ecrecover
+        currentOwner = ecrecover(keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", dataHash)), v - 4, r, s);
+      } else {
+        // Default is the ecrecover flow with the provided data hash
+        // Use ecrecover with the messageHash for EOA signatures
+        currentOwner = ecrecover(dataHash, v, r, s);
+      }
+
+      if (isValidSigner(currentOwner)) {
+        // shouldn't overflow given reasonable sigCount
+        unchecked {
+          ++validSigCount;
         }
       }
     }

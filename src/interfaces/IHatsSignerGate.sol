@@ -295,18 +295,6 @@ interface IHatsSignerGate {
   /// @notice Checks if a HatsSignerGate can be safely attached to a Safe, ie there must be no existing modules
   function canAttachToSafe() external view returns (bool);
 
-  /// @notice Counts the number of hats-valid signatures within a set of `signatures`
-  /// @dev modified from
-  /// https://github.com/safe-global/safe-contracts/blob/c36bcab46578a442862d043e12a83fec41143dec/contracts/Safe.sol#L240
-  /// @param dataHash The signed data
-  /// @param signatures The set of signatures to check
-  /// @param sigCount The number of signatures to check
-  /// @return validSigCount The number of hats-valid signatures
-  function countValidSignatures(bytes32 dataHash, bytes memory signatures, uint256 sigCount)
-    external
-    view
-    returns (uint256 validSigCount);
-
   /// @notice Returns the addresses of the Safe contracts used to deploy new Safes
   /// @return _safeSingleton The address of the Safe singleton used to deploy new Safes
   /// @return _safeFallbackLibrary The address of the Safe fallback library used to deploy new Safes
