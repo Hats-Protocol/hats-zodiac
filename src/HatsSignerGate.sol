@@ -53,26 +53,11 @@ contract HatsSignerGate is
   string public constant version = "2.0.0";
 
   /*//////////////////////////////////////////////////////////////
-                            MUTABLE STATE
+                         PUBLIC MUTABLE STATE
   //////////////////////////////////////////////////////////////*/
 
   /// @inheritdoc IHatsSignerGate
-  mapping(uint256 => bool) public validSignerHats;
-
-  /// @inheritdoc IHatsSignerGate
-  mapping(address => uint256) public claimedSignerHats;
-
-  /// @inheritdoc IHatsSignerGate
-  mapping(address => bool) public enabledDelegatecallTargets;
-
-  /// @inheritdoc IHatsSignerGate
-  uint256 public ownerHat;
-
-  /// @inheritdoc IHatsSignerGate
   ISafe public safe;
-
-  /// @dev The threshold configuration
-  ThresholdConfig internal _thresholdConfig;
 
   /// @inheritdoc IHatsSignerGate
   bool public locked;
@@ -82,6 +67,25 @@ contract HatsSignerGate is
 
   /// @inheritdoc IHatsSignerGate
   address public implementation;
+
+  /// @inheritdoc IHatsSignerGate
+  uint256 public ownerHat;
+
+  /// @inheritdoc IHatsSignerGate
+  mapping(address => bool) public enabledDelegatecallTargets;
+
+  /// @inheritdoc IHatsSignerGate
+  mapping(address => uint256) public claimedSignerHats;
+
+  /*//////////////////////////////////////////////////////////////
+                        INTERNAL MUTABLE STATE
+  //////////////////////////////////////////////////////////////*/
+
+  /// @dev Append-only tracker of approved signer hats
+  mapping(uint256 => bool) internal _validSignerHats;
+
+  /// @dev The threshold configuration
+  ThresholdConfig internal _thresholdConfig;
 
   /*//////////////////////////////////////////////////////////////
                           TRANSIENT STATE
@@ -519,13 +523,13 @@ contract HatsSignerGate is
 
   /// @inheritdoc IHatsSignerGate
   function isValidSigner(address _account) public view returns (bool valid) {
-    /// @dev existing `claimedSignerHats` are always valid, since `validSignerHats` is append-only
+    /// @dev existing `claimedSignerHats` are always valid, since `_validSignerHats` is append-only
     valid = HATS.isWearerOfHat(_account, claimedSignerHats[_account]);
   }
 
   /// @inheritdoc IHatsSignerGate
   function isValidSignerHat(uint256 _hatId) public view returns (bool valid) {
-    valid = validSignerHats[_hatId];
+    valid = _validSignerHats[_hatId];
   }
 
   /// @inheritdoc IHatsSignerGate
@@ -567,7 +571,7 @@ contract HatsSignerGate is
   /// @param _newSignerHats Array of hat ids to add as approved signer hats
   function _addSignerHats(uint256[] memory _newSignerHats) internal {
     for (uint256 i; i < _newSignerHats.length; ++i) {
-      validSignerHats[_newSignerHats[i]] = true;
+      _validSignerHats[_newSignerHats[i]] = true;
     }
 
     emit SignerHatsAdded(_newSignerHats);

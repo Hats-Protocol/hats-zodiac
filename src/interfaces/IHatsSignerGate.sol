@@ -22,7 +22,8 @@ interface IHatsSignerGate {
   /// @notice Struct for the threshold configuration
   /// @param thresholdType The type of target threshold, either ABSOLUTE or PROPORTIONAL
   /// @param min The minimum threshold
-  /// @param target The target threshold
+  /// @param target The target. If thresholdType is ABSOLUTE, this is an absolute number of signatures.
+  ///               If thresholdType is PROPORTIONAL, this is a percentage in basis points (10000 = 100%).
   struct ThresholdConfig {
     TargetThresholdType thresholdType;
     uint120 min;
@@ -164,9 +165,6 @@ interface IHatsSignerGate {
                           STATE VARIABLES
   //////////////////////////////////////////////////////////////*/
 
-  /// @notice Append-only tracker of approved signer hats
-  function validSignerHats(uint256) external view returns (bool);
-
   /// @notice Tracks the hat ids worn by users who have "claimed signer"
   function claimedSignerHats(address) external view returns (uint256);
 
@@ -194,8 +192,6 @@ interface IHatsSignerGate {
   /*//////////////////////////////////////////////////////////////
                               FUNCTIONS
   //////////////////////////////////////////////////////////////*/
-
-  // TODO make sure all functions implemented in HatsSignerGate are included here
 
   /// @notice Initializes a new instance of HatsSignerGate.
   /// @dev Does NOT check if the target Safe is compatible with this HSG.
