@@ -7,22 +7,21 @@ import { IHatsSignerGate } from "../src/interfaces/IHatsSignerGate.sol";
 
 contract AttacksScenarios is WithHSGInstanceTest {
   function testSignersCannotAddNewModules() public {
-    bytes memory addModuleData = abi.encodeWithSignature("enableModule(address)", address(0xf00baa));
-
     _addSignersSameHat(2, signerHat);
 
-    bytes32 txHash = _getTxHash(address(safe), 0, Enum.Operation.Call, addModuleData, safe);
+    bytes memory addModuleData = abi.encodeWithSignature("enableModule(address)", address(tstModule1));
+
+    (bytes memory multisendCall, bytes32 txHash) = _constructSingleActionMultiSendTx(addModuleData);
 
     bytes memory signatures = _createNSigsForTx(txHash, 2);
 
+    // execute tx, expecting a revert
     vm.expectRevert(IHatsSignerGate.SignersCannotChangeModules.selector);
-
-    // execute tx
     safe.execTransaction(
-      address(safe),
+      defaultDelegatecallTargets[0],
       0,
-      addModuleData,
-      Enum.Operation.Call,
+      multisendCall,
+      Enum.Operation.DelegateCall,
       // not using the refunder
       0,
       0,
@@ -172,7 +171,7 @@ contract AttacksScenarios is WithHSGInstanceTest {
     bytes memory maliciousTx = abi.encodeWithSignature("maliciousCall(uint256)", 1 ether);
     // Attacker gets 2 of the valid signers to sign it, and adds their own (invalid) signature: NSigs = 3
     bytes32 txHash = safe.getTransactionHash(
-      address(safe), // to
+      maliciousContract, // to
       0, // value
       maliciousTx, // data
       Enum.Operation.Call, // operation
@@ -196,7 +195,7 @@ contract AttacksScenarios is WithHSGInstanceTest {
     vm.expectRevert(IHatsSignerGate.InsufficientValidSignatures.selector);
     vm.prank(attacker);
     safe.execTransaction(
-      address(safe),
+      maliciousContract,
       0,
       maliciousTx,
       Enum.Operation.Call,

@@ -11,6 +11,7 @@ import { StorageAccessible } from "../lib/safe-smart-account/contracts/common/St
 import { ModuleProxyFactory } from "../lib/zodiac/contracts/factory/ModuleProxyFactory.sol";
 import { DeployImplementation, DeployInstance } from "../script/HatsSignerGate.s.sol";
 import { TestGuard } from "./mocks/TestGuard.sol";
+import { MultiSend } from "../lib/safe-smart-account/contracts/libraries/MultiSend.sol";
 
 abstract contract SafeTestHelpers is Test {
   address public constant SENTINELS = address(0x1);
@@ -454,6 +455,23 @@ contract TestSuite is SafeTestHelpers {
       vm.prank(eligibility);
       hats.setHatWearerStatus(_hat, _wearer, false, true);
     }
+  }
+
+  /// @dev Construct the call and txHash for a single action multisend
+  function _constructSingleActionMultiSendTx(bytes memory _data)
+    internal
+    view
+    returns (bytes memory call, bytes32 txHash)
+  {
+    bytes memory multisendData = abi.encodePacked(
+      Enum.Operation.Call, // 0 for call; 1 for delegatecall
+      address(safe), // to
+      uint256(0), // value
+      uint256(_data.length), // data length
+      _data // data
+    );
+    call = abi.encodeWithSelector(MultiSend.multiSend.selector, multisendData);
+    txHash = _getTxHash(defaultDelegatecallTargets[0], 0, Enum.Operation.DelegateCall, call, safe);
   }
 
   function assertValidSignerHats(uint256[] memory _signerHats) public view {

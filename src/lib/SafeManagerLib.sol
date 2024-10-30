@@ -38,6 +38,10 @@ library SafeManagerLib {
   /// @dev The storage slot used by Safe to store the guard address: keccak256("guard_manager.guard.address")
   bytes32 internal constant GUARD_STORAGE_SLOT = 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
 
+  // keccak256("fallback_manager.handler.address")
+  bytes32 internal constant FALLBACK_HANDLER_STORAGE_SLOT =
+    0x6c9a6c4a39284e37ed1cf53d337577d14212a4870fb976a4366c693b939918d5;
+
   /*//////////////////////////////////////////////////////////////
                               HELPER FUNCTIONS
   //////////////////////////////////////////////////////////////*/
@@ -224,6 +228,12 @@ library SafeManagerLib {
   /// @dev Get the guard of a `_safe`
   function getSafeGuard(ISafe _safe) internal view returns (address) {
     return abi.decode(StorageAccessible(address(_safe)).getStorageAt(uint256(GUARD_STORAGE_SLOT), 1), (address));
+  }
+
+  /// @dev Get the fallback handler of a `_safe`
+  function getSafeFallbackHandler(ISafe _safe) internal view returns (address) {
+    return
+      abi.decode(StorageAccessible(address(_safe)).getStorageAt(uint256(FALLBACK_HANDLER_STORAGE_SLOT), 1), (address));
   }
 
   /// @dev Get the modules array of a `_safe` with pagination of 1

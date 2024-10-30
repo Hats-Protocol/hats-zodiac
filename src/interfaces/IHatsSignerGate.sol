@@ -92,6 +92,9 @@ interface IHatsSignerGate {
   /// @notice Signers are not allowed to change owners
   error SignersCannotChangeOwners();
 
+  /// @notice Neither signers nor modules enabled on HSG can change the fallback handler
+  error CannotChangeFallbackHandler();
+
   /// @notice Emmitted when a call to `checkTransaction` or `checkAfterExecution` is not made from the `safe`
   /// @dev Together with `guardEntries`, protects against arbitrary reentrancy attacks by the signers
   error NotCalledFromSafe();
@@ -109,12 +112,9 @@ interface IHatsSignerGate {
   /// @notice The input arrays must be the same length
   error InvalidArrayLength();
 
-  /// @notice Modules enabled on HSG cannot make external calls to the `safe`
-  /// @dev This ensures that modules cannot change any of the `safe`'s settings
-  error ModulesCannotCallSafe();
-
-  /// @notice Modules enabled on HSG cannot delegatecall
-  error ModulesCannotDelegatecall();
+  /// @notice Neither Safe signers nor modules enabled on HSG can make external calls to the `safe`
+  /// @dev This ensures that signers and modules cannot change any of the `safe`'s settings
+  error CannotCallSafe();
 
   /// @notice The delegatecall target is not enabled
   error DelegatecallTargetNotEnabled();

@@ -90,10 +90,17 @@ contract HatsSignerGate is
   /// @dev Temporary record of the existing owners on the `safe` when a transaction is submitted
   bytes32 transient _existingOwnersHash;
 
-  /// @dev A simple re-entrency guard
+  /// @dev A simple re-entrancy guard
   uint256 transient _guardEntries;
 
+  /// @dev Temporary record of the existing threshold on the `safe` when a transaction is submitted
   uint256 transient _existingThreshold;
+
+  /// @dev Temporary record of the existing fallback handler on the `safe` when a transaction is submitted
+  address transient _existingFallbackHandler;
+
+  /// @dev Temporary record of the operation type when a transaction is submitted
+  Enum.Operation transient _operation;
 
   /*//////////////////////////////////////////////////////////////
                       AUTHENTICATION FUNCTIONS
@@ -214,7 +221,7 @@ contract HatsSignerGate is
     bool isInitialOwnersState = owners.length == 1 && owners[0] == address(this);
 
     // count the number of owners after the claim
-    uint256 newNumOnwers = owners.length;
+    uint256 newNumOwners = owners.length;
 
     // iterate through the arrays, adding each signer
     for (uint256 i; i < toClaimCount; ++i) {
@@ -235,7 +242,7 @@ contract HatsSignerGate is
         } else {
           // otherwise, add the claimer as a new owner
           addOwnerData = SafeManagerLib.encodeAddOwnerWithThresholdAction(signer, threshold);
-          newNumOnwers++;
+          newNumOwners++;
         }
 
         // execute the call
@@ -244,7 +251,7 @@ contract HatsSignerGate is
     }
 
     // update the threshold if necessary
-    uint256 newThreshold = _getNewThreshold(newNumOnwers);
+    uint256 newThreshold = _getNewThreshold(newNumOwners);
     if (newThreshold != threshold) {
       safe.execChangeThreshold(newThreshold);
     }
@@ -372,7 +379,7 @@ contract HatsSignerGate is
   function checkTransaction(
     address to,
     uint256 value,
-    bytes memory data, // TODO compile viaIR to return this to calldata without stack too deep error
+    bytes memory data,
     Enum.Operation operation,
     uint256 safeTxGas,
     uint256 baseGas,
@@ -382,13 +389,8 @@ contract HatsSignerGate is
     bytes memory signatures,
     address // msgSender
   ) external override {
-    // disallow delegatecalls to unapproved targets
-    if (operation == Enum.Operation.DelegateCall) _checkDelegatecallTarget(to);
-
-    ISafe s = safe; // save SLOADs
-
     // ensure that the call is coming from the safe
-    if (msg.sender != address(s)) revert NotCalledFromSafe();
+    if (msg.sender != address(safe)) revert NotCalledFromSafe();
 
     // module guard preflight check
     if (guard != address(0)) {
@@ -408,8 +410,40 @@ contract HatsSignerGate is
       );
     }
 
+    // get the existing owners and threshold
+    address[] memory owners = safe.getOwners();
+    uint256 threshold = safe.getThreshold();
+
+    // We record the operation type to guide the post-flight checks
+    _operation = operation;
+
+    if (operation == Enum.Operation.DelegateCall) {
+      // case: DELEGATECALL
+      // We disallow delegatecalls to unapproved targets
+      if (!enabledDelegatecallTargets[to]) revert DelegatecallTargetNotEnabled();
+
+      // Otherwise record the existing owners and threshold for post-flight checks to ensure that Safe state has not
+      // been altered
+      _existingOwnersHash = keccak256(abi.encode(owners));
+      _existingThreshold = threshold;
+      _existingFallbackHandler = safe.getSafeFallbackHandler();
+    } else if (to == address(safe)) {
+      // case: CALL to the safe
+      // We disallow external calls to the safe itself. Together with the above check, this ensures there are no
+      // unauthorized calls into the Safe itself
+      revert CannotCallSafe();
+    }
+
+    // case: CALL to a non-Safe target
+    // We can proceed to signer validation
+
+    // the safe's threshold is always the minimum between the required amount of valid signatures and the number of
+    // owners. if the threshold is lower than the required amount of valid signatures, it means that there are currently
+    // not enough owners to approve the tx, so we can revert without further checks
+    if (threshold != _getRequiredValidSignatures(owners.length)) revert InsufficientValidSignatures();
+
     // get the tx hash
-    bytes32 txHash = s.getTransactionHash(
+    bytes32 txHash = safe.getTransactionHash(
       to,
       value,
       data,
@@ -420,36 +454,19 @@ contract HatsSignerGate is
       gasToken,
       refundReceiver,
       // We subtract 1 since nonce was just incremented in the parent function call
-      s.nonce() - 1 // view function
+      safe.nonce() - 1
     );
 
-    // get the safe owners
-    address[] memory owners = s.getOwners();
-    // get the required amount of valid signatures according to the current number of owners and the threshold config
-    uint256 requiredValidSignatures = _getRequiredValidSignatures(owners.length);
-    // get the current threshold from the safe
-    uint256 threshold = s.getThreshold();
+    // count the number of valid signatures and revert if there aren't enough
+    if (countValidSignatures(txHash, signatures, threshold) < threshold) revert InsufficientValidSignatures();
 
-    // the safe's threshold is always the minimum between the required amount of valid signatures and the number of
-    // owners. if the threshold is lower than the required amount of valid signatures, it means that there are currently
-    // not enough owners to approve the tx
-    if (threshold != requiredValidSignatures) revert InsufficientValidSignatures();
-
-    uint256 validSigCount = countValidSignatures(txHash, signatures, threshold);
-
-    // revert if there aren't enough valid signatures
-    if (validSigCount < threshold) revert InsufficientValidSignatures();
-
-    // record existing owners for post-flight check
-    _existingOwnersHash = keccak256(abi.encode(owners));
-
-    // record existing threshold for post-flight check
-    _existingThreshold = threshold;
-
+    /// @dev This is a reentrancy guard designed to work with the `checkAfterExecution()` function. It allows reentrancy
+    /// into this contract so that the `checkAfterExecution()` function can be called by the `safe`, but it only allows
+    /// one call each of `checkTransaction()` and `checkAfterExecution()`.
     unchecked {
       ++_guardEntries;
     }
-    // revert if re-entry is detected
+    // revert if re-entry into this function is detected prior to `checkAfterExecution()` is called
     if (_guardEntries > 1) revert NoReentryAllowed();
   }
 
@@ -475,26 +492,15 @@ contract HatsSignerGate is
       BaseGuard(guard).checkAfterExecution(bytes32(0), false);
     }
 
-    if (s.getSafeGuard() != address(this)) revert CannotDisableThisGuard(address(this));
+    // if the transaction was a delegatecall, perform the post-flight check on the Safe state
+    // we don't need to check the Safe state for regular calls since the Safe state cannot be altered except by calling
+    // into the Safe, which is explicitly disallowed
+    if (_operation == Enum.Operation.DelegateCall) {
+      _checkSafeState(s);
+    }
 
-    // prevent signers from changing the threshold
-    if (s.getThreshold() != _existingThreshold) revert SignersCannotChangeThreshold();
-
-    // prevent signers from changing the owners
-    if (keccak256(abi.encode(s.getOwners())) != _existingOwnersHash) revert SignersCannotChangeOwners();
-
-    // prevent signers from removing this module or adding any other modules
-    (address[] memory modulesWith1, address next) = s.getModulesWith1();
-
-    // ensure that there is only one module...
-    // if the length is 0, we know this module has been removed
-    // per Safe ModuleManager.sol#137, "If all entries fit into a single page, the next pointer will be 0x1", ie
-    // SENTINELS. Therefore, if `next` is not SENTINELS, we know another module has been added.
-    if (modulesWith1.length == 0 || next != SafeManagerLib.SENTINELS) revert SignersCannotChangeModules();
-    // ...and that the only module is this contract
-    else if (modulesWith1[0] != address(this)) revert SignersCannotChangeModules();
-
-    // leave checked to catch underflows triggered by re-entry attempts
+    // Leave checked to catch underflows triggered by calls to this function not originating from
+    // `Safe.execTransaction()`
     --_guardEntries;
   }
 
@@ -784,12 +790,6 @@ contract HatsSignerGate is
     emit DelegatecallTargetEnabled(_target, _enabled);
   }
 
-  /// @dev Internal function to check that a delegatecall target is enabled
-  /// @param _target The address to check
-  function _checkDelegatecallTarget(address _target) internal view {
-    if (!enabledDelegatecallTargets[_target]) revert DelegatecallTargetNotEnabled();
-  }
-
   // solhint-disallow-next-line payable-fallback
   fallback() external {
     // We don't revert on fallback to avoid issues in case of a Safe upgrade
@@ -800,10 +800,12 @@ contract HatsSignerGate is
   //                     ZODIAC MODIFIER FUNCTIONS
   // //////////////////////////////////////////////////////////////*/
 
-  /// @dev Allows a Module to execute a call. Delegatecalls are not allowed.
-  /// @notice Can only be called by an enabled module.
-  /// @notice Must emit ExecutionFromModuleSuccess(address module) if successful.
-  /// @notice Must emit ExecutionFromModuleFailure(address module) if unsuccessful.
+  /// @notice Allows a module to execute a call from the context of the Safe. Modules are not allowed to...
+  /// - delegatecall to unapproved targets
+  /// - change any Safe state, whether via a delegatecall to an approved target or a direct call
+  /// @dev Can only be called by an enabled module.
+  /// @dev Must emit ExecutionFromModuleSuccess(address module) if successful.
+  /// @dev Must emit ExecutionFromModuleFailure(address module) if unsuccessful.
   /// @param to Destination address of module transaction.
   /// @param value Ether value of module transaction.
   /// @param data Data payload of module transaction.
@@ -814,11 +816,13 @@ contract HatsSignerGate is
     moduleOnly
     returns (bool success)
   {
+    ISafe s = safe;
+
     // preflight checks
-    _checkModuleTransaction(to, operation);
+    _checkModuleTransaction(to, operation, s);
 
     // forward the call to the safe
-    success = safe.execTransactionFromModule(to, value, data, operation);
+    success = s.execTransactionFromModule(to, value, data, operation);
 
     // emit the appropriate execution status event
     if (success) {
@@ -827,14 +831,17 @@ contract HatsSignerGate is
       emit ExecutionFromModuleFailure(msg.sender);
     }
 
-    // postflight checks
-    _checkAfterModuleExecution();
+    // Ensure that the Safe state is not altered by delegatecalls. We don't need to check the Safe state for regular
+    // calls since the Safe state cannot be altered except by calling into the Safe, which is explicitly disallowed.
+    if (operation == Enum.Operation.DelegateCall) _checkSafeState(s);
   }
 
-  /// @dev Allows a Module to execute a call with return data. Delegatecalls are not allowed.
-  /// @notice Can only be called by an enabled module.
-  /// @notice Must emit ExecutionFromModuleSuccess(address module) if successful.
-  /// @notice Must emit ExecutionFromModuleFailure(address module) if unsuccessful.
+  /// @notice Allows a module to execute a call from the context of the Safe. Modules are not allowed to...
+  /// - delegatecall to unapproved targets
+  /// - change any Safe state, whether via a delegatecall to an approved target or a direct call
+  /// @dev Can only be called by an enabled module.
+  /// @dev Must emit ExecutionFromModuleSuccess(address module) if successful.
+  /// @dev Must emit ExecutionFromModuleFailure(address module) if unsuccessful.
   /// @param to Destination address of module transaction.
   /// @param value Ether value of module transaction.
   /// @param data Data payload of module transaction.
@@ -845,11 +852,13 @@ contract HatsSignerGate is
     moduleOnly
     returns (bool success, bytes memory returnData)
   {
+    ISafe s = safe;
+
     // preflight checks
-    _checkModuleTransaction(to, operation);
+    _checkModuleTransaction(to, operation, s);
 
     // forward the call to the safe
-    (success, returnData) = safe.execTransactionFromModuleReturnData(to, value, data, operation);
+    (success, returnData) = s.execTransactionFromModuleReturnData(to, value, data, operation);
 
     // emit the appropriate execution status event
     if (success) {
@@ -858,8 +867,9 @@ contract HatsSignerGate is
       emit ExecutionFromModuleFailure(msg.sender);
     }
 
-    // postflight checks
-    _checkAfterModuleExecution();
+    // Ensure that the Safe state is not altered by delegatecalls. We don't need to check the Safe state for regular
+    // calls since the Safe state cannot be altered except by calling into the Safe, which is explicitly disallowed.
+    if (operation == Enum.Operation.DelegateCall) _checkSafeState(s);
   }
 
   /// @inheritdoc ModifierUnowned
@@ -892,20 +902,60 @@ contract HatsSignerGate is
     _setGuard(_guard);
   }
 
-  /// @dev Internal function to check that a module transaction is valid
-  /// @param _to The destination address of the transaction
-  /// @param _operation The operation type of the transaction
-  function _checkModuleTransaction(address _to, Enum.Operation _operation)
-    internal
-    view
-  {
-    // disallow delegatecalls
-    if (_operation == Enum.Operation.DelegateCall) revert ModulesCannotDelegatecall();
+  /// @dev Internal function to check that a module transaction is valid. Modules are not allowed to...
+  /// - delegatecall to unapproved targets
+  /// - change any Safe state via a delegatecall to an approved target
+  /// - call the safe directly (prevents Safe state changes)
+  /// @param _to The address of the target of the module transaction
+  /// @param operation_ The operation type of the module transaction
+  /// @param _safe The safe that is executing the module transaction
+  function _checkModuleTransaction(address _to, Enum.Operation operation_, ISafe _safe) internal {
+    // preflight checks
+    if (operation_ == Enum.Operation.DelegateCall) {
+      // case: DELEGATECALL
+      // We disallow delegatecalls to unapproved targets
+      if (!enabledDelegatecallTargets[_to]) revert DelegatecallTargetNotEnabled();
 
-    // disallow external calls to the safe
-    if (_to == address(safe)) revert ModulesCannotCallSafe();
+      // If the delegatecall target is approved, we record the existing owners, threshold, and fallback handler for
+      // post-flight check
+      _existingOwnersHash = keccak256(abi.encode(_safe.getOwners()));
+      _existingThreshold = _safe.getThreshold();
+      _existingFallbackHandler = _safe.getSafeFallbackHandler();
+    } else if (_to == address(_safe)) {
+      // case: CALL to the safe
+      // We disallow external calls to the safe itself. Together with the above check, this ensure there are no
+      // unauthorized calls into the Safe itself
+      revert CannotCallSafe();
+    }
+
+    // case: CALL to a non-Safe target
+    // Return and proceed to subsequent logic
   }
 
-  /// @dev Internal function to check that a module transaction has been executed successfully
-  function _checkAfterModuleExecution() internal view { }
+  /// @dev Internal function to check that a delegatecall executed by the signers or a module do not change the
+  /// `_safe`'s
+  /// state.
+  function _checkSafeState(ISafe _safe) internal view {
+    if (_safe.getSafeGuard() != address(this)) revert CannotDisableThisGuard(address(this));
+
+    // prevent signers from changing the threshold
+    if (_safe.getThreshold() != _existingThreshold) revert SignersCannotChangeThreshold();
+
+    // prevent signers from changing the owners
+    if (keccak256(abi.encode(_safe.getOwners())) != _existingOwnersHash) revert SignersCannotChangeOwners();
+
+    // prevent changes to the fallback handler
+    if (_safe.getSafeFallbackHandler() != _existingFallbackHandler) revert CannotChangeFallbackHandler();
+
+    // prevent signers from removing this module or adding any other modules
+    (address[] memory modulesWith1, address next) = _safe.getModulesWith1();
+
+    // ensure that there is only one module...
+    // if the length is 0, we know this module has been removed
+    // per Safe ModuleManager.sol#137, "If all entries fit into a single page, the next pointer will be 0x1", ie
+    // SENTINELS. Therefore, if `next` is not SENTINELS, we know another module has been added.
+    if (modulesWith1.length == 0 || next != SafeManagerLib.SENTINELS) revert SignersCannotChangeModules();
+    // ...and that the only module is this contract
+    else if (modulesWith1[0] != address(this)) revert SignersCannotChangeModules();
+  }
 }
