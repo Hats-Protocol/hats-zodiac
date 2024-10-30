@@ -109,12 +109,9 @@ interface IHatsSignerGate {
   /// @notice The input arrays must be the same length
   error InvalidArrayLength();
 
-  /// @notice Modules enabled on HSG cannot make external calls to the `safe`
-  /// @dev This ensures that modules cannot change any of the `safe`'s settings
-  error ModulesCannotCallSafe();
-
-  /// @notice Modules enabled on HSG cannot delegatecall
-  error ModulesCannotDelegatecall();
+  /// @notice Neither Safe signers nor modules enabled on HSG can make external calls to the `safe`
+  /// @dev This ensures that signers and modules cannot change any of the `safe`'s settings
+  error CannotCallSafe();
 
   /// @notice The delegatecall target is not enabled
   error DelegatecallTargetNotEnabled();

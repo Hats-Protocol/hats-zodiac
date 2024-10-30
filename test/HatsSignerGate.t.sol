@@ -801,7 +801,7 @@ contract ConstrainingSigners is WithHSGInstanceTest {
     safe.execTransaction(
       target, 0, multisendCall, Enum.Operation.DelegateCall, 0, 0, 0, address(0), payable(address(0)), signatures
     );
-}
+  }
 
   function testCannotDisableModule() public {
     bytes memory disableModuleData =
@@ -1934,17 +1934,18 @@ contract ExecutingFromModuleViaHSG is WithHSGInstanceTest {
   function test_revert_moduleCannotCallSafe() public {
     uint256 transferValue = 0.3 ether;
     // try to send to the safe, expecting a revert
-    vm.expectRevert(IHatsSignerGate.ModulesCannotCallSafe.selector);
+    vm.expectRevert(IHatsSignerGate.CannotCallSafe.selector);
     vm.prank(newModule);
     hatsSignerGate.execTransactionFromModule(address(safe), transferValue, hex"00", Enum.Operation.Call);
   }
 
-  function test_revert_delegateCallsNotAllowed() public {
+  function test_revert_delegatecallTargetNotEnabled() public {
     address target = makeAddr("target");
 
+    // craft a delegatecall to a non-enabled target
     bytes memory data = abi.encodeWithSignature("maliciousCall()");
 
-    vm.expectRevert(IHatsSignerGate.ModulesCannotDelegatecall.selector);
+    vm.expectRevert(IHatsSignerGate.DelegatecallTargetNotEnabled.selector);
     vm.prank(newModule);
     hatsSignerGate.execTransactionFromModule(target, 0, data, Enum.Operation.DelegateCall);
   }
@@ -2013,19 +2014,275 @@ contract ExecutingFromModuleReturnDataViaHSG is WithHSGInstanceTest {
   function test_revert_moduleCannotCallSafe() public {
     uint256 transferValue = 0.3 ether;
     // try to send to the safe, expecting a revert
-    vm.expectRevert(IHatsSignerGate.ModulesCannotCallSafe.selector);
+    vm.expectRevert(IHatsSignerGate.CannotCallSafe.selector);
     vm.prank(newModule);
     hatsSignerGate.execTransactionFromModuleReturnData(address(safe), transferValue, hex"00", Enum.Operation.Call);
   }
 
-  function test_revert_delegateCallsNotAllowed() public {
+  function test_revert_delegatecallTargetNotEnabled() public {
     address target = makeAddr("target");
 
+    // craft a delegatecall to a non-enabled target
     bytes memory data = abi.encodeWithSignature("maliciousCall()");
 
-    vm.expectRevert(IHatsSignerGate.ModulesCannotDelegatecall.selector);
+    vm.expectRevert(IHatsSignerGate.DelegatecallTargetNotEnabled.selector);
     vm.prank(newModule);
     hatsSignerGate.execTransactionFromModuleReturnData(target, 0, data, Enum.Operation.DelegateCall);
+  }
+}
+
+contract ConstrainingModules is WithHSGInstanceTest {
+  address newModule = tstModule1;
+  address recipient = makeAddr("recipient");
+
+  function setUp() public override {
+    super.setUp();
+
+    // enable a new module
+    vm.prank(owner);
+    hatsSignerGate.enableModule(newModule);
+
+    // deal the safe some eth
+    deal(address(safe), 1 ether);
+  }
+
+  function test_revert_delegateCallTargetNotEnabled() public {
+    address target = makeAddr("target");
+
+    // encode a call that we know will be successful
+    bytes memory data = abi.encodeWithSelector(IHats.isWearerOfHat.selector, signerAddresses[0], signerHat);
+
+    // wrap it in a multisend call
+    bytes memory multisendData = abi.encodePacked(
+      Enum.Operation.Call, // 0 for call; 1 for delegatecall
+      address(hats), // to
+      uint256(0), // value
+      uint256(data.length), // data length
+      data // data
+    );
+
+    // encode the multisend call
+    bytes memory multisendCall = abi.encodeWithSelector(MultiSend.multiSend.selector, multisendData);
+
+    // try to exec the tx from the newModule, expect it to revert
+    vm.expectRevert(IHatsSignerGate.DelegatecallTargetNotEnabled.selector);
+    vm.prank(address(newModule));
+    hatsSignerGate.execTransactionFromModule(target, 0, multisendCall, Enum.Operation.DelegateCall);
+
+    // try to exec the tx from the newModuleReturnData, expect it to revert
+    vm.expectRevert(IHatsSignerGate.DelegatecallTargetNotEnabled.selector);
+    vm.prank(address(newModule));
+    hatsSignerGate.execTransactionFromModuleReturnData(target, 0, multisendCall, Enum.Operation.DelegateCall);
+  }
+
+  function test_revert_modulesCannotDisableModule() public {
+    bytes memory disableModuleData =
+      abi.encodeWithSignature("disableModule(address,address)", SENTINELS, address(hatsSignerGate));
+
+    (bytes memory multisendCall,) = _constructSingleActionMultiSendTx(disableModuleData);
+
+    // try to exec the tx from the newModule, expect it to revert
+    vm.expectRevert(IHatsSignerGate.SignersCannotChangeModules.selector);
+    vm.prank(address(newModule));
+    hatsSignerGate.execTransactionFromModule(
+      defaultDelegatecallTargets[0], 0, multisendCall, Enum.Operation.DelegateCall
+    );
+
+    // try to exec the tx from the newModuleReturnData, expect it to revert
+    vm.expectRevert(IHatsSignerGate.SignersCannotChangeModules.selector);
+    vm.prank(address(newModule));
+    hatsSignerGate.execTransactionFromModuleReturnData(
+      defaultDelegatecallTargets[0], 0, multisendCall, Enum.Operation.DelegateCall
+    );
+  }
+
+  function test_revert_modulesCannotDisableGuard() public {
+    bytes memory disableGuardData = abi.encodeWithSignature("setGuard(address)", address(0x0));
+
+    (bytes memory multisendCall,) = _constructSingleActionMultiSendTx(disableGuardData);
+
+    // try to exec the tx from the newModule, expect it to revert
+    vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.CannotDisableThisGuard.selector, address(hatsSignerGate)));
+    vm.prank(address(newModule));
+    hatsSignerGate.execTransactionFromModule(
+      defaultDelegatecallTargets[0], 0, multisendCall, Enum.Operation.DelegateCall
+    );
+
+    // try to exec the tx from the newModuleReturnData, expect it to revert
+    vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.CannotDisableThisGuard.selector, address(hatsSignerGate)));
+    vm.prank(address(newModule));
+    hatsSignerGate.execTransactionFromModuleReturnData(
+      defaultDelegatecallTargets[0], 0, multisendCall, Enum.Operation.DelegateCall
+    );
+  }
+
+  function test_revert_modulesCannotIncreaseThreshold() public {
+    _addSignersSameHat(3, signerHat);
+
+    uint256 oldThreshold = safe.getThreshold();
+    assertEq(oldThreshold, 2);
+
+    // data to increase the threshold data by 1
+    bytes memory changeThresholdData = abi.encodeWithSignature("changeThreshold(uint256)", oldThreshold + 1);
+
+    (bytes memory multisendCall,) = _constructSingleActionMultiSendTx(changeThresholdData);
+
+    // try to exec the tx from the newModule, expect it to revert
+    vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.SignersCannotChangeThreshold.selector));
+    vm.prank(address(newModule));
+    hatsSignerGate.execTransactionFromModule(
+      defaultDelegatecallTargets[0], 0, multisendCall, Enum.Operation.DelegateCall
+    );
+
+    // try to exec the tx from the newModuleReturnData, expect it to revert
+    vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.SignersCannotChangeThreshold.selector));
+    vm.prank(address(newModule));
+    hatsSignerGate.execTransactionFromModuleReturnData(
+      defaultDelegatecallTargets[0], 0, multisendCall, Enum.Operation.DelegateCall
+    );
+  }
+
+  function test_revert_modulesCannotDecreaseThreshold() public {
+    _addSignersSameHat(3, signerHat);
+
+    uint256 oldThreshold = safe.getThreshold();
+    assertEq(oldThreshold, 2);
+
+    // data to decrease the threshold data by 1
+    bytes memory changeThresholdData = abi.encodeWithSignature("changeThreshold(uint256)", oldThreshold - 1);
+
+    (bytes memory multisendCall,) = _constructSingleActionMultiSendTx(changeThresholdData);
+
+    // try to exec the tx from the newModule, expect it to revert
+    vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.SignersCannotChangeThreshold.selector));
+    vm.prank(address(newModule));
+    hatsSignerGate.execTransactionFromModule(
+      defaultDelegatecallTargets[0], 0, multisendCall, Enum.Operation.DelegateCall
+    );
+
+    // try to exec the tx from the newModuleReturnData, expect it to revert
+    vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.SignersCannotChangeThreshold.selector));
+    vm.prank(address(newModule));
+    hatsSignerGate.execTransactionFromModuleReturnData(
+      defaultDelegatecallTargets[0], 0, multisendCall, Enum.Operation.DelegateCall
+    );
+  }
+
+  function test_revert_modulesCannotAddOwners() public {
+    // data for call to add owners
+    bytes memory addOwnerData = abi.encodeWithSignature(
+      "addOwnerWithThreshold(address,uint256)",
+      signerAddresses[9], // newOwner
+      safe.getThreshold() // threshold
+    );
+
+    (bytes memory multisendCall,) = _constructSingleActionMultiSendTx(addOwnerData);
+
+    // try to exec the tx from the newModule, expect it to revert
+    vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.SignersCannotChangeOwners.selector));
+    vm.prank(address(newModule));
+    hatsSignerGate.execTransactionFromModule(
+      defaultDelegatecallTargets[0], 0, multisendCall, Enum.Operation.DelegateCall
+    );
+
+    // try to exec the tx from the newModuleReturnData, expect it to revert
+    vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.SignersCannotChangeOwners.selector));
+    vm.prank(address(newModule));
+    hatsSignerGate.execTransactionFromModuleReturnData(
+      defaultDelegatecallTargets[0], 0, multisendCall, Enum.Operation.DelegateCall
+    );
+  }
+
+  function test_revert_modulesCannotRemoveOwners() public {
+    _addSignersSameHat(3, signerHat);
+    address toRemove = signerAddresses[2];
+
+    // data for call to remove owners
+    bytes memory removeOwnerData = abi.encodeWithSignature(
+      "removeOwner(address,address,uint256)",
+      _findPrevOwner(safe.getOwners(), toRemove), // prevOwner
+      toRemove, // owner to remove
+      safe.getThreshold() // threshold
+    );
+
+    (bytes memory multisendCall,) = _constructSingleActionMultiSendTx(removeOwnerData);
+
+    // try to exec the tx from the newModule, expect it to revert
+    vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.SignersCannotChangeOwners.selector));
+    vm.prank(address(newModule));
+    hatsSignerGate.execTransactionFromModule(
+      defaultDelegatecallTargets[0], 0, multisendCall, Enum.Operation.DelegateCall
+    );
+
+    // try to exec the tx from the newModuleReturnData, expect it to revert
+    vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.SignersCannotChangeOwners.selector));
+    vm.prank(address(newModule));
+    hatsSignerGate.execTransactionFromModuleReturnData(
+      defaultDelegatecallTargets[0], 0, multisendCall, Enum.Operation.DelegateCall
+    );
+  }
+
+  function test_revert_modulesCannotSwapOwners() public {
+    _addSignersSameHat(3, signerHat);
+    address toRemove = signerAddresses[2];
+    address toAdd = signerAddresses[9];
+    // data for call to swap owners
+    bytes memory swapOwnerData = abi.encodeWithSignature(
+      "swapOwner(address,address,address)",
+      _findPrevOwner(safe.getOwners(), toRemove), // prevOwner
+      toRemove, // owner to swap
+      toAdd // newOwner
+    );
+
+    (bytes memory multisendCall,) = _constructSingleActionMultiSendTx(swapOwnerData);
+
+    // try to exec the tx from the newModule, expect it to revert
+    vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.SignersCannotChangeOwners.selector));
+    vm.prank(address(newModule));
+    hatsSignerGate.execTransactionFromModule(
+      defaultDelegatecallTargets[0], 0, multisendCall, Enum.Operation.DelegateCall
+    );
+
+    // try to exec the tx from the newModuleReturnData, expect it to revert
+    vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.SignersCannotChangeOwners.selector));
+    vm.prank(address(newModule));
+    hatsSignerGate.execTransactionFromModuleReturnData(
+      defaultDelegatecallTargets[0], 0, multisendCall, Enum.Operation.DelegateCall
+    );
+  }
+
+  function test_revert_delegatecallTargetNotEnabled() public {
+    address target = makeAddr("target");
+
+    // craft a delegatecall to a non-enabled target
+    bytes memory data = abi.encodeWithSignature("maliciousCall()");
+
+    // try to exec the tx from the newModule, expect it to revert
+    vm.expectRevert(IHatsSignerGate.DelegatecallTargetNotEnabled.selector);
+    vm.prank(address(newModule));
+    hatsSignerGate.execTransactionFromModule(target, 0, data, Enum.Operation.DelegateCall);
+
+    // try to exec the tx from the newModuleReturnData, expect it to revert
+    vm.expectRevert(IHatsSignerGate.DelegatecallTargetNotEnabled.selector);
+    vm.prank(address(newModule));
+    hatsSignerGate.execTransactionFromModuleReturnData(target, 0, data, Enum.Operation.DelegateCall);
+  }
+
+  function test_revert_modulesCannotCallSafe() public {
+    uint256 transferValue = 0.2 ether;
+
+    // give the safe some eth
+    vm.deal(address(safe), transferValue);
+
+    // try to exec the tx from the newModule, expect it to revert
+    vm.expectRevert(IHatsSignerGate.CannotCallSafe.selector);
+    vm.prank(address(newModule));
+    hatsSignerGate.execTransactionFromModule(address(safe), transferValue, hex"00", Enum.Operation.Call);
+
+    // try to exec the tx from the newModuleReturnData, expect it to revert
+    vm.expectRevert(IHatsSignerGate.CannotCallSafe.selector);
+    vm.prank(address(newModule));
+    hatsSignerGate.execTransactionFromModuleReturnData(address(safe), transferValue, hex"00", Enum.Operation.Call);
   }
 }
 
