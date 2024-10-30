@@ -333,6 +333,8 @@ contract ClaimingSigners is WithHSGInstanceTest {
   function test_happy() public {
     _setSignerValidity(signerAddresses[3], signerHat, true);
 
+    vm.expectEmit();
+    emit IHatsSignerGate.Registered(signerHat, signerAddresses[3]);
     vm.prank(signerAddresses[3]);
     hatsSignerGate.claimSigner(signerHat);
 
@@ -410,8 +412,6 @@ contract RemovingSigners is WithHSGInstanceTest {
     _addSignersSameHat(2, signerHat);
 
     _setSignerValidity(signerAddresses[0], signerHat, false);
-
-    // emit log_uint(hatsSignerGate.signerCount());
 
     hatsSignerGate.removeSigner(signerAddresses[0]);
 
@@ -1263,6 +1263,8 @@ contract ClaimingSignerFor is WithHSGInstanceTest {
     vm.prank(owner);
     hatsSignerGate.setClaimableFor(true);
 
+    vm.expectEmit();
+    emit IHatsSignerGate.Registered(signerHat, signerAddresses[0]);
     hatsSignerGate.claimSignerFor(signerHat, signerAddresses[0]);
 
     assertEq(hatsSignerGate.validSignerCount(), 1);
@@ -1282,6 +1284,8 @@ contract ClaimingSignerFor is WithHSGInstanceTest {
     hatsSignerGate.setClaimableFor(true);
 
     // claim the signer
+    vm.expectEmit();
+    emit IHatsSignerGate.Registered(signerHat, signerAddresses[0]);
     hatsSignerGate.claimSignerFor(signerHat, signerAddresses[0]);
 
     assertEq(hatsSignerGate.validSignerCount(), 1, "valid signer count should be 1");
@@ -1369,7 +1373,11 @@ contract ClaimingSignersFor is WithHSGInstanceTest {
       hatIds[i] = signerHat;
     }
 
-    // claim the signers
+    // claim the signers, expecting the registered event to be emitted for each
+    for (uint256 i; i < _signerCount; ++i) {
+      vm.expectEmit();
+      emit IHatsSignerGate.Registered(signerHat, signerAddresses[i]);
+    }
     hatsSignerGate.claimSignersFor(hatIds, claimers);
 
     assertEq(hatsSignerGate.validSignerCount(), _signerCount, "incorrect valid signer count");
@@ -1401,7 +1409,11 @@ contract ClaimingSignersFor is WithHSGInstanceTest {
       hatIds[i] = signerHat;
     }
 
-    // claim the signers
+    // claim the signers, expecting the registered event to be emitted for each
+    for (uint256 i; i < _signerCount - 1; ++i) {
+      vm.expectEmit();
+      emit IHatsSignerGate.Registered(signerHat, signerAddresses[i + 1]);
+    }
     hatsSignerGate.claimSignersFor(hatIds, claimers);
 
     assertEq(hatsSignerGate.validSignerCount(), _signerCount, "incorrect valid signer count");
@@ -1434,7 +1446,11 @@ contract ClaimingSignersFor is WithHSGInstanceTest {
       hatIds[i] = signerHat;
     }
 
-    // claim the signers
+    // claim the signers, expecting the registered event to be emitted for each
+    for (uint256 i; i < _signerCount; ++i) {
+      vm.expectEmit();
+      emit IHatsSignerGate.Registered(signerHat, signerAddresses[i]);
+    }
     hatsSignerGate.claimSignersFor(hatIds, claimers);
 
     assertEq(hatsSignerGate.validSignerCount(), _signerCount, "incorrect valid signer count");

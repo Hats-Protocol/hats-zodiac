@@ -673,6 +673,9 @@ contract HatsSignerGate is
 
     // register the hat used to claim. This will be the hat checked in `checkTransaction()` for this signer
     claimedSignerHats[_signer] = _hatId;
+
+    // log the registration
+    emit Registered(_hatId, _signer);
   }
 
   /// @dev Internal function to add a `_signer` to the `safe` if they are wearing a valid signer hat.

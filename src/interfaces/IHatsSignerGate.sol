@@ -144,6 +144,9 @@ interface IHatsSignerGate {
   /// @notice Emitted when a delegatecall target is enabled
   event DelegatecallTargetEnabled(address target, bool enabled);
 
+  /// @notice Emitted when a signer registers the hat that makes them a valid signer
+  event Registered(uint256 hatId, address signer);
+
   /*//////////////////////////////////////////////////////////////
                           CONSTANTS
   //////////////////////////////////////////////////////////////*/
