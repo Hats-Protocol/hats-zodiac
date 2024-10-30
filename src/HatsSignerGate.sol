@@ -90,10 +90,14 @@ contract HatsSignerGate is
   /// @dev Temporary record of the existing owners on the `safe` when a transaction is submitted
   bytes32 transient _existingOwnersHash;
 
-  /// @dev A simple re-entrency guard
+  /// @dev A simple re-entrancy guard
   uint256 transient _guardEntries;
 
+  /// @dev Temporary record of the existing threshold on the `safe` when a transaction is submitted
   uint256 transient _existingThreshold;
+
+  /// @dev Temporary record of the operation type when a transaction is submitted
+  Enum.Operation transient _operation;
 
   /*//////////////////////////////////////////////////////////////
                       AUTHENTICATION FUNCTIONS
@@ -372,7 +376,7 @@ contract HatsSignerGate is
   function checkTransaction(
     address to,
     uint256 value,
-    bytes memory data, // TODO compile viaIR to return this to calldata without stack too deep error
+    bytes memory data,
     Enum.Operation operation,
     uint256 safeTxGas,
     uint256 baseGas,
@@ -382,13 +386,8 @@ contract HatsSignerGate is
     bytes memory signatures,
     address // msgSender
   ) external override {
-    // disallow delegatecalls to unapproved targets
-    if (operation == Enum.Operation.DelegateCall) _checkDelegatecallTarget(to);
-
-    ISafe s = safe; // save SLOADs
-
     // ensure that the call is coming from the safe
-    if (msg.sender != address(s)) revert NotCalledFromSafe();
+    if (msg.sender != address(safe)) revert NotCalledFromSafe();
 
     // module guard preflight check
     if (guard != address(0)) {
@@ -408,8 +407,39 @@ contract HatsSignerGate is
       );
     }
 
+    // get the existing owners and threshold
+    address[] memory owners = safe.getOwners();
+    uint256 threshold = safe.getThreshold();
+
+    // We record the operation type to guide the post-flight checks
+    _operation = operation;
+
+    if (operation == Enum.Operation.DelegateCall) {
+      // case: DELEGATECALL
+      // We disallow delegatecalls to unapproved targets
+      if (!enabledDelegatecallTargets[to]) revert DelegatecallTargetNotEnabled();
+
+      // Otherwise record the existing owners and threshold for post-flight checks to ensure that Safe state has not
+      // been altered
+      _existingOwnersHash = keccak256(abi.encode(owners));
+      _existingThreshold = threshold;
+    } else if (to == address(safe)) {
+      // case: CALL to the safe
+      // We disallow external calls to the safe itself. Together with the above check, this ensures there are no
+      // unauthorized calls into the Safe itself
+      revert CannotCallSafe();
+    }
+
+    // case: CALL to a non-Safe target
+    // We can proceed to signer validation
+
+    // the safe's threshold is always the minimum between the required amount of valid signatures and the number of
+    // owners. if the threshold is lower than the required amount of valid signatures, it means that there are currently
+    // not enough owners to approve the tx, so we can revert without further checks
+    if (threshold != _getRequiredValidSignatures(owners.length)) revert InsufficientValidSignatures();
+
     // get the tx hash
-    bytes32 txHash = s.getTransactionHash(
+    bytes32 txHash = safe.getTransactionHash(
       to,
       value,
       data,
@@ -420,36 +450,19 @@ contract HatsSignerGate is
       gasToken,
       refundReceiver,
       // We subtract 1 since nonce was just incremented in the parent function call
-      s.nonce() - 1 // view function
+      safe.nonce() - 1
     );
 
-    // get the safe owners
-    address[] memory owners = s.getOwners();
-    // get the required amount of valid signatures according to the current number of owners and the threshold config
-    uint256 requiredValidSignatures = _getRequiredValidSignatures(owners.length);
-    // get the current threshold from the safe
-    uint256 threshold = s.getThreshold();
+    // count the number of valid signatures and revert if there aren't enough
+    if (countValidSignatures(txHash, signatures, threshold) < threshold) revert InsufficientValidSignatures();
 
-    // the safe's threshold is always the minimum between the required amount of valid signatures and the number of
-    // owners. if the threshold is lower than the required amount of valid signatures, it means that there are currently
-    // not enough owners to approve the tx
-    if (threshold != requiredValidSignatures) revert InsufficientValidSignatures();
-
-    uint256 validSigCount = countValidSignatures(txHash, signatures, threshold);
-
-    // revert if there aren't enough valid signatures
-    if (validSigCount < threshold) revert InsufficientValidSignatures();
-
-    // record existing owners for post-flight check
-    _existingOwnersHash = keccak256(abi.encode(owners));
-
-    // record existing threshold for post-flight check
-    _existingThreshold = threshold;
-
+    /// @dev This is a reentrancy guard designed to work with the `checkAfterExecution()` function. It allows reentrancy
+    /// into this contract so that the `checkAfterExecution()` function can be called by the `safe`, but it only allows
+    /// one call each of `checkTransaction()` and `checkAfterExecution()`.
     unchecked {
       ++_guardEntries;
     }
-    // revert if re-entry is detected
+    // revert if re-entry into this function is detected prior to `checkAfterExecution()` is called
     if (_guardEntries > 1) revert NoReentryAllowed();
   }
 
@@ -475,26 +488,15 @@ contract HatsSignerGate is
       BaseGuard(guard).checkAfterExecution(bytes32(0), false);
     }
 
-    if (s.getSafeGuard() != address(this)) revert CannotDisableThisGuard(address(this));
+    // if the transaction was a delegatecall, perform the post-flight check on the Safe state
+    // we don't need to check the Safe state for regular calls since the Safe state cannot be altered except by calling
+    // into the Safe, which is explicitly disallowed
+    if (_operation == Enum.Operation.DelegateCall) {
+      _checkSafeState(s);
+    }
 
-    // prevent signers from changing the threshold
-    if (s.getThreshold() != _existingThreshold) revert SignersCannotChangeThreshold();
-
-    // prevent signers from changing the owners
-    if (keccak256(abi.encode(s.getOwners())) != _existingOwnersHash) revert SignersCannotChangeOwners();
-
-    // prevent signers from removing this module or adding any other modules
-    (address[] memory modulesWith1, address next) = s.getModulesWith1();
-
-    // ensure that there is only one module...
-    // if the length is 0, we know this module has been removed
-    // per Safe ModuleManager.sol#137, "If all entries fit into a single page, the next pointer will be 0x1", ie
-    // SENTINELS. Therefore, if `next` is not SENTINELS, we know another module has been added.
-    if (modulesWith1.length == 0 || next != SafeManagerLib.SENTINELS) revert SignersCannotChangeModules();
-    // ...and that the only module is this contract
-    else if (modulesWith1[0] != address(this)) revert SignersCannotChangeModules();
-
-    // leave checked to catch underflows triggered by re-entry attempts
+    // Leave checked to catch underflows triggered by calls to this function not originating from
+    // `Safe.execTransaction()`
     --_guardEntries;
   }
 

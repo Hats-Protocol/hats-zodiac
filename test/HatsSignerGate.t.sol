@@ -766,7 +766,9 @@ contract ExecutingTransactions is WithHSGInstanceTest {
       );
     }
   }
+}
 
+contract ConstrainingSigners is WithHSGInstanceTest {
   function test_revert_delegateCallTargetNotEnabled() public {
     address target = makeAddr("target");
 
@@ -799,17 +801,15 @@ contract ExecutingTransactions is WithHSGInstanceTest {
     safe.execTransaction(
       target, 0, multisendCall, Enum.Operation.DelegateCall, 0, 0, 0, address(0), payable(address(0)), signatures
     );
-  }
 }
 
-contract ConstrainingSigners is WithHSGInstanceTest {
   function testCannotDisableModule() public {
     bytes memory disableModuleData =
       abi.encodeWithSignature("disableModule(address,address)", SENTINELS, address(hatsSignerGate));
 
     _addSignersSameHat(2, signerHat);
 
-    bytes32 txHash = _getTxHash(address(safe), 0, Enum.Operation.Call, disableModuleData, safe);
+    (bytes memory multisendCall, bytes32 txHash) = _constructSingleActionMultiSendTx(disableModuleData);
 
     bytes memory signatures = _createNSigsForTx(txHash, 2);
 
@@ -817,10 +817,10 @@ contract ConstrainingSigners is WithHSGInstanceTest {
 
     // execute tx
     safe.execTransaction(
-      address(safe),
+      defaultDelegatecallTargets[0],
       0,
-      disableModuleData,
-      Enum.Operation.Call,
+      multisendCall,
+      Enum.Operation.DelegateCall,
       // not using the refunder
       0,
       0,
@@ -838,16 +838,16 @@ contract ConstrainingSigners is WithHSGInstanceTest {
 
     _addSignersSameHat(2, signerHat);
 
-    bytes32 txHash = _getTxHash(address(safe), 0, Enum.Operation.Call, disableGuardData, safe);
+    (bytes memory multisendCall, bytes32 txHash) = _constructSingleActionMultiSendTx(disableGuardData);
 
     bytes memory signatures = _createNSigsForTx(txHash, 2);
 
     vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.CannotDisableThisGuard.selector, address(hatsSignerGate)));
     safe.execTransaction(
-      address(safe),
+      defaultDelegatecallTargets[0],
       0,
-      disableGuardData,
-      Enum.Operation.Call,
+      multisendCall,
+      Enum.Operation.DelegateCall,
       // not using the refunder
       0,
       0,
@@ -867,16 +867,16 @@ contract ConstrainingSigners is WithHSGInstanceTest {
     // data to increase the threshold data by 1
     bytes memory changeThresholdData = abi.encodeWithSignature("changeThreshold(uint256)", oldThreshold + 1);
 
-    bytes32 txHash = _getTxHash(address(safe), 0, Enum.Operation.Call, changeThresholdData, safe);
+    (bytes memory multisendCall, bytes32 txHash) = _constructSingleActionMultiSendTx(changeThresholdData);
 
     bytes memory signatures = _createNSigsForTx(txHash, 2);
 
     vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.SignersCannotChangeThreshold.selector));
     safe.execTransaction(
-      address(safe),
+      defaultDelegatecallTargets[0],
       0,
-      changeThresholdData,
-      Enum.Operation.Call,
+      multisendCall,
+      Enum.Operation.DelegateCall,
       // not using the refunder
       0,
       0,
@@ -896,16 +896,16 @@ contract ConstrainingSigners is WithHSGInstanceTest {
     // data to decrease the threshold data by 1
     bytes memory changeThresholdData = abi.encodeWithSignature("changeThreshold(uint256)", oldThreshold - 1);
 
-    bytes32 txHash = _getTxHash(address(safe), 0, Enum.Operation.Call, changeThresholdData, safe);
+    (bytes memory multisendCall, bytes32 txHash) = _constructSingleActionMultiSendTx(changeThresholdData);
 
     bytes memory signatures = _createNSigsForTx(txHash, 2);
 
     vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.SignersCannotChangeThreshold.selector));
     safe.execTransaction(
-      address(safe),
+      defaultDelegatecallTargets[0],
       0,
-      changeThresholdData,
-      Enum.Operation.Call,
+      multisendCall,
+      Enum.Operation.DelegateCall,
       // not using the refunder
       0,
       0,
@@ -925,15 +925,16 @@ contract ConstrainingSigners is WithHSGInstanceTest {
       safe.getThreshold() // threshold
     );
 
-    bytes32 txHash = _getTxHash(address(safe), 0, Enum.Operation.Call, addOwnerData, safe);
+    (bytes memory multisendCall, bytes32 txHash) = _constructSingleActionMultiSendTx(addOwnerData);
+
     bytes memory signatures = _createNSigsForTx(txHash, 2);
 
     vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.SignersCannotChangeOwners.selector));
     safe.execTransaction(
-      address(safe),
+      defaultDelegatecallTargets[0],
       0,
-      addOwnerData,
-      Enum.Operation.Call,
+      multisendCall,
+      Enum.Operation.DelegateCall,
       // not using the refunder
       0,
       0,
@@ -955,15 +956,16 @@ contract ConstrainingSigners is WithHSGInstanceTest {
       safe.getThreshold() // threshold
     );
 
-    bytes32 txHash = _getTxHash(address(safe), 0, Enum.Operation.Call, removeOwnerData, safe);
+    (bytes memory multisendCall, bytes32 txHash) = _constructSingleActionMultiSendTx(removeOwnerData);
+
     bytes memory signatures = _createNSigsForTx(txHash, 2);
 
     vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.SignersCannotChangeOwners.selector));
     safe.execTransaction(
-      address(safe),
+      defaultDelegatecallTargets[0],
       0,
-      removeOwnerData,
-      Enum.Operation.Call,
+      multisendCall,
+      Enum.Operation.DelegateCall,
       // not using the refunder
       0,
       0,
@@ -986,15 +988,16 @@ contract ConstrainingSigners is WithHSGInstanceTest {
       toAdd // newOwner
     );
 
-    bytes32 txHash = _getTxHash(address(safe), 0, Enum.Operation.Call, swapOwnerData, safe);
+    (bytes memory multisendCall, bytes32 txHash) = _constructSingleActionMultiSendTx(swapOwnerData);
+
     bytes memory signatures = _createNSigsForTx(txHash, 2);
 
     vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.SignersCannotChangeOwners.selector));
     safe.execTransaction(
-      address(safe),
+      defaultDelegatecallTargets[0],
       0,
-      swapOwnerData,
-      Enum.Operation.Call,
+      multisendCall,
+      Enum.Operation.DelegateCall,
       // not using the refunder
       0,
       0,
@@ -1018,6 +1021,37 @@ contract ConstrainingSigners is WithHSGInstanceTest {
     vm.expectRevert(IHatsSignerGate.DelegatecallTargetNotEnabled.selector);
     safe.execTransaction(
       target, 0, data, Enum.Operation.DelegateCall, 0, 0, 0, address(0), payable(address(0)), signatures
+    );
+  }
+
+  function test_revert_cannotCallSafe() public {
+    _addSignersSameHat(3, signerHat);
+
+    uint256 transferValue = 0.2 ether;
+
+    // give the safe some eth
+    hoax(address(safe), transferValue);
+
+    // create the tx
+    bytes32 txHash = _getTxHash(address(safe), transferValue, Enum.Operation.Call, hex"00", safe);
+
+    // have 3 signers sign it
+    bytes memory signatures = _createNSigsForTx(txHash, 3);
+
+    // try to exec the tx, expect it to revert
+    vm.expectRevert(IHatsSignerGate.CannotCallSafe.selector);
+    safe.execTransaction(
+      address(safe),
+      transferValue,
+      hex"00",
+      Enum.Operation.Call,
+      // not using the refunder
+      0,
+      0,
+      0,
+      address(0),
+      payable(address(0)),
+      signatures
     );
   }
 }
