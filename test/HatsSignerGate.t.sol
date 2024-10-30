@@ -343,13 +343,10 @@ contract ClaimingSigners is WithHSGInstanceTest {
     assertEq(safe.getOwners().length, 1);
   }
 
-  function test_revert_alreadyClaimed() public {
+  function test_canClaim_alreadyOwner() public {
     _addSignersSameHat(2, signerHat);
 
     vm.prank(signerAddresses[1]);
-
-    vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.SignerAlreadyRegistered.selector, signerAddresses[1]));
-
     hatsSignerGate.claimSigner(signerHat);
 
     assertEq(hatsSignerGate.validSignerCount(), 2);
@@ -372,6 +369,25 @@ contract ClaimingSigners is WithHSGInstanceTest {
 
     vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.NotSignerHatWearer.selector, signerAddresses[3]));
     hatsSignerGate.claimSigner(signerHats[i]);
+  }
+
+  function test_signerCanReregister_sameHat() public {
+    _addSignersSameHat(1, signerHat);
+
+    vm.prank(signerAddresses[0]);
+    hatsSignerGate.claimSigner(signerHat);
+  }
+
+  function test_signerCanReregister_differentHat() public {
+    _addSignersSameHat(1, signerHat);
+
+    vm.prank(owner);
+    hatsSignerGate.addSignerHats(signerHats);
+
+    _setSignerValidity(signerAddresses[0], signerHats[1], true);
+
+    vm.prank(signerAddresses[0]);
+    hatsSignerGate.claimSigner(signerHats[1]);
   }
 }
 

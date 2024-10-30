@@ -685,9 +685,6 @@ contract HatsSignerGate is
       if (registeredHat != 0) revert ReregistrationNotAllowed();
     }
 
-    // don't try to add an owner that has already registered with the same hat
-    if (registeredHat == _hatId) revert SignerAlreadyRegistered(_signer);
-
     // register the hat used to claim. This will be the hat checked in `checkTransaction()` for this signer
     claimedSignerHats[_signer] = _hatId;
 
