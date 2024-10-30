@@ -16,9 +16,14 @@ import { ISafe, Enum } from "./lib/safe-interfaces/ISafe.sol";
 /// @title HatsSignerGate
 /// @author Haberdasher Labs
 /// @author @spengrah
-/// @notice A Zodiac compatible contract for managing a Safe's owners and signatures via Hats Protocol.
+/// @author @gershido
+/// @notice A Zodiac compatible contract for managing a Safe's signers and signatures via Hats Protocol.
+/// - As a module on the Safe, it allows for signers to be added and removed based on Hats Protocol hats.
+/// - As a guard on the Safe, it ensures that transactions can only be executed by valid hat-wearing signers.
+/// - It also serves as a Zodiac modifier, allowing the Safe's functionality to be safely extended by attaching modules
+/// and a guard to HatsSignerGate itself.
+/// - An owner can control the HatsSignerGate's settings and behavior through various owner-only functions.
 /// @dev This contract is designed to work with the Zodiac Module Factory, from which instances are deployed.
-// TODO need to reduce bytecode size by 0 kb
 contract HatsSignerGate is
   IHatsSignerGate,
   BaseGuard,
@@ -53,26 +58,11 @@ contract HatsSignerGate is
   string public constant version = "2.0.0";
 
   /*//////////////////////////////////////////////////////////////
-                            MUTABLE STATE
+                         PUBLIC MUTABLE STATE
   //////////////////////////////////////////////////////////////*/
 
   /// @inheritdoc IHatsSignerGate
-  mapping(uint256 => bool) public validSignerHats;
-
-  /// @inheritdoc IHatsSignerGate
-  mapping(address => uint256) public claimedSignerHats;
-
-  /// @inheritdoc IHatsSignerGate
-  mapping(address => bool) public enabledDelegatecallTargets;
-
-  /// @inheritdoc IHatsSignerGate
-  uint256 public ownerHat;
-
-  /// @inheritdoc IHatsSignerGate
   ISafe public safe;
-
-  /// @dev The threshold configuration
-  ThresholdConfig internal _thresholdConfig;
 
   /// @inheritdoc IHatsSignerGate
   bool public locked;
@@ -82,6 +72,25 @@ contract HatsSignerGate is
 
   /// @inheritdoc IHatsSignerGate
   address public implementation;
+
+  /// @inheritdoc IHatsSignerGate
+  uint256 public ownerHat;
+
+  /// @inheritdoc IHatsSignerGate
+  mapping(address => bool) public enabledDelegatecallTargets;
+
+  /// @inheritdoc IHatsSignerGate
+  mapping(address => uint256) public claimedSignerHats;
+
+  /*//////////////////////////////////////////////////////////////
+                        INTERNAL MUTABLE STATE
+  //////////////////////////////////////////////////////////////*/
+
+  /// @dev Append-only tracker of approved signer hats
+  mapping(uint256 => bool) internal _validSignerHats;
+
+  /// @dev The threshold configuration
+  ThresholdConfig internal _thresholdConfig;
 
   /*//////////////////////////////////////////////////////////////
                           TRANSIENT STATE
@@ -164,7 +173,6 @@ contract HatsSignerGate is
     _setThresholdConfig(params.thresholdConfig);
 
     // set the instance's metadata
-    // TODO can we get this from the clone bytecode?
     implementation = params.implementation;
 
     // initialize the modules linked list, and set initial modules, if any
@@ -189,7 +197,7 @@ contract HatsSignerGate is
   /// @inheritdoc IHatsSignerGate
   function claimSigner(uint256 _hatId) public {
     // register the signer
-    _registerSigner({_hatId: _hatId, _signer: msg.sender, _allowReregistration: true});
+    _registerSigner({ _hatId: _hatId, _signer: msg.sender, _allowReregistration: true });
 
     // add the signer
     _addSigner(msg.sender);
@@ -201,7 +209,7 @@ contract HatsSignerGate is
     if (!claimableFor) revert NotClaimableFor();
 
     // register the signer, reverting if invalid or already registered
-    _registerSigner({_hatId: _hatId, _signer: _signer, _allowReregistration: false});
+    _registerSigner({ _hatId: _hatId, _signer: _signer, _allowReregistration: false });
 
     // add the signer
     _addSigner(_signer);
@@ -234,7 +242,7 @@ contract HatsSignerGate is
       address signer = _signers[i];
 
       // register the signer, reverting if invalid or already registered
-      _registerSigner({_hatId: hatId, _signer: signer, _allowReregistration: false});
+      _registerSigner({ _hatId: hatId, _signer: signer, _allowReregistration: false });
 
       // if the signer is not an owner, add them
       if (!s.isOwner(signer)) {
@@ -264,7 +272,7 @@ contract HatsSignerGate is
 
   /// @inheritdoc IHatsSignerGate
   function removeSigner(address _signer) public virtual {
-    if (isValidSigner(_signer)) revert StillWearsSignerHat(_signer);
+    if (isValidSigner(_signer)) revert StillWearsSignerHat();
 
     _removeSigner(_signer);
   }
@@ -338,7 +346,6 @@ contract HatsSignerGate is
   {
     _checkUnlocked();
     _checkOwner();
-    // TODO check if _newHSG is indeed an HSG?
 
     ISafe s = safe; // save SLOADS
     // remove existing HSG as guard
@@ -462,7 +469,7 @@ contract HatsSignerGate is
     );
 
     // count the number of valid signatures and revert if there aren't enough
-    if (countValidSignatures(txHash, signatures, threshold) < threshold) revert InsufficientValidSignatures();
+    if (_countValidSignatures(txHash, signatures, threshold) < threshold) revert InsufficientValidSignatures();
 
     /// @dev This is a reentrancy guard designed to work with the `checkAfterExecution()` function. It allows reentrancy
     /// into this contract so that the `checkAfterExecution()` function can be called by the `safe`, but it only allows
@@ -519,13 +526,13 @@ contract HatsSignerGate is
 
   /// @inheritdoc IHatsSignerGate
   function isValidSigner(address _account) public view returns (bool valid) {
-    /// @dev existing `claimedSignerHats` are always valid, since `validSignerHats` is append-only
+    /// @dev existing `claimedSignerHats` are always valid, since `_validSignerHats` is append-only
     valid = HATS.isWearerOfHat(_account, claimedSignerHats[_account]);
   }
 
   /// @inheritdoc IHatsSignerGate
   function isValidSignerHat(uint256 _hatId) public view returns (bool valid) {
-    valid = validSignerHats[_hatId];
+    valid = _validSignerHats[_hatId];
   }
 
   /// @inheritdoc IHatsSignerGate
@@ -536,49 +543,6 @@ contract HatsSignerGate is
   /// @inheritdoc IHatsSignerGate
   function canAttachToSafe() public view returns (bool) {
     return safe.canAttachHSG();
-  }
-
-  /// @inheritdoc IHatsSignerGate
-  function countValidSignatures(bytes32 dataHash, bytes memory signatures, uint256 sigCount)
-    public
-    view
-    returns (uint256 validSigCount)
-  {
-    // There cannot be an owner with address 0.
-    address currentOwner;
-    uint8 v;
-    bytes32 r;
-    bytes32 s;
-    uint256 i;
-
-    for (i; i < sigCount; ++i) {
-      (v, r, s) = signatureSplit(signatures, i);
-      if (v == 0) {
-        // If v is 0 then it is a contract signature
-        // When handling contract signatures the address of the contract is encoded into r
-        currentOwner = address(uint160(uint256(r)));
-      } else if (v == 1) {
-        // If v is 1 then it is an approved hash
-        // When handling approved hashes the address of the approver is encoded into r
-        currentOwner = address(uint160(uint256(r)));
-      } else if (v > 30) {
-        // If v > 30 then default va (27,28) has been adjusted for eth_sign flow
-        // To support eth_sign and similar we adjust v and hash the messageHash with the Ethereum message prefix before
-        // applying ecrecover
-        currentOwner = ecrecover(keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", dataHash)), v - 4, r, s);
-      } else {
-        // Default is the ecrecover flow with the provided data hash
-        // Use ecrecover with the messageHash for EOA signatures
-        currentOwner = ecrecover(dataHash, v, r, s);
-      }
-
-      if (isValidSigner(currentOwner)) {
-        // shouldn't overflow given reasonable sigCount
-        unchecked {
-          ++validSigCount;
-        }
-      }
-    }
   }
 
   /// @inheritdoc IHatsSignerGate
@@ -606,17 +570,11 @@ contract HatsSignerGate is
     emit OwnerHatUpdated(_ownerHat);
   }
 
-  // /// @notice Checks if `_account` is a valid signer
-  // /// @dev Must be implemented by all flavors of HatsSignerGate
-  // /// @param _account The address to check
-  // /// @return valid Whether `_account` is a valid signer
-  // function isValidSigner(address _account) public view virtual returns (bool valid) { }
-
   /// @dev Internal function to approve new signer hats
   /// @param _newSignerHats Array of hat ids to add as approved signer hats
   function _addSignerHats(uint256[] memory _newSignerHats) internal {
     for (uint256 i; i < _newSignerHats.length; ++i) {
-      validSignerHats[_newSignerHats[i]] = true;
+      _validSignerHats[_newSignerHats[i]] = true;
     }
 
     emit SignerHatsAdded(_newSignerHats);
@@ -654,6 +612,55 @@ contract HatsSignerGate is
         // shouldn't overflow given reasonable owners array length
         unchecked {
           ++signerCount;
+        }
+      }
+    }
+  }
+
+  /// @dev Counts the number of hats-valid signatures within a set of `signatures`
+  /// @dev modified from
+  /// https://github.com/safe-global/safe-contracts/blob/c36bcab46578a442862d043e12a83fec41143dec/contracts/Safe.sol#L240
+  /// @param dataHash The signed data
+  /// @param signatures The set of signatures to check
+  /// @param sigCount The number of signatures to check
+  /// @return validSigCount The number of hats-valid signatures
+  function _countValidSignatures(bytes32 dataHash, bytes memory signatures, uint256 sigCount)
+    internal
+    view
+    returns (uint256 validSigCount)
+  {
+    // There cannot be an owner with address 0.
+    address currentOwner;
+    uint8 v;
+    bytes32 r;
+    bytes32 s;
+    uint256 i;
+
+    for (i; i < sigCount; ++i) {
+      (v, r, s) = signatureSplit(signatures, i);
+      if (v == 0) {
+        // If v is 0 then it is a contract signature
+        // When handling contract signatures the address of the contract is encoded into r
+        currentOwner = address(uint160(uint256(r)));
+      } else if (v == 1) {
+        // If v is 1 then it is an approved hash
+        // When handling approved hashes the address of the approver is encoded into r
+        currentOwner = address(uint160(uint256(r)));
+      } else if (v > 30) {
+        // If v > 30 then default va (27,28) has been adjusted for eth_sign flow
+        // To support eth_sign and similar we adjust v and hash the messageHash with the Ethereum message prefix before
+        // applying ecrecover
+        currentOwner = ecrecover(keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", dataHash)), v - 4, r, s);
+      } else {
+        // Default is the ecrecover flow with the provided data hash
+        // Use ecrecover with the messageHash for EOA signatures
+        currentOwner = ecrecover(dataHash, v, r, s);
+      }
+
+      if (isValidSigner(currentOwner)) {
+        // shouldn't overflow given reasonable sigCount
+        unchecked {
+          ++validSigCount;
         }
       }
     }
@@ -944,13 +951,13 @@ contract HatsSignerGate is
   /// `_safe`'s
   /// state.
   function _checkSafeState(ISafe _safe) internal view {
-    if (_safe.getSafeGuard() != address(this)) revert CannotDisableThisGuard(address(this));
+    if (_safe.getSafeGuard() != address(this)) revert CannotDisableThisGuard();
 
     // prevent signers from changing the threshold
-    if (_safe.getThreshold() != _existingThreshold) revert SignersCannotChangeThreshold();
+    if (_safe.getThreshold() != _existingThreshold) revert CannotChangeThreshold();
 
     // prevent signers from changing the owners
-    if (keccak256(abi.encode(_safe.getOwners())) != _existingOwnersHash) revert SignersCannotChangeOwners();
+    if (keccak256(abi.encode(_safe.getOwners())) != _existingOwnersHash) revert CannotChangeOwners();
 
     // prevent signers from removing this module or adding any other modules
     (address[] memory modulesWith1, address next) = _safe.getModulesWith1();
@@ -959,8 +966,8 @@ contract HatsSignerGate is
     // if the length is 0, we know this module has been removed
     // per Safe ModuleManager.sol#137, "If all entries fit into a single page, the next pointer will be 0x1", ie
     // SENTINELS. Therefore, if `next` is not SENTINELS, we know another module has been added.
-    if (modulesWith1.length == 0 || next != SafeManagerLib.SENTINELS) revert SignersCannotChangeModules();
+    if (modulesWith1.length == 0 || next != SafeManagerLib.SENTINELS) revert CannotChangeModules();
     // ...and that the only module is this contract
-    else if (modulesWith1[0] != address(this)) revert SignersCannotChangeModules();
+    else if (modulesWith1[0] != address(this)) revert CannotChangeModules();
   }
 }

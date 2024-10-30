@@ -22,7 +22,8 @@ interface IHatsSignerGate {
   /// @notice Struct for the threshold configuration
   /// @param thresholdType The type of target threshold, either ABSOLUTE or PROPORTIONAL
   /// @param min The minimum threshold
-  /// @param target The target threshold
+  /// @param target The target. If thresholdType is ABSOLUTE, this is an absolute number of signatures.
+  ///               If thresholdType is PROPORTIONAL, this is a percentage in basis points (10000 = 100%).
   struct ThresholdConfig {
     TargetThresholdType thresholdType;
     uint120 min;
@@ -56,7 +57,7 @@ interface IHatsSignerGate {
   //////////////////////////////////////////////////////////////*/
 
   /// @notice Signers are not allowed to disable the HatsSignerGate guard
-  error CannotDisableThisGuard(address guard);
+  error CannotDisableThisGuard();
 
   /// @notice Only the wearer of the owner Hat can make changes to this contract
   error NotOwnerHatWearer();
@@ -67,38 +68,39 @@ interface IHatsSignerGate {
   /// @notice Thrown when the number of signatures from valid signers is less than the correct threshold
   error InsufficientValidSignatures();
 
-  /// @notice This contract can only be set once as a zodiac guard on `safe`
-  error GuardAlreadySet();
-
   /// @notice Can't remove a signer if they're still wearing the signer hat
-  error StillWearsSignerHat(address signer);
+  error StillWearsSignerHat();
 
   /// @notice Invalid threshold configuration
-  // TODO enumerate all the conditions that cause this error
+  /// @dev Thrown when:
+  /// 1. ABSOLUTE threshold type: target < min
+  /// 2. PROPORTIONAL threshold type: target > 10_000 (100%)
+  /// 3. Invalid threshold type (not ABSOLUTE or PROPORTIONAL)
   error InvalidThresholdConfig();
-
-  /// @notice Signers already on the `safe` cannot claim twice
-  error SignerAlreadyRegistered(address signer);
 
   /// @notice Can only claim signer with a valid signer hat
   error InvalidSignerHat(uint256 hatId);
 
-  /// @notice Signers are not allowed to change the threshold
-  error SignersCannotChangeThreshold();
+  /// @notice Neither signers nor modules enabled on HSG can change the threshold
+  error CannotChangeThreshold();
 
-  /// @notice Signers are not allowed to add new modules
-  error SignersCannotChangeModules();
+  /// @notice Neither signers nor modules enabled on HSG can change the modules
+  error CannotChangeModules();
 
-  /// @notice Signers are not allowed to change owners
-  error SignersCannotChangeOwners();
+  /// @notice Neither signers nor modules enabled on HSG can change the owners
+  error CannotChangeOwners();
 
-  /// @notice Emmitted when a call to `checkTransaction` or `checkAfterExecution` is not made from the `safe`
-  /// @dev Together with `guardEntries`, protects against arbitrary reentrancy attacks by the signers
-  error NotCalledFromSafe();
+  /// @notice Neither Safe signers nor modules enabled on HSG can make external calls to the `safe`
+  /// @dev This ensures that signers and modules cannot change any of the `safe`'s settings
+  error CannotCallSafe();
 
   /// @notice Emmitted when attempting to reenter `checkTransaction`
   /// @dev The Safe will catch this error and re-throw with its own error message (`GS013`)
   error NoReentryAllowed();
+
+  /// @notice Emmitted when a call to `checkTransaction` or `checkAfterExecution` is not made from the `safe`
+  /// @dev Together with `guardEntries`, protects against arbitrary reentrancy attacks by the signers
+  error NotCalledFromSafe();
 
   /// @notice Owner cannot change settings once the contract is locked
   error Locked();
@@ -108,10 +110,6 @@ interface IHatsSignerGate {
 
   /// @notice The input arrays must be the same length
   error InvalidArrayLength();
-
-  /// @notice Neither Safe signers nor modules enabled on HSG can make external calls to the `safe`
-  /// @dev This ensures that signers and modules cannot change any of the `safe`'s settings
-  error CannotCallSafe();
 
   /// @notice The delegatecall target is not enabled
   error DelegatecallTargetNotEnabled();
@@ -164,9 +162,6 @@ interface IHatsSignerGate {
                           STATE VARIABLES
   //////////////////////////////////////////////////////////////*/
 
-  /// @notice Append-only tracker of approved signer hats
-  function validSignerHats(uint256) external view returns (bool);
-
   /// @notice Tracks the hat ids worn by users who have "claimed signer"
   function claimedSignerHats(address) external view returns (uint256);
 
@@ -194,8 +189,6 @@ interface IHatsSignerGate {
   /*//////////////////////////////////////////////////////////////
                               FUNCTIONS
   //////////////////////////////////////////////////////////////*/
-
-  // TODO make sure all functions implemented in HatsSignerGate are included here
 
   /// @notice Initializes a new instance of HatsSignerGate.
   /// @dev Does NOT check if the target Safe is compatible with this HSG.
@@ -294,18 +287,6 @@ interface IHatsSignerGate {
 
   /// @notice Checks if a HatsSignerGate can be safely attached to a Safe, ie there must be no existing modules
   function canAttachToSafe() external view returns (bool);
-
-  /// @notice Counts the number of hats-valid signatures within a set of `signatures`
-  /// @dev modified from
-  /// https://github.com/safe-global/safe-contracts/blob/c36bcab46578a442862d043e12a83fec41143dec/contracts/Safe.sol#L240
-  /// @param dataHash The signed data
-  /// @param signatures The set of signatures to check
-  /// @param sigCount The number of signatures to check
-  /// @return validSigCount The number of hats-valid signatures
-  function countValidSignatures(bytes32 dataHash, bytes memory signatures, uint256 sigCount)
-    external
-    view
-    returns (uint256 validSigCount);
 
   /// @notice Returns the addresses of the Safe contracts used to deploy new Safes
   /// @return _safeSingleton The address of the Safe singleton used to deploy new Safes

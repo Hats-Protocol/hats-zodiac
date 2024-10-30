@@ -478,7 +478,7 @@ contract TestSuite is SafeTestHelpers {
 
   function assertValidSignerHats(uint256[] memory _signerHats) public view {
     for (uint256 i = 0; i < _signerHats.length; ++i) {
-      assertTrue(hatsSignerGate.validSignerHats(_signerHats[i]));
+      assertTrue(hatsSignerGate.isValidSignerHat(_signerHats[i]));
     }
   }
 
