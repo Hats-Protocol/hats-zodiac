@@ -92,6 +92,9 @@ interface IHatsSignerGate {
   /// @notice Signers are not allowed to change owners
   error SignersCannotChangeOwners();
 
+  /// @notice Neither signers nor modules enabled on HSG can change the fallback handler
+  error CannotChangeFallbackHandler();
+
   /// @notice Emmitted when a call to `checkTransaction` or `checkAfterExecution` is not made from the `safe`
   /// @dev Together with `guardEntries`, protects against arbitrary reentrancy attacks by the signers
   error NotCalledFromSafe();

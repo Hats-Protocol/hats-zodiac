@@ -1054,6 +1054,34 @@ contract ConstrainingSigners is WithHSGInstanceTest {
       signatures
     );
   }
+
+  function test_revert_cannotChangeFallbackHandler() public {
+    address newFallbackHandler = makeAddr("newFallbackHandler");
+
+    _addSignersSameHat(3, signerHat);
+
+    // data to change the fallback handler
+    bytes memory changeFallbackHandlerData = abi.encodeWithSignature("setFallbackHandler(address)", newFallbackHandler);
+
+    (bytes memory multisendCall, bytes32 txHash) = _constructSingleActionMultiSendTx(changeFallbackHandlerData);
+
+    bytes memory signatures = _createNSigsForTx(txHash, 2);
+
+    vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.CannotChangeFallbackHandler.selector));
+    safe.execTransaction(
+      defaultDelegatecallTargets[0],
+      0,
+      multisendCall,
+      Enum.Operation.DelegateCall,
+      // not using the refunder
+      0,
+      0,
+      0,
+      address(0),
+      payable(address(0)),
+      signatures
+    );
+  }
 }
 
 contract GuardFunctionAuth is WithHSGInstanceTest {
@@ -2283,6 +2311,29 @@ contract ConstrainingModules is WithHSGInstanceTest {
     vm.expectRevert(IHatsSignerGate.CannotCallSafe.selector);
     vm.prank(address(newModule));
     hatsSignerGate.execTransactionFromModuleReturnData(address(safe), transferValue, hex"00", Enum.Operation.Call);
+  }
+
+  function test_revert_cannotChangeFallbackHandler() public {
+    address newFallbackHandler = makeAddr("newFallbackHandler");
+
+    // data for call to change the fallback handler
+    bytes memory changeFallbackHandlerData = abi.encodeWithSignature("setFallbackHandler(address)", newFallbackHandler);
+
+    (bytes memory multisendCall,) = _constructSingleActionMultiSendTx(changeFallbackHandlerData);
+
+    // try to exec the tx from the newModule, expect it to revert
+    vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.CannotChangeFallbackHandler.selector));
+    vm.prank(address(newModule));
+    hatsSignerGate.execTransactionFromModule(
+      defaultDelegatecallTargets[0], 0, multisendCall, Enum.Operation.DelegateCall
+    );
+
+    // try to exec the tx from the newModuleReturnData, expect it to revert
+    vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.CannotChangeFallbackHandler.selector));
+    vm.prank(address(newModule));
+    hatsSignerGate.execTransactionFromModuleReturnData(
+      defaultDelegatecallTargets[0], 0, multisendCall, Enum.Operation.DelegateCall
+    );
   }
 }
 
