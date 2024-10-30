@@ -563,12 +563,6 @@ contract HatsSignerGate is
     emit OwnerHatUpdated(_ownerHat);
   }
 
-  // /// @notice Checks if `_account` is a valid signer
-  // /// @dev Must be implemented by all flavors of HatsSignerGate
-  // /// @param _account The address to check
-  // /// @return valid Whether `_account` is a valid signer
-  // function isValidSigner(address _account) public view virtual returns (bool valid) { }
-
   /// @dev Internal function to approve new signer hats
   /// @param _newSignerHats Array of hat ids to add as approved signer hats
   function _addSignerHats(uint256[] memory _newSignerHats) internal {
