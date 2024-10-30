@@ -1,48 +1,64 @@
-Compiling 5 files with Solc 0.8.28
-Solc 0.8.28 finished in 11.88s
+Compiling 57 files with Solc 0.8.28
+Solc 0.8.28 finished in 12.82s
 Compiler run successful!
 
 Ran 1 test for test/HatsSignerGate.t.sol:EnablingHSGModules
 [PASS] test_happy() (gas: 92418)
-Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 2.09s (103.68ms CPU time)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 2.34s (101.95ms CPU time)
 
 Ran 1 test for test/HatsSignerGate.t.sol:DisablingDelegatecallTargets
 [PASS] test_happy() (gas: 60708)
-Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 2.22s (142.43ms CPU time)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 2.56s (86.56ms CPU time)
 
-Ran 1 test for test/HatsSignerGate.t.sol:DisablingHSGModules
-[PASS] test_happy() (gas: 66051)
-Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 2.29s (72.93ms CPU time)
-
-Ran 2 tests for test/HatsSignerGate.t.sol:ExecutingFromModuleReturnDataViaHSG
-[PASS] test_happy_executionFailure() (gas: 67145)
-[PASS] test_happy_executionSuccess() (gas: 104412)
-Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 2.30s (251.15ms CPU time)
-
-Ran 2 tests for test/HatsSignerGate.t.sol:ExecutingFromModuleViaHSG
-[PASS] test_happy_executionFailure() (gas: 65685)
-[PASS] test_happy_executionSuccess() (gas: 102952)
-Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 2.30s (247.48ms CPU time)
-
-Ran 1 test for test/HatsSignerGate.t.sol:EnablingDelegatecallTargets
-[PASS] test_happy() (gas: 87430)
-Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 1.84s (97.67ms CPU time)
+Ran 2 tests for test/HatsSignerGate.t.sol:SettingHSGGuard
+[PASS] test_happy() (gas: 90136)
+[PASS] test_removeGuard() (gas: 64280)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 2.56s (295.13ms CPU time)
 
 Ran 2 tests for test/HatsSignerGate.t.sol:ClaimingSignerFor
 [PASS] test_happy() (gas: 308644)
 [PASS] test_happy_alreadyOwnerNotRegistered() (gas: 345641)
-Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 4.88s (646.10ms CPU time)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 2.81s (512.72ms CPU time)
 
 Ran 4 tests for test/HatsSignerGate.t.sol:AddingSigners
 [PASS] testAddSingleSigner() (gas: 260816)
 [PASS] testAddThreeSigners() (gas: 733846)
 [PASS] test_Multi_AddSingleSigner() (gas: 266758)
 [PASS] test_Multi_AddTwoSigners_DifferentHats() (gas: 506348)
-Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 3.08s (1.39s CPU time)
+Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 3.43s (1.13s CPU time)
 
-Ran 1 test for test/HatsSignerGate.t.sol:DetachingHSG
-[PASS] test_happy() (gas: 89694)
-Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 1.77s (99.00ms CPU time)
+Ran 4 tests for test/HatsSignerGate.t.sol:ClaimingSigners
+[PASS] test_canClaim_alreadyOwner() (gas: 546063)
+[PASS] test_happy() (gas: 252843)
+[PASS] test_signerCanReregister_differentHat() (gas: 477490)
+[PASS] test_signerCanReregister_sameHat() (gas: 303397)
+Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 3.69s (1.44s CPU time)
+
+Ran 1 test for test/HatsSignerGate.t.sol:SettingOwnerHat
+[PASS] test_happy() (gas: 65577)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 2.09s (92.10ms CPU time)
+
+Ran 1 test for test/HatsSignerGate.t.sol:EnablingDelegatecallTargets
+[PASS] test_happy() (gas: 87430)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 1.89s (196.91ms CPU time)
+
+Ran 6 tests for test/HatsSignerGate.t.sol:RemovingSigners
+[PASS] testCanRemoveInvalidSigner1() (gas: 388175)
+[PASS] testCanRemoveInvalidSignerWhenMultipleSigners() (gas: 603735)
+[PASS] testCannotRemoveValidSigner() (gas: 308325)
+[PASS] testValidSignerCanClaimAfterPrevRemoved() (gas: 597617)
+[PASS] test_Multi_CanRemoveInvalidSigner1() (gas: 397447)
+[PASS] test_Multi_CannotRemoveValidSigner() (gas: 317562)
+Suite result: ok. 6 passed; 0 failed; 0 skipped; finished in 4.77s (2.56s CPU time)
+
+Ran 1 test for test/HatsSignerGate.t.sol:DisablingHSGModules
+[PASS] test_happy() (gas: 66051)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 2.29s (79.46ms CPU time)
+
+Ran 2 tests for test/HatsSignerGate.t.sol:ExecutingFromModuleReturnDataViaHSG
+[PASS] test_happy_executionFailure() (gas: 67145)
+[PASS] test_happy_executionSuccess() (gas: 104412)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 2.59s (166.77ms CPU time)
 
 Ran 7 tests for test/HatsSignerGate.t.sol:ConstrainingSigners
 [PASS] testCannotDecreaseThreshold() (gas: 1085410)
@@ -52,21 +68,40 @@ Ran 7 tests for test/HatsSignerGate.t.sol:ConstrainingSigners
 [PASS] testSignersCannotAddOwners() (gas: 1119396)
 [PASS] testSignersCannotRemoveOwners() (gas: 1101827)
 [PASS] testSignersCannotSwapOwners() (gas: 1124303)
-Suite result: ok. 7 passed; 0 failed; 0 skipped; finished in 6.59s (4.24s CPU time)
+Suite result: ok. 7 passed; 0 failed; 0 skipped; finished in 6.61s (4.36s CPU time)
 
-Ran 1 test for test/HatsSignerGate.t.sol:SettingOwnerHat
-[PASS] test_happy() (gas: 65577)
-Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 1.94s (107.62ms CPU time)
+Ran 1 test for test/HatsSignerGate.t.sol:DetachingHSG
+[PASS] test_happy() (gas: 89694)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 1.87s (93.72ms CPU time)
+
+Ran 2 tests for test/HatsSignerGate.t.sol:ExecutingFromModuleViaHSG
+[PASS] test_happy_executionFailure() (gas: 65685)
+[PASS] test_happy_executionSuccess() (gas: 102952)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 1.94s (182.14ms CPU time)
 
 Ran 2 tests for test/HatsSignerGate.t.sol:GuardFunctionAuth
 [PASS] testCannotCallCheckAfterExecutionFromNonSafe() (gas: 34650)
 [PASS] testCannotCallCheckTransactionFromNonSafe() (gas: 38347)
-Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 1.86s (246.32ms CPU time)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 2.01s (194.72ms CPU time)
 
-Ran 2 tests for test/HatsSignerGate.t.sol:SettingHSGGuard
-[PASS] test_happy() (gas: 90136)
-[PASS] test_removeGuard() (gas: 64280)
-Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 2.18s (261.64ms CPU time)
+Ran 1 test for test/HatsSignerGate.t.sol:HSGGuarding
+[PASS] test_executed() (gas: 430670)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 2.41s (92.09ms CPU time)
+
+Ran 3 tests for test/HatsSignerGate.t.sol:AddingSignerHats
+[PASS] test_Multi_NonOwnerCannotAddSignerHats() (gas: 58954)
+[PASS] test_Multi_OwnerCanAddSignerHats(uint256) (runs: 256, μ: 357841, ~: 108996)
+[PASS] test_Multi_OwnerCanAddSignerHats1() (gas: 85612)
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 24.57s (22.36s CPU time)
+
+Ran 1 test for test/HatsSignerGate.t.sol:SettingClaimableFor
+[PASS] test_happy(bool) (runs: 256, μ: 63876, ~: 65261)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 22.62s (20.66s CPU time)
+
+Ran 2 tests for test/HatsSignerGate.t.sol:Deployment
+[PASS] test_andSafe(bool,bool) (runs: 256, μ: 3068525, ~: 3073633)
+[PASS] test_onlyHSG(bool,bool) (runs: 256, μ: 2991895, ~: 2991406)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 82.75s (144.23s CPU time)
 
 Ran 7 tests for test/HatsSignerGate.t.sol:ExecutingTransactions
 [PASS] testExecByLessThanMinThresholdReverts() (gas: 874469)
@@ -76,52 +111,7 @@ Ran 7 tests for test/HatsSignerGate.t.sol:ExecutingTransactions
 [PASS] test_Multi_ExecTxByHatWearers() (gas: 1218611)
 [PASS] test_Multi_ExecTxByNonHatWearersReverts() (gas: 1247092)
 [PASS] test_happy_delegateCall() (gas: 1243356)
-Suite result: ok. 7 passed; 0 failed; 0 skipped; finished in 6.83s (4.83s CPU time)
-
-Ran 1 test for test/HatsSignerGate.t.sol:HSGGuarding
-[PASS] test_executed() (gas: 430670)
-Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 2.44s (80.72ms CPU time)
-
-Ran 3 tests for test/HatsSignerGate.t.sol:AddingSignerHats
-[PASS] test_Multi_NonOwnerCannotAddSignerHats() (gas: 58954)
-[PASS] test_Multi_OwnerCanAddSignerHats(uint256) (runs: 256, μ: 357841, ~: 108996)
-[PASS] test_Multi_OwnerCanAddSignerHats1() (gas: 85612)
-Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 23.40s (21.51s CPU time)
-
-Ran 1 test for test/HatsSignerGate.t.sol:SettingClaimableFor
-[PASS] test_happy(bool) (runs: 256, μ: 63876, ~: 65261)
-Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 21.08s (19.48s CPU time)
-
-Ran 2 tests for test/HatsSignerGate.t.sol:Deployment
-[PASS] test_andSafe(bool,bool) (runs: 256, μ: 3068525, ~: 3073633)
-[PASS] test_onlyHSG(bool,bool) (runs: 256, μ: 2991895, ~: 2991406)
-Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 83.35s (141.13s CPU time)
-
-Ran 6 tests for test/HatsSignerGate.t.sol:RemovingSigners
-[PASS] testCanRemoveInvalidSigner1() (gas: 388175)
-[PASS] testCanRemoveInvalidSignerWhenMultipleSigners() (gas: 603735)
-[PASS] testCannotRemoveValidSigner() (gas: 308325)
-[PASS] testValidSignerCanClaimAfterPrevRemoved() (gas: 597617)
-[PASS] test_Multi_CanRemoveInvalidSigner1() (gas: 397447)
-[PASS] test_Multi_CannotRemoveValidSigner() (gas: 317562)
-Suite result: ok. 6 passed; 0 failed; 0 skipped; finished in 78.46s (2.56s CPU time)
-
-Ran 2 tests for test/HatsSignerGate.t.sol:MigratingHSG
-[PASS] test_happy_claimableFor_signersToMigrate(uint256) (runs: 256, μ: 1622249, ~: 1349027)
-[PASS] test_happy_noSignersToMigrate() (gas: 152036)
-Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 148.12s (146.05s CPU time)
-
-Ran 2 tests for test/HatsSignerGate.t.sol:SettingThresholdConfig
-[PASS] test_happy_absolute(uint120,uint120,uint256) (runs: 256, μ: 1407312, ~: 1402170)
-[PASS] test_happy_proportional(uint120,uint120,uint256) (runs: 256, μ: 1329235, ~: 1285071)
-Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 142.62s (276.85s CPU time)
-
-Ran 4 tests for test/HatsSignerGate.t.sol:ClaimingSigners
-[PASS] test_canClaim_alreadyOwner() (gas: 546063)
-[PASS] test_happy() (gas: 252843)
-[PASS] test_signerCanReregister_differentHat() (gas: 477490)
-[PASS] test_signerCanReregister_sameHat() (gas: 303397)
-Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 147.14s (1.55s CPU time)
+Suite result: ok. 7 passed; 0 failed; 0 skipped; finished in 112.22s (4.85s CPU time)
 
 Ran 8 tests for test/HatsSignerGate.attacks.t.sol:AttacksScenarios
 [PASS] testAttackerCannotExploitSigHandlingDifferences() (gas: 1573312)
@@ -132,13 +122,23 @@ Ran 8 tests for test/HatsSignerGate.attacks.t.sol:AttacksScenarios
 [PASS] testSignersCannotAddNewModules() (gas: 886851)
 [PASS] testSignersCannotReenterCheckTransactionToAddOwners() (gas: 1268236)
 [PASS] testTargetSigAttackFails() (gas: 1871684)
-Suite result: ok. 8 passed; 0 failed; 0 skipped; finished in 149.23s (7.83s CPU time)
+Suite result: ok. 8 passed; 0 failed; 0 skipped; finished in 118.25s (7.86s CPU time)
+
+Ran 2 tests for test/HatsSignerGate.t.sol:MigratingHSG
+[PASS] test_happy_claimableFor_signersToMigrate(uint256) (runs: 256, μ: 1622249, ~: 1349027)
+[PASS] test_happy_noSignersToMigrate() (gas: 152036)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 146.81s (144.20s CPU time)
 
 Ran 3 tests for test/HatsSignerGate.t.sol:ClaimingSignersFor
 [PASS] test_alreadyOwnerNotRegistered_happy(uint256) (runs: 256, μ: 1220666, ~: 1169786)
 [PASS] test_startingEmpty_happy(uint256) (runs: 256, μ: 1032110, ~: 992061)
 [PASS] test_startingWith1Signer_happy(uint256) (runs: 256, μ: 1106871, ~: 1069339)
-Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 147.82s (357.86s CPU time)
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 148.33s (355.92s CPU time)
+
+Ran 2 tests for test/HatsSignerGate.t.sol:SettingThresholdConfig
+[PASS] test_happy_absolute(uint120,uint120,uint256) (runs: 256, μ: 1407312, ~: 1402170)
+[PASS] test_happy_proportional(uint120,uint120,uint256) (runs: 256, μ: 1329235, ~: 1285071)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 149.04s (287.20s CPU time)
 | script/HatsSignerGate.s.sol:DeployImplementation contract |                 |         |         |         |         |
 |-----------------------------------------------------------|-----------------|---------|---------|---------|---------|
 | Deployment Cost                                           | Deployment Size |         |         |         |         |
@@ -206,6 +206,14 @@ Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 147.82s (357.86s CP
 | validSignerCount                               | 7070            | 23317  | 20531  | 54469   | 1297    |
 
 
+| test/mocks/TestGuard.sol:TestGuard contract |                 |     |        |     |         |
+|---------------------------------------------|-----------------|-----|--------|-----|---------|
+| Deployment Cost                             | Deployment Size |     |        |     |         |
+| 588049                                      | 2727            |     |        |     |         |
+| Function Name                               | min             | avg | median | max | # calls |
+| supportsInterface                           | 350             | 350 | 350    | 350 | 514     |
 
 
-Ran 24 test suites in 151.24s (985.83s CPU time): 66 tests passed, 0 failed, 0 skipped (66 total tests)
+
+
+Ran 24 test suites in 152.57s (850.44s CPU time): 66 tests passed, 0 failed, 0 skipped (66 total tests)
