@@ -75,7 +75,10 @@ interface IHatsSignerGate {
   error StillWearsSignerHat(address signer);
 
   /// @notice Invalid threshold configuration
-  // TODO enumerate all the conditions that cause this error
+  /// @dev Thrown when:
+  /// 1. ABSOLUTE threshold type: target < min
+  /// 2. PROPORTIONAL threshold type: target > 10_000 (100%)
+  /// 3. Invalid threshold type (not ABSOLUTE or PROPORTIONAL)
   error InvalidThresholdConfig();
 
   /// @notice Signers already on the `safe` cannot claim twice
@@ -119,6 +122,9 @@ interface IHatsSignerGate {
 
   /// @notice Reregistration is not allowed on behalf of an existing signer
   error ReregistrationNotAllowed();
+
+  /// @notice The provided migration target is not an HSG
+  error NotHatsSignerGate();
 
   /*//////////////////////////////////////////////////////////////
                               EVENTS

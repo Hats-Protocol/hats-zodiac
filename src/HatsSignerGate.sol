@@ -16,9 +16,14 @@ import { ISafe, Enum } from "./lib/safe-interfaces/ISafe.sol";
 /// @title HatsSignerGate
 /// @author Haberdasher Labs
 /// @author @spengrah
-/// @notice A Zodiac compatible contract for managing a Safe's owners and signatures via Hats Protocol.
+/// @author @gershido
+/// @notice A Zodiac compatible contract for managing a Safe's signers and signatures via Hats Protocol.
+/// - As a module on the Safe, it allows for signers to be added and removed based on Hats Protocol hats.
+/// - As a guard on the Safe, it ensures that transactions can only be executed by valid hat-wearing signers.
+/// - It also serves as a Zodiac modifier, allowing the Safe's functionality to be safely extended by attaching modules
+/// and a guard to HatsSignerGate itself.
+/// - An owner can control the HatsSignerGate's settings and behavior through various owner-only functions.
 /// @dev This contract is designed to work with the Zodiac Module Factory, from which instances are deployed.
-// TODO need to reduce bytecode size by 0 kb
 contract HatsSignerGate is
   IHatsSignerGate,
   BaseGuard,
@@ -168,7 +173,6 @@ contract HatsSignerGate is
     _setThresholdConfig(params.thresholdConfig);
 
     // set the instance's metadata
-    // TODO can we get this from the clone bytecode?
     implementation = params.implementation;
 
     // initialize the modules linked list, and set initial modules, if any
@@ -342,7 +346,6 @@ contract HatsSignerGate is
   {
     _checkUnlocked();
     _checkOwner();
-    // TODO check if _newHSG is indeed an HSG?
 
     ISafe s = safe; // save SLOADS
     // remove existing HSG as guard
