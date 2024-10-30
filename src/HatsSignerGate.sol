@@ -105,6 +105,9 @@ contract HatsSignerGate is
   /// @dev Temporary record of the existing threshold on the `safe` when a transaction is submitted
   uint256 transient _existingThreshold;
 
+  /// @dev Temporary record of the existing fallback handler on the `safe` when a transaction is submitted
+  address transient _existingFallbackHandler;
+
   /// @dev Temporary record of the operation type when a transaction is submitted
   Enum.Operation transient _operation;
 
@@ -438,6 +441,7 @@ contract HatsSignerGate is
       // been altered
       _existingOwnersHash = keccak256(abi.encode(owners));
       _existingThreshold = threshold;
+      _existingFallbackHandler = safe.getSafeFallbackHandler();
     } else if (to == address(safe)) {
       // case: CALL to the safe
       // We disallow external calls to the safe itself. Together with the above check, this ensures there are no
@@ -933,9 +937,11 @@ contract HatsSignerGate is
       // We disallow delegatecalls to unapproved targets
       if (!enabledDelegatecallTargets[_to]) revert DelegatecallTargetNotEnabled();
 
-      // If the delegatecall target is approved, we record the existing owners and threshold for post-flight check
+      // If the delegatecall target is approved, we record the existing owners, threshold, and fallback handler for
+      // post-flight check
       _existingOwnersHash = keccak256(abi.encode(_safe.getOwners()));
       _existingThreshold = _safe.getThreshold();
+      _existingFallbackHandler = _safe.getSafeFallbackHandler();
     } else if (_to == address(_safe)) {
       // case: CALL to the safe
       // We disallow external calls to the safe itself. Together with the above check, this ensure there are no
@@ -958,6 +964,9 @@ contract HatsSignerGate is
 
     // prevent signers from changing the owners
     if (keccak256(abi.encode(_safe.getOwners())) != _existingOwnersHash) revert CannotChangeOwners();
+
+    // prevent changes to the fallback handler
+    if (_safe.getSafeFallbackHandler() != _existingFallbackHandler) revert CannotChangeFallbackHandler();
 
     // prevent signers from removing this module or adding any other modules
     (address[] memory modulesWith1, address next) = _safe.getModulesWith1();

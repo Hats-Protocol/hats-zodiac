@@ -151,7 +151,6 @@ Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 133.68s (335.05s CP
 | safeSingleton                                             | 368             | 368     | 368     | 368     | 66      |
 | zodiacModuleFactory                                       | 346             | 346     | 346     | 346     | 66      |
 
-
 | script/HatsSignerGate.s.sol:DeployInstance contract |                 |        |        |        |         |
 |-----------------------------------------------------|-----------------|--------|--------|--------|---------|
 | Deployment Cost                                     | Deployment Size |        |        |        |         |
@@ -160,7 +159,6 @@ Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 133.68s (335.05s CP
 | prepare1                                            | 233128          | 344292 | 361235 | 361475 | 578     |
 | prepare2                                            | 46041           | 48819  | 48829  | 48829  | 578     |
 | run                                                 | 472813          | 730723 | 768134 | 875298 | 578     |
-
 
 | src/HatsSignerGate.sol:HatsSignerGate contract |                 |        |        |         |         |
 |------------------------------------------------|-----------------|--------|--------|---------|---------|

@@ -93,6 +93,9 @@ interface IHatsSignerGate {
   /// @notice Neither Safe signers nor modules enabled on HSG can make external calls to the `safe`
   /// @dev This ensures that signers and modules cannot change any of the `safe`'s settings
   error CannotCallSafe();
+  
+  /// @notice Neither signers nor modules enabled on HSG can change the fallback handler
+  error CannotChangeFallbackHandler();
 
   /// @notice Emmitted when attempting to reenter `checkTransaction`
   /// @dev The Safe will catch this error and re-throw with its own error message (`GS013`)
