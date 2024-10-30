@@ -1325,7 +1325,7 @@ contract ClaimingSignerFor is WithHSGInstanceTest {
     assertEq(safe.getOwners().length, 1);
   }
 
-  function test_revert_alreadyRegistered() public {
+  function test_revert_alreadyRegistered_wearingRegisteredHat() public {
     _setSignerValidity(signerAddresses[0], signerHat, true);
 
     vm.prank(owner);
@@ -1345,6 +1345,36 @@ contract ClaimingSignerFor is WithHSGInstanceTest {
 
     // try to claim for the signer again, expecting a revert
     vm.expectRevert(IHatsSignerGate.ReregistrationNotAllowed.selector);
+    hatsSignerGate.claimSignerFor(newSignerHat, signerAddresses[0]);
+
+    assertEq(hatsSignerGate.validSignerCount(), 1);
+    assertEq(safe.getOwners().length, 1);
+  }
+
+  function test_alreadyRegistered_notWearingRegisteredHat() public {
+    _setSignerValidity(signerAddresses[0], signerHat, true);
+
+    vm.prank(owner);
+    hatsSignerGate.setClaimableFor(true);
+
+    hatsSignerGate.claimSignerFor(signerHat, signerAddresses[0]);
+
+    // add a new signer hat
+    uint256 newSignerHat = signerHats[1];
+    uint256[] memory newSignerHats = new uint256[](1);
+    newSignerHats[0] = newSignerHat;
+    vm.prank(owner);
+    hatsSignerGate.addSignerHats(newSignerHats);
+
+    // make the signer valid for the new signer hat
+    _setSignerValidity(signerAddresses[0], newSignerHat, true);
+
+    // make the signer invalid for the old signer hat
+    _setSignerValidity(signerAddresses[0], signerHat, false);
+
+    // claiming for the signer should now work
+    vm.expectEmit();
+    emit IHatsSignerGate.Registered(newSignerHat, signerAddresses[0]);
     hatsSignerGate.claimSignerFor(newSignerHat, signerAddresses[0]);
 
     assertEq(hatsSignerGate.validSignerCount(), 1);
@@ -1570,7 +1600,9 @@ contract ClaimingSignersFor is WithHSGInstanceTest {
     hatsSignerGate.claimSignersFor(hatIds, claimers);
   }
 
-  function test_revert_alreadyRegistered(uint256 _signerCount, uint256 _alreadyClaimedIndex) public {
+  function test_revert_alreadyRegistered_wearingRegisteredHat(uint256 _signerCount, uint256 _alreadyClaimedIndex)
+    public
+  {
     _signerCount = bound(_signerCount, 2, signerAddresses.length);
     _alreadyClaimedIndex = bound(_alreadyClaimedIndex, 0, _signerCount - 1);
 
@@ -1597,6 +1629,51 @@ contract ClaimingSignersFor is WithHSGInstanceTest {
     }
 
     vm.expectRevert(IHatsSignerGate.ReregistrationNotAllowed.selector);
+    hatsSignerGate.claimSignersFor(hatIds, claimers);
+  }
+
+  function test_alreadyRegistered_notWearingRegisteredHat(uint256 _signerCount, uint256 _alreadyClaimedIndex) public {
+    _signerCount = bound(_signerCount, 2, signerAddresses.length);
+    _alreadyClaimedIndex = bound(_alreadyClaimedIndex, 0, _signerCount - 1);
+
+    uint256 newSignerHat = signerHats[1];
+
+    // set up signer validity
+    for (uint256 i; i < _signerCount; ++i) {
+      _setSignerValidity(signerAddresses[i], signerHat, true);
+      _setSignerValidity(signerAddresses[i], newSignerHat, true);
+    }
+
+    // set the claimable for to true
+    vm.prank(owner);
+    hatsSignerGate.setClaimableFor(true);
+
+    // have the _alreadyClaimedIndex signer claim their signer permissions
+    address claimedSigner = signerAddresses[_alreadyClaimedIndex];
+    console2.log("claimedSigner", claimedSigner);
+    vm.prank(claimedSigner);
+    hatsSignerGate.claimSigner(signerHat);
+
+    // add the new signer hat
+    uint256[] memory newSignerHats = new uint256[](1);
+    newSignerHats[0] = newSignerHat;
+    vm.prank(owner);
+    hatsSignerGate.addSignerHats(newSignerHats);
+
+    // make the _alreadyClaimedIndex signer not wear their registered hat
+    _setSignerValidity(claimedSigner, signerHat, false);
+
+    // create the arrays for the remaining signers
+    address[] memory claimers = new address[](_signerCount);
+    uint256[] memory hatIds = new uint256[](_signerCount);
+    for (uint256 i; i < _signerCount; ++i) {
+      claimers[i] = signerAddresses[i];
+      hatIds[i] = newSignerHat;
+    }
+
+    // re-registration should now succeed since the signer is not wearing their registered hat
+    vm.expectEmit();
+    emit IHatsSignerGate.Registered(newSignerHat, claimedSigner);
     hatsSignerGate.claimSignersFor(hatIds, claimers);
   }
 

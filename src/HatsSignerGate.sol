@@ -680,9 +680,11 @@ contract HatsSignerGate is
     // get the current registered hat
     uint256 registeredHat = claimedSignerHats[_signer];
 
-    // disallow re-registering a different hat for an existing signer, if specified
+    // disallow re-registering a different hat for an existing signer that is still wearing their currently-registered hat, if specified
     if (!_allowReregistration) {
-      if (registeredHat != 0) revert ReregistrationNotAllowed();
+      if (HATS.isWearerOfHat(_signer, registeredHat)) {
+        revert ReregistrationNotAllowed();
+      }
     }
 
     // register the hat used to claim. This will be the hat checked in `checkTransaction()` for this signer
