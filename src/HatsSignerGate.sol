@@ -272,7 +272,7 @@ contract HatsSignerGate is
 
   /// @inheritdoc IHatsSignerGate
   function removeSigner(address _signer) public virtual {
-    if (isValidSigner(_signer)) revert StillWearsSignerHat(_signer);
+    if (isValidSigner(_signer)) revert StillWearsSignerHat();
 
     _removeSigner(_signer);
   }
@@ -949,13 +949,13 @@ contract HatsSignerGate is
   /// `_safe`'s
   /// state.
   function _checkSafeState(ISafe _safe) internal view {
-    if (_safe.getSafeGuard() != address(this)) revert CannotDisableThisGuard(address(this));
+    if (_safe.getSafeGuard() != address(this)) revert CannotDisableThisGuard();
 
     // prevent signers from changing the threshold
-    if (_safe.getThreshold() != _existingThreshold) revert SignersCannotChangeThreshold();
+    if (_safe.getThreshold() != _existingThreshold) revert CannotChangeThreshold();
 
     // prevent signers from changing the owners
-    if (keccak256(abi.encode(_safe.getOwners())) != _existingOwnersHash) revert SignersCannotChangeOwners();
+    if (keccak256(abi.encode(_safe.getOwners())) != _existingOwnersHash) revert CannotChangeOwners();
 
     // prevent signers from removing this module or adding any other modules
     (address[] memory modulesWith1, address next) = _safe.getModulesWith1();
@@ -964,8 +964,8 @@ contract HatsSignerGate is
     // if the length is 0, we know this module has been removed
     // per Safe ModuleManager.sol#137, "If all entries fit into a single page, the next pointer will be 0x1", ie
     // SENTINELS. Therefore, if `next` is not SENTINELS, we know another module has been added.
-    if (modulesWith1.length == 0 || next != SafeManagerLib.SENTINELS) revert SignersCannotChangeModules();
+    if (modulesWith1.length == 0 || next != SafeManagerLib.SENTINELS) revert CannotChangeModules();
     // ...and that the only module is this contract
-    else if (modulesWith1[0] != address(this)) revert SignersCannotChangeModules();
+    else if (modulesWith1[0] != address(this)) revert CannotChangeModules();
   }
 }

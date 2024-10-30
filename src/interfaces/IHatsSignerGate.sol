@@ -57,7 +57,7 @@ interface IHatsSignerGate {
   //////////////////////////////////////////////////////////////*/
 
   /// @notice Signers are not allowed to disable the HatsSignerGate guard
-  error CannotDisableThisGuard(address guard);
+  error CannotDisableThisGuard();
 
   /// @notice Only the wearer of the owner Hat can make changes to this contract
   error NotOwnerHatWearer();
@@ -68,11 +68,8 @@ interface IHatsSignerGate {
   /// @notice Thrown when the number of signatures from valid signers is less than the correct threshold
   error InsufficientValidSignatures();
 
-  /// @notice This contract can only be set once as a zodiac guard on `safe`
-  error GuardAlreadySet();
-
   /// @notice Can't remove a signer if they're still wearing the signer hat
-  error StillWearsSignerHat(address signer);
+  error StillWearsSignerHat();
 
   /// @notice Invalid threshold configuration
   /// @dev Thrown when:
@@ -81,28 +78,29 @@ interface IHatsSignerGate {
   /// 3. Invalid threshold type (not ABSOLUTE or PROPORTIONAL)
   error InvalidThresholdConfig();
 
-  /// @notice Signers already on the `safe` cannot claim twice
-  error SignerAlreadyRegistered(address signer);
-
   /// @notice Can only claim signer with a valid signer hat
   error InvalidSignerHat(uint256 hatId);
 
-  /// @notice Signers are not allowed to change the threshold
-  error SignersCannotChangeThreshold();
+  /// @notice Neither signers nor modules enabled on HSG can change the threshold
+  error CannotChangeThreshold();
 
-  /// @notice Signers are not allowed to add new modules
-  error SignersCannotChangeModules();
+  /// @notice Neither signers nor modules enabled on HSG can change the modules
+  error CannotChangeModules();
 
-  /// @notice Signers are not allowed to change owners
-  error SignersCannotChangeOwners();
+  /// @notice Neither signers nor modules enabled on HSG can change the owners
+  error CannotChangeOwners();
 
-  /// @notice Emmitted when a call to `checkTransaction` or `checkAfterExecution` is not made from the `safe`
-  /// @dev Together with `guardEntries`, protects against arbitrary reentrancy attacks by the signers
-  error NotCalledFromSafe();
+  /// @notice Neither Safe signers nor modules enabled on HSG can make external calls to the `safe`
+  /// @dev This ensures that signers and modules cannot change any of the `safe`'s settings
+  error CannotCallSafe();
 
   /// @notice Emmitted when attempting to reenter `checkTransaction`
   /// @dev The Safe will catch this error and re-throw with its own error message (`GS013`)
   error NoReentryAllowed();
+
+  /// @notice Emmitted when a call to `checkTransaction` or `checkAfterExecution` is not made from the `safe`
+  /// @dev Together with `guardEntries`, protects against arbitrary reentrancy attacks by the signers
+  error NotCalledFromSafe();
 
   /// @notice Owner cannot change settings once the contract is locked
   error Locked();
@@ -113,18 +111,11 @@ interface IHatsSignerGate {
   /// @notice The input arrays must be the same length
   error InvalidArrayLength();
 
-  /// @notice Neither Safe signers nor modules enabled on HSG can make external calls to the `safe`
-  /// @dev This ensures that signers and modules cannot change any of the `safe`'s settings
-  error CannotCallSafe();
-
   /// @notice The delegatecall target is not enabled
   error DelegatecallTargetNotEnabled();
 
   /// @notice Reregistration is not allowed on behalf of an existing signer
   error ReregistrationNotAllowed();
-
-  /// @notice The provided migration target is not an HSG
-  error NotHatsSignerGate();
 
   /*//////////////////////////////////////////////////////////////
                               EVENTS

@@ -16,7 +16,7 @@ contract AttacksScenarios is WithHSGInstanceTest {
     bytes memory signatures = _createNSigsForTx(txHash, 2);
 
     // execute tx, expecting a revert
-    vm.expectRevert(IHatsSignerGate.SignersCannotChangeModules.selector);
+    vm.expectRevert(IHatsSignerGate.CannotChangeModules.selector);
     safe.execTransaction(
       defaultDelegatecallTargets[0],
       0,
