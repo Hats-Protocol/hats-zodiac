@@ -13,22 +13,6 @@ import { Enum, ISafe, IGuardManager, IModuleManager, IOwnerManager } from "../li
 /// @notice A library for managing Safe contract settings via a HatsSignerGate module
 library SafeManagerLib {
   /*//////////////////////////////////////////////////////////////
-                              CUSTOM ERRORS
-  //////////////////////////////////////////////////////////////*/
-
-  /// @notice Emitted when a call to change the threshold fails
-  error FailedExecChangeThreshold();
-
-  /// @notice Emitted when a call to add a signer fails
-  error FailedExecAddSigner();
-
-  /// @notice Emitted when a call to remove a signer fails
-  error FailedExecRemoveSigner();
-
-  /// @notice Emitted when a call to enable a module fails
-  error FailedExecEnableModule();
-
-  /*//////////////////////////////////////////////////////////////
                               CONSTANTS
   //////////////////////////////////////////////////////////////*/
 
