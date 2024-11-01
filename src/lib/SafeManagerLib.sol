@@ -191,11 +191,13 @@ library SafeManagerLib {
   }
 
   /// @dev Attach a new HSG `_newHSG` to a `_safe`
+  /// WARNING: This function does not check if `_newHSG` implements the IGuard interface. `_newHSG`s that do not will be
+  /// set as a module but not as a guard.
   function execAttachNewHSG(ISafe _safe, address _newHSG) internal {
     bytes memory attachHSGModule = encodeEnableModuleAction(_newHSG);
     bytes memory setHSGGuard = encodeSetGuardAction(_newHSG);
 
-    execSafeTransactionFromHSG(_safe, setHSGGuard);
+    execSafeTransactionFromHSG(_safe, setHSGGuard); // will fail but not revert if `_newHSG` does not implement IGuard
     execSafeTransactionFromHSG(_safe, attachHSGModule);
   }
 
