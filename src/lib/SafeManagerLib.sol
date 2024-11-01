@@ -177,9 +177,8 @@ library SafeManagerLib {
   //////////////////////////////////////////////////////////////*/
 
   /// @dev Execute a transaction with `_data` from the context of a `_safe`
-  function execSafeTransactionFromHSG(ISafe _safe, bytes memory _data) internal returns (bool success) {
-    success =
-      _safe.execTransactionFromModule({ to: address(_safe), value: 0, data: _data, operation: Enum.Operation.Call });
+  function execSafeTransactionFromHSG(ISafe _safe, bytes memory _data) internal {
+    _safe.execTransactionFromModule({ to: address(_safe), value: 0, data: _data, operation: Enum.Operation.Call });
   }
 
   /// @dev Encode the action to disable HSG as a module when there are no other modules enabled on a `_safe`
@@ -188,7 +187,7 @@ library SafeManagerLib {
     bytes memory removeHSGModule = encodeDisableModuleAction(SENTINELS, address(this));
 
     // execute the call
-    if (!execSafeTransactionFromHSG(_safe, removeHSGModule)) revert FailedExecChangeThreshold();
+    execSafeTransactionFromHSG(_safe, removeHSGModule);
   }
 
   /// @dev Encode the action to disable HSG as a module on a `_safe`
@@ -217,8 +216,8 @@ library SafeManagerLib {
   }
 
   /// @dev Execute the action to change the threshold of a `_safe` to `_newThreshold`
-  function execChangeThreshold(ISafe _safe, uint256 _newThreshold) internal returns (bool success) {
-    success = execSafeTransactionFromHSG(_safe, encodeChangeThresholdAction(_newThreshold));
+  function execChangeThreshold(ISafe _safe, uint256 _newThreshold) internal {
+    execSafeTransactionFromHSG(_safe, encodeChangeThresholdAction(_newThreshold));
   }
 
   /*//////////////////////////////////////////////////////////////
