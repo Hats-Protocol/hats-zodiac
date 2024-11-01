@@ -587,6 +587,9 @@ contract HatsSignerGate is
   /// @dev Internal function to set the threshold config
   /// @param _config the new threshold config
   function _setThresholdConfig(ThresholdConfig memory _config) internal {
+    // min threshold cannot be 0
+    if (_config.min == 0) revert InvalidThresholdConfig();
+    
     if (_config.thresholdType == TargetThresholdType.ABSOLUTE) {
       // absolute target threshold cannot be lower than min threshold
       if (_config.target < _config.min) revert InvalidThresholdConfig();
