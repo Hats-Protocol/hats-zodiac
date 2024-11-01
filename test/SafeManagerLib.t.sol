@@ -102,6 +102,9 @@ contract SafeManagerLib_EncodingActions is Test {
 }
 
 contract SafeManagerLib_ExecutingActions is WithHSGHarnessInstanceTest {
+  /// @dev Since execSafeTransactionFromHSG is called by all the other exec* functions, we rely on tests for those
+  /// functions to verify that execSafeTransactionFromHSG is working correctly.
+
   function test_execDisableHSGAsOnlyModule() public {
     harness.execDisableHSGAsOnlyModule(safe);
 
