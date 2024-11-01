@@ -94,4 +94,12 @@ contract HatsSignerGateHarness is HatsSignerGate, SafeManagerLibHarness {
   function exposed_setGuard(address _guard) public {
     _setGuard(_guard);
   }
+
+  function exposed_getRequiredValidSignatures(uint256 numOwners) public view returns (uint256) {
+    return _getRequiredValidSignatures(numOwners);
+  }
+
+  function exposed_getNewThreshold(uint256 numOwners) public view returns (uint256) {
+    return _getNewThreshold(numOwners);
+  }
 }
