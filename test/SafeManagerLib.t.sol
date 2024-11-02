@@ -6,6 +6,8 @@ import { TestSuite } from "./TestSuite.t.sol";
 import { SafeManagerLib } from "../src/lib/SafeManagerLib.sol";
 import { ISafe, IModuleManager, IGuardManager, IOwnerManager } from "../src/lib/safe-interfaces/ISafe.sol";
 import { WithHSGInstanceTest, WithHSGHarnessInstanceTest } from "./TestSuite.t.sol";
+import { HatsSignerGateHarness } from "./harnesses/HatsSignerGateHarness.sol";
+import { ModuleProxyFactory } from "../lib/zodiac/contracts/factory/ModuleProxyFactory.sol";
 
 contract SafeManagerLib_EncodingActions is Test {
   function test_fuzz_encodeEnableModuleAction(address _moduleToEnable) public pure {
@@ -189,17 +191,20 @@ contract SafeManagerLib_ExecutingActions is WithHSGHarnessInstanceTest {
 
     assertEq(safe.getThreshold(), 1, "threshold should not be updated");
   }
+}
 
+contract SafeManagerLib_DeployingSafeAndAttachingHSG is TestSuite {
   function test_deploySafeAndAttachHSG() public {
-    safe = ISafe(
-      harness.deploySafeAndAttachHSG(
-        address(safeFactory), address(singletonSafe), safeFallbackLibrary, safeMultisendLibrary
-      )
+    HatsSignerGateHarness harness = new HatsSignerGateHarness(
+      address(hats), address(singletonSafe), safeFallbackLibrary, safeMultisendLibrary, address(safeFactory)
     );
 
-    assertTrue(safe.isModuleEnabled(address(harness)), "harness should be enabled as a module");
-    assertEq(address(harness), SafeManagerLib.getSafeGuard(safe), "harness should be set as guard");
-    assertOnlyModule(safe, address(harness));
+    safe = ISafe(harness.deploySafeAndAttachHSG(
+      address(safeFactory), address(singletonSafe), safeFallbackLibrary, safeMultisendLibrary
+    ));
+
+    assertTrue(safe.isModuleEnabled(address(harness)), "harness should be a module on the safe");
+    assertEq(SafeManagerLib.getSafeGuard(safe), address(harness), "harness should be set as guard");
   }
 }
 

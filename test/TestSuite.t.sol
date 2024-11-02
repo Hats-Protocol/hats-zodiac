@@ -548,13 +548,16 @@ contract WithHSGInstanceTest is TestSuite {
 }
 
 contract WithHSGHarnessInstanceTest is TestSuite {
+  HatsSignerGateHarness public harnessImplementation;
   HatsSignerGateHarness public harness;
+
+  IHatsSignerGate.SetupParams public harnessSetupParams;
 
   function setUp() public virtual override {
     super.setUp();
 
-    // deploy a new HatsSignerGateHarness
-    harness = new HatsSignerGateHarness(
+    // deploy the harness implementation
+    harnessImplementation = new HatsSignerGateHarness(
       address(hats),
       address(singletonSafe),
       address(safeFallbackLibrary),
@@ -562,20 +565,28 @@ contract WithHSGHarnessInstanceTest is TestSuite {
       address(safeFactory)
     );
 
-    // deploy a new Safe with no owners and threshold of 1
-    initSafeOwners[0] = address(this);
-    safe = _deploySafe(initSafeOwners, 1, TEST_SALT_NONCE);
+    // set up the harness setup params
+    harnessSetupParams = IHatsSignerGate.SetupParams({
+      ownerHat: ownerHat,
+      signerHats: signerHats,
+      safe: address(0),
+      thresholdConfig: thresholdConfig,
+      locked: false,
+      claimableFor: false,
+      implementation: address(harnessImplementation),
+      hsgGuard: address(0),
+      hsgModules: new address[](0)
+    });
 
-    // enable the harness as a module on the Safe
-    vm.prank(address(safe));
-    safe.enableModule(address(harness));
+    // deploy a harness instance
+    harness = HatsSignerGateHarness(
+      ModuleProxyFactory(zodiacModuleFactory).deployModule(
+        address(harnessImplementation),
+        abi.encodeWithSignature("setUp(bytes)", abi.encode(harnessSetupParams)),
+        TEST_SALT_NONCE
+      )
+    );
 
-    // set harness as the safe's guard
-    vm.prank(address(safe));
-    safe.setGuard(address(harness));
-
-    // set the fallback handler to the safeFallbackLibrary
-    vm.prank(address(safe));
-    safe.setFallbackHandler(address(safeFallbackLibrary));
+    safe = harness.safe();
   }
 }
