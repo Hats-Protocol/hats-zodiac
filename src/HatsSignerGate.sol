@@ -571,10 +571,10 @@ contract HatsSignerGate is
   /// @param _ownerHat The hat id to set as the owner hat
   function _setOwnerHat(uint256 _ownerHat) internal {
     ownerHat = _ownerHat;
-    emit OwnerHatUpdated(_ownerHat);
+    emit OwnerHatSet(_ownerHat);
   }
 
-  /// @dev Internal function to approve new signer hats
+  /// @dev Internal function to approve new signer hats. Empty arrays and duplicate hats cause no harm, so they are allowed.
   /// @param _newSignerHats Array of hat ids to add as approved signer hats
   function _addSignerHats(uint256[] memory _newSignerHats) internal {
     for (uint256 i; i < _newSignerHats.length; ++i) {
@@ -589,18 +589,14 @@ contract HatsSignerGate is
   function _setThresholdConfig(ThresholdConfig memory _config) internal {
     // min threshold cannot be 0
     if (_config.min == 0) revert InvalidThresholdConfig();
-    
+
     if (_config.thresholdType == TargetThresholdType.ABSOLUTE) {
       // absolute target threshold cannot be lower than min threshold
       if (_config.target < _config.min) revert InvalidThresholdConfig();
-    } else if (_config.thresholdType == TargetThresholdType.PROPORTIONAL) {
+    } else  {
       // proportional threshold cannot be greater than 100%
       if (_config.target > 10_000) revert InvalidThresholdConfig();
-    } else {
-      // invalid threshold type
-      revert InvalidThresholdConfig();
-    }
-
+    } 
     // set the threshold config
     _thresholdConfig = _config;
 

@@ -131,7 +131,7 @@ interface IHatsSignerGate {
   event SignerHatsAdded(uint256[] newSignerHats);
 
   /// @notice Emitted when the owner hat is updated
-  event OwnerHatUpdated(uint256 ownerHat);
+  event OwnerHatSet(uint256 ownerHat);
 
   /// @notice Emitted when the contract is locked, preventing any further changes to settings
   event HSGLocked();
