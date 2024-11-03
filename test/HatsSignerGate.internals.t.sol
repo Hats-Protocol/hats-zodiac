@@ -217,21 +217,276 @@ contract OwnerSettingsInternals is WithHSGHarnessInstanceTest {
   }
 }
 
-contract SignerManagementInternals is WithHSGHarnessInstanceTest {
-  function test_registerSigner() public { }
+contract RegisterSignerInternals is WithHSGHarnessInstanceTest {
+  function _mockHatWearer(address _wearer, uint256 _hatId, bool _isWearer) internal {
+    vm.mockCall(
+      address(hats), abi.encodeWithSelector(hats.isWearerOfHat.selector, _wearer, _hatId), abi.encode(_isWearer)
+    );
+  }
 
-  function test_revert_registerSigner_invalidHat() public { }
+  function test_fuzz_happy_registerSigner_allowRegistration(uint256 _hatToRegister, uint8 _signerIndex) public {
+    // bound the signer index and get the signer
+    vm.assume(uint256(_signerIndex) < fuzzingAddresses.length);
+    address signer = fuzzingAddresses[_signerIndex];
 
-  function test_revert_registerSigner_notSignerHatWearer() public { }
+    // the hat to register must not be zero
+    vm.assume(_hatToRegister != 0);
 
-  function test_revert_registerSigner_reregistrationNotAllowed() public { }
+    // ensure the hat is a valid signer hat
+    // add the hat to the valid signer hats if it is not already valid
+    if (!harness.isValidSignerHat(_hatToRegister)) {
+      uint256[] memory hats = new uint256[](1);
+      hats[0] = _hatToRegister;
+      harness.exposed_addSignerHats(hats);
+    }
 
-  function test_registerSigner_noReregistration_notWearingRegisteredHat() public { }
+    // ensure the signer is wearing the hat
+    _mockHatWearer(signer, _hatToRegister, true);
 
-  function test_addSigner_notOwner() public { }
+    // register the signer, expecting an event
+    vm.expectEmit();
+    emit IHatsSignerGate.Registered(_hatToRegister, signer);
+    harness.exposed_registerSigner(_hatToRegister, signer, true);
 
-  function test_addSigner_alreadyOwner() public { }
+    assertEq(harness.claimedSignerHats(signer), _hatToRegister, "signer should be registered with the hat");
+  }
 
+  function test_fuzz_happy_registerSigner_disallowRegistration(
+    uint256 _hatToRegister,
+    uint8 _signerIndex,
+    uint256 _registeredHat
+  ) public {
+    // bound the signer index and get the signer
+    vm.assume(uint256(_signerIndex) < fuzzingAddresses.length);
+    address signer = fuzzingAddresses[_signerIndex];
+
+    // the hats should not be zero
+    vm.assume(_hatToRegister != 0);
+    vm.assume(_registeredHat != 0);
+
+    // the hat to register should be different from the registered hat
+    vm.assume(_hatToRegister != _registeredHat);
+
+    // ensure both hats are valid signer hats
+    uint256[] memory hats = new uint256[](2);
+    if (!harness.isValidSignerHat(_hatToRegister)) {
+      hats[0] = _hatToRegister;
+    }
+    if (!harness.isValidSignerHat(_registeredHat)) {
+      hats[1] = _registeredHat;
+    }
+    harness.exposed_addSignerHats(hats); // will not revert if empty
+
+    // ensure the signer is wearing the hat to register
+    _mockHatWearer(signer, _hatToRegister, true);
+
+    // register the signer for the first time
+    _mockHatWearer(signer, _registeredHat, true);
+    vm.expectEmit();
+    emit IHatsSignerGate.Registered(_registeredHat, signer);
+    harness.exposed_registerSigner(_registeredHat, signer, false);
+
+    // ensure the signer now loses the registered hat
+    _mockHatWearer(signer, _registeredHat, false);
+
+    // attempt to re-register the signer, expecting a revert
+    vm.expectEmit();
+    emit IHatsSignerGate.Registered(_hatToRegister, signer);
+    harness.exposed_registerSigner(_hatToRegister, signer, false);
+
+    assertEq(harness.claimedSignerHats(signer), _hatToRegister, "signer should be registered with the new hat");
+  }
+
+  function test_fuzz_revert_registerSigner_invalidHat(
+    uint256 _hatToRegister,
+    uint8 _signerIndex,
+    bool _allowRegistration
+  ) public {
+    // bound the signer index and get the signer
+    vm.assume(uint256(_signerIndex) < fuzzingAddresses.length);
+    address signer = fuzzingAddresses[_signerIndex];
+
+    // ensure the hat is invalid
+    vm.assume(!harness.isValidSignerHat(_hatToRegister));
+
+    // register the signer, expecting a revert
+    vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.InvalidSignerHat.selector, _hatToRegister));
+    harness.exposed_registerSigner(_hatToRegister, signer, _allowRegistration);
+
+    assertEq(harness.claimedSignerHats(signer), 0, "signer should not be registered");
+  }
+
+  function test_fuzz_revert_registerSigner_notSignerHatWearer(
+    uint256 _hatToRegister,
+    uint8 _signerIndex,
+    bool _allowRegistration
+  ) public {
+    // bound the signer index and get the signer
+    vm.assume(uint256(_signerIndex) < fuzzingAddresses.length);
+    address signer = fuzzingAddresses[_signerIndex];
+
+    // ensure the hat is valid
+    if (!harness.isValidSignerHat(_hatToRegister)) {
+      uint256[] memory hats = new uint256[](1);
+      hats[0] = _hatToRegister;
+      harness.exposed_addSignerHats(hats);
+    }
+
+    // ensure the signer is not wearing the hat
+    _mockHatWearer(signer, _hatToRegister, false);
+
+    // register the signer, expecting a revert
+    vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.NotSignerHatWearer.selector, signer));
+    harness.exposed_registerSigner(_hatToRegister, signer, _allowRegistration);
+  }
+
+  function test_fuzz_revert_registerSigner_reregistrationNotAllowed_wearingRegisteredHat(
+    uint256 _hatToRegister,
+    uint8 _signerIndex,
+    uint256 _registeredHat
+  ) public {
+    // bound the signer index and get the signer
+    vm.assume(uint256(_signerIndex) < fuzzingAddresses.length);
+    address signer = fuzzingAddresses[_signerIndex];
+
+    // the hats should not be zero
+    vm.assume(_hatToRegister != 0);
+    vm.assume(_registeredHat != 0);
+
+    // the hat to register should be different from the registered hat
+    vm.assume(_hatToRegister != _registeredHat);
+
+    // ensure both hats are valid signer hats
+    uint256[] memory hats = new uint256[](2);
+    if (!harness.isValidSignerHat(_hatToRegister)) {
+      hats[0] = _hatToRegister;
+    }
+    if (!harness.isValidSignerHat(_registeredHat)) {
+      hats[1] = _registeredHat;
+    }
+    harness.exposed_addSignerHats(hats); // will not revert if empty
+
+    // ensure the signer is wearing the hat to register
+    _mockHatWearer(signer, _hatToRegister, true);
+
+    // ensure the signer is wearing the registered hat
+    _mockHatWearer(signer, _registeredHat, true);
+
+    // register the signer for the first time
+    vm.expectEmit();
+    emit IHatsSignerGate.Registered(_registeredHat, signer);
+    harness.exposed_registerSigner(_registeredHat, signer, false);
+
+    // register the signer, expecting a revert since they are still wearing their registered hat
+    vm.expectRevert(IHatsSignerGate.ReregistrationNotAllowed.selector);
+    harness.exposed_registerSigner(_hatToRegister, signer, false);
+  }
+}
+
+contract AddingSignerInternals is WithHSGHarnessInstanceTest {
+  function test_fuzz_addSigner_happy(uint8[] memory _existingSignerIndices, uint8 _newSignerIndex) public {
+    vm.assume(_existingSignerIndices.length > 0);
+    vm.assume(uint256(_newSignerIndex) < fuzzingAddresses.length);
+
+    // setup: get the existing signers on the safe
+    for (uint256 i; i < _existingSignerIndices.length; i++) {
+      // bound the signer index and get the signer
+      vm.assume(uint256(_existingSignerIndices[i]) < fuzzingAddresses.length);
+      address signer = fuzzingAddresses[_existingSignerIndices[i]];
+
+      // add the signer
+      harness.exposed_addSigner(signer);
+
+      assertTrue(safe.isOwner(signer), "signer should be added to the safe");
+      assertFalse(safe.isOwner(address(harness)), "the harness should no longer be an owner");
+
+      // ensure the threshold is correct
+      uint256 correctThreshold = harness.exposed_getNewThreshold(safe.getOwners().length);
+      assertEq(safe.getThreshold(), correctThreshold, "the safe threshold should be correct");
+    }
+
+    // cache the existing owner count and threshold
+    uint256 existingThreshold = safe.getThreshold();
+    uint256 existingOwnerCount = safe.getOwners().length;
+
+    // get the new signer
+    address newSigner = fuzzingAddresses[_newSignerIndex];
+
+    // is the new signer already an owner?
+    bool isExistingSigner = safe.isOwner(newSigner);
+
+    // add the new signer
+    harness.exposed_addSigner(newSigner);
+
+    assertTrue(safe.isOwner(newSigner), "new signer should be added to the safe");
+    assertFalse(safe.isOwner(address(harness)), "the harness should no longer be an owner");
+
+    if (isExistingSigner) {
+      assertEq(safe.getOwners().length, existingOwnerCount, "there shouldn't be additional owners");
+      assertEq(safe.getThreshold(), existingThreshold, "the safe threshold should not change");
+    } else {
+      assertEq(safe.getOwners().length, existingOwnerCount + 1, "there should be one more owner");
+      uint256 correctThreshold = harness.exposed_getNewThreshold(safe.getOwners().length);
+      assertEq(safe.getThreshold(), correctThreshold, "the safe threshold should be correct");
+    }
+  }
+
+  function test_fuzz_addSigner_firstSigner(uint8 _newSignerIndex) public {
+    // bound the new signer index and get the new signer
+    vm.assume(uint256(_newSignerIndex) < fuzzingAddresses.length);
+    address newSigner = fuzzingAddresses[_newSignerIndex];
+
+    // add the new signer
+    harness.exposed_addSigner(newSigner);
+
+    assertEq(safe.getOwners().length, 1, "there should be one owner");
+    assertEq(safe.getThreshold(), 1, "the safe threshold should be one");
+  }
+
+  function test_fuzz_addSigner_secondSigner_notSigner(uint8 _existingSignerIndex, uint8 _newSignerIndex) public {
+    // bound the existing and new signer indices and get the existing and new signers
+    vm.assume(uint256(_existingSignerIndex) < fuzzingAddresses.length);
+    vm.assume(uint256(_newSignerIndex) < fuzzingAddresses.length);
+    address existingSigner = fuzzingAddresses[_existingSignerIndex];
+    address newSigner = fuzzingAddresses[_newSignerIndex];
+
+    // ensure the existing and new signers are different
+    vm.assume(existingSigner != newSigner);
+
+    // setup: add the existing signer
+    harness.exposed_addSigner(existingSigner);
+
+    // cache the existing owner count
+    uint256 existingOwnerCount = safe.getOwners().length;
+
+    // test: add the new signer
+    harness.exposed_addSigner(newSigner);
+
+    assertEq(safe.getOwners().length, existingOwnerCount + 1, "there should be one more owner");
+    uint256 correctThreshold = harness.exposed_getNewThreshold(safe.getOwners().length);
+    assertEq(safe.getThreshold(), correctThreshold, "the safe threshold should be correct");
+  }
+
+  function test_fuzz_addSigner_alreadySigner(uint8 _signerIndex) public {
+    // bound the signer index and get the signer
+    vm.assume(uint256(_signerIndex) < fuzzingAddresses.length);
+    address signer = fuzzingAddresses[_signerIndex];
+
+    // add the signer
+    harness.exposed_addSigner(signer);
+
+    assertEq(safe.getOwners().length, 1, "there should be one owner");
+    assertEq(safe.getThreshold(), 1, "the safe threshold should be one");
+
+    // try to add the signer again, expecting no change
+    harness.exposed_addSigner(signer);
+
+    assertEq(safe.getOwners().length, 1, "there should be one owner");
+    assertEq(safe.getThreshold(), 1, "the safe threshold should be one");
+  }
+}
+
+contract RemovingSignerInternals is WithHSGHarnessInstanceTest {
   function test_removeSigner() public { }
 
   function test_removeSigner_lastSigner() public { }
@@ -263,7 +518,7 @@ contract TransactionValidationInternals is WithHSGHarnessInstanceTest {
   function test_revert_checkSafeState_disablesHSGAsModule() public { }
 }
 
-contract InternalViews is WithHSGHarnessInstanceTest {
+contract ViewInternals is WithHSGHarnessInstanceTest {
   function test_fuzz_getRequiredValidSignatures() public { }
 
   function test_getRequiredValidSignatures_absolute() public { }
