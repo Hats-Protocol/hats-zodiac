@@ -655,6 +655,42 @@ contract WithHSGHarnessInstanceTest is TestSuite {
     safe = harness.safe();
   }
 
+  /// @dev Adds a random number of non-duplicate signers to the safe, randomly selected from the fuzzing addresses
+  function _addRandomSigners(uint256 _randomSeed, uint8 _numExistingSigners) internal {
+    // Ensure we have at least one existing signer
+    _numExistingSigners = uint8(bound(_numExistingSigners, 1, fuzzingAddresses.length - 1));
+
+    // Use the random seed to generate multiple indices
+    uint256[] memory usedIndices = new uint256[](_numExistingSigners);
+    for (uint256 i; i < _numExistingSigners; i++) {
+      // Generate a new index from the random seed
+      uint256 index = uint256(keccak256(abi.encode(_randomSeed, i))) % fuzzingAddresses.length;
+
+      // Ensure no duplicates
+      bool isDuplicate;
+      for (uint256 j; j < i; j++) {
+        if (usedIndices[j] == index) {
+          isDuplicate = true;
+          break;
+        }
+      }
+      if (!isDuplicate) {
+        usedIndices[i] = index;
+
+        // Add the signer
+        address signer = fuzzingAddresses[index];
+        harness.exposed_addSigner(signer);
+
+        assertTrue(safe.isOwner(signer), "signer should be added to the safe");
+        assertFalse(safe.isOwner(address(harness)), "the harness should no longer be an owner");
+
+        // Ensure the threshold is correct
+        uint256 correctThreshold = harness.exposed_getNewThreshold(safe.getOwners().length);
+        assertEq(safe.getThreshold(), correctThreshold, "the safe threshold should be correct");
+      }
+    }
+  }
+
   /// @dev Gets the existing state stored in transient storage by `_checkModuleTransaction` and asserts it matches
   /// the provided values
   function assertCorrectTransientState(

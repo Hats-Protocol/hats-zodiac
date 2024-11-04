@@ -375,39 +375,27 @@ contract RegisterSignerInternals is WithHSGHarnessInstanceTest {
   }
 }
 
+contract MoreEfficient is WithHSGHarnessInstanceTest { }
+
 contract AddingSignerInternals is WithHSGHarnessInstanceTest {
-  function test_fuzz_addSigner_happy(uint8[] memory _existingSignerIndices, uint8 _newSignerIndex) public {
-    vm.assume(_existingSignerIndices.length > 0);
+  function test_fuzz_addSigner_happy(uint256 _randomSeed, uint8 _numExistingSigners, uint8 _newSignerIndex) public {
+    // Bound the new signer index
     vm.assume(uint256(_newSignerIndex) < fuzzingAddresses.length);
 
-    // setup: get the existing signers on the safe
-    for (uint256 i; i < _existingSignerIndices.length; i++) {
-      // bound the signer index and get the signer
-      vm.assume(uint256(_existingSignerIndices[i]) < fuzzingAddresses.length);
-      address signer = fuzzingAddresses[_existingSignerIndices[i]];
+    // add random existing signers
+    _addRandomSigners(_randomSeed, _numExistingSigners);
 
-      // add the signer
-      harness.exposed_addSigner(signer);
-
-      assertTrue(safe.isOwner(signer), "signer should be added to the safe");
-      assertFalse(safe.isOwner(address(harness)), "the harness should no longer be an owner");
-
-      // ensure the threshold is correct
-      uint256 correctThreshold = harness.exposed_getNewThreshold(safe.getOwners().length);
-      assertEq(safe.getThreshold(), correctThreshold, "the safe threshold should be correct");
-    }
-
-    // cache the existing owner count and threshold
+    // Cache the existing owner count and threshold
     uint256 existingThreshold = safe.getThreshold();
     uint256 existingOwnerCount = safe.getOwners().length;
 
-    // get the new signer
+    // Get the new signer
     address newSigner = fuzzingAddresses[_newSignerIndex];
 
-    // is the new signer already an owner?
+    // Check if the new signer is already an owner
     bool isExistingSigner = safe.isOwner(newSigner);
 
-    // add the new signer
+    // Add the new signer
     harness.exposed_addSigner(newSigner);
 
     assertTrue(safe.isOwner(newSigner), "new signer should be added to the safe");
@@ -479,26 +467,16 @@ contract AddingSignerInternals is WithHSGHarnessInstanceTest {
 }
 
 contract RemovingSignerInternals is WithHSGHarnessInstanceTest {
-  function test_fuzz_removeSigner(uint8[] memory _existingSignersIndices) public {
-    // bound the array length
-    vm.assume(_existingSignersIndices.length > 0);
-
-    // setup: add the existing signers
-    for (uint256 i; i < _existingSignersIndices.length; i++) {
-      // bound the signer index and get the signer
-      vm.assume(uint256(_existingSignersIndices[i]) < fuzzingAddresses.length);
-      address signer = fuzzingAddresses[_existingSignersIndices[i]];
-
-      // add the signer
-      harness.exposed_addSigner(signer);
-    }
+  function test_fuzz_removeSigner(uint256 _randomSeed, uint8 _numExistingSigners) public {
+    // Add random existing signers
+    _addRandomSigners(_randomSeed, _numExistingSigners);
 
     // cache the existing owner count
     uint256 existingOwnerCount = safe.getOwners().length;
 
     // randomly select an index to remove
-    uint256 indexToRemove = vm.randomUint() % _existingSignersIndices.length;
-    address signerToRemove = fuzzingAddresses[_existingSignersIndices[indexToRemove]];
+    uint256 indexToRemove = uint256(keccak256(abi.encode(_randomSeed, "remove"))) % existingOwnerCount;
+    address signerToRemove = safe.getOwners()[indexToRemove];
 
     // test: remove the signer
     harness.exposed_removeSigner(signerToRemove);
@@ -555,7 +533,8 @@ contract TransactionValidationInternals is WithHSGHarnessInstanceTest {
 
   function test_fuzz_checkModuleTransaction_delegatecallToApprovedTarget(
     uint8 _toIndex,
-    uint8[] memory _existingSignersIndices,
+    uint256 _randomSeed,
+    uint8 _numExistingSigners,
     uint8 _type,
     uint8 _min,
     uint16 _target
@@ -574,11 +553,7 @@ contract TransactionValidationInternals is WithHSGHarnessInstanceTest {
     harness.exposed_setThresholdConfig(config);
 
     // add some existing owners; this will create a new owners hash to check
-    for (uint256 i; i < _existingSignersIndices.length; i++) {
-      vm.assume(uint256(_existingSignersIndices[i]) < fuzzingAddresses.length);
-      address signer = fuzzingAddresses[_existingSignersIndices[i]];
-      harness.exposed_addSigner(signer);
-    }
+    _addRandomSigners(_randomSeed, _numExistingSigners);
 
     // cache the existing owners hash, threshold, and fallback handler
     bytes32 existingOwnersHash = keccak256(abi.encode(safe.getOwners()));
