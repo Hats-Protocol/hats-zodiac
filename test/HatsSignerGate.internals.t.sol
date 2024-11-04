@@ -576,13 +576,185 @@ contract TransactionValidationInternals is WithHSGHarnessInstanceTest {
 }
 
 contract ViewInternals is WithHSGHarnessInstanceTest {
-  function test_fuzz_getRequiredValidSignatures() public { }
+  function _createValidThresholdConfig(
+    IHatsSignerGate.TargetThresholdType _thresholdType,
+    uint8 _min, // keep values at least somewhat realistic
+    uint16 _target // keep values at least somewhat realistic
+  ) internal pure returns (IHatsSignerGate.ThresholdConfig memory) {
+    // ensure the min is at least 1
+    uint120 min = uint120(bound(_min, 1, type(uint8).max));
 
-  function test_getRequiredValidSignatures_absolute() public { }
+    uint120 target;
+    if (_thresholdType == IHatsSignerGate.TargetThresholdType.ABSOLUTE) {
+      // ensure the target is at least the min
+      target = uint120(bound(_target, min, type(uint16).max));
+    } else {
+      // ensure the target is no bigger than 100% (10000)
+      target = uint120(bound(_target, 1, 10_000));
+    }
 
-  function test_getRequiredValidSignatures_proportional() public { }
+    console2.log("config.thresholdType", uint8(_thresholdType));
+    console2.log("config.min", min);
+    console2.log("config.target", target);
 
-  function test_getNewThreshold() public { }
+    return IHatsSignerGate.ThresholdConfig({ thresholdType: _thresholdType, min: min, target: target });
+  }
 
-  function test_getNewThreshold_exceedsOwnerCount() public { }
+  function _calcProportionalTargetSignatures(uint256 _ownerCount, uint120 _target) internal pure returns (uint256) {
+    return ((_ownerCount * _target) + 9999) / 10_000;
+  }
+
+  /// @dev Assumes _min and _target are valid
+  function _calcProportionalRequiredValidSignatures(uint256 _ownerCount, uint120 _min, uint120 _target)
+    internal
+    pure
+    returns (uint256)
+  {
+    if (_ownerCount < _min) return _min;
+    uint256 required = _calcProportionalTargetSignatures(_ownerCount, _target);
+    if (required < _min) return _min;
+    return required;
+  }
+
+  function _calcAbsoluteRequiredValidSignatures(uint256 _ownerCount, uint120 _min, uint120 _target)
+    internal
+    pure
+    returns (uint256)
+  {
+    if (_ownerCount < _min) return _min;
+    if (_ownerCount > _target) return _target;
+    return _ownerCount;
+  }
+
+  function _calcRequiredValidSignatures(uint256 _ownerCount, IHatsSignerGate.ThresholdConfig memory _config)
+    internal
+    pure
+    returns (uint256)
+  {
+    if (_config.thresholdType == IHatsSignerGate.TargetThresholdType.ABSOLUTE) {
+      return _calcAbsoluteRequiredValidSignatures(_ownerCount, _config.min, _config.target);
+    }
+    return _calcProportionalRequiredValidSignatures(_ownerCount, _config.min, _config.target);
+  }
+
+  /*//////////////////////////////////////////////////////////////
+                    TESTS
+  //////////////////////////////////////////////////////////////*/
+
+  function test_fuzz_getRequiredValidSignatures_absolute(uint8 _min, uint16 _target, uint16 _ownerCount) public {
+    IHatsSignerGate.ThresholdConfig memory config =
+      _createValidThresholdConfig(IHatsSignerGate.TargetThresholdType.ABSOLUTE, _min, _target);
+
+    // set the threshold config
+    harness.exposed_setThresholdConfig(config);
+
+    // get the required valid signatures
+    uint256 actual = harness.exposed_getRequiredValidSignatures(_ownerCount);
+    uint256 expected = _calcAbsoluteRequiredValidSignatures(_ownerCount, config.min, config.target);
+    // ensure the actual is correct
+    assertEq(actual, expected, "the required valid signatures should be correct");
+  }
+
+  function test_fuzz_getRequiredValidSignatures_absolute_ownerCountIsMin(uint8 _min, uint16 _target) public {
+    IHatsSignerGate.ThresholdConfig memory config =
+      _createValidThresholdConfig(IHatsSignerGate.TargetThresholdType.ABSOLUTE, _min, _target);
+
+    // ensure the ownerCount == the min
+    uint256 ownerCount = config.min;
+
+    // set the threshold config
+    harness.exposed_setThresholdConfig(config);
+
+    // get the required valid signatures
+    uint256 actual = harness.exposed_getRequiredValidSignatures(ownerCount);
+    uint256 expected = config.min;
+    // ensure the actual is correct
+    assertEq(actual, expected, "the required valid signatures should be the min");
+  }
+
+  function test_fuzz_getRequiredValidSignatures_absolute_targetOwnerCount(uint8 _min, uint16 _target) public {
+    IHatsSignerGate.ThresholdConfig memory config =
+      _createValidThresholdConfig(IHatsSignerGate.TargetThresholdType.ABSOLUTE, _min, _target);
+
+    // ensure the _ownerCount is at the target
+    uint256 ownerCount = config.target;
+
+    // set the threshold config
+    harness.exposed_setThresholdConfig(config);
+
+    // get the required valid signatures
+    uint256 actual = harness.exposed_getRequiredValidSignatures(ownerCount);
+    uint256 expected = _calcAbsoluteRequiredValidSignatures(ownerCount, config.min, config.target);
+    // ensure the actual is correct
+    assertEq(actual, expected, "the required valid signatures should be the target");
+  }
+
+  function test_fuzz_getRequiredValidSignatures_proportional(uint8 _min, uint16 _target, uint16 _ownerCount) public {
+    IHatsSignerGate.ThresholdConfig memory config =
+      _createValidThresholdConfig(IHatsSignerGate.TargetThresholdType.PROPORTIONAL, _min, _target);
+
+    // set the threshold config
+    harness.exposed_setThresholdConfig(config);
+
+    // get the required valid signatures
+    uint256 actual = harness.exposed_getRequiredValidSignatures(_ownerCount);
+    console2.log("actual", actual);
+    uint256 expected = _calcProportionalRequiredValidSignatures(_ownerCount, config.min, config.target);
+    console2.log("expected", expected);
+    // ensure the actual is correct
+    assertEq(actual, expected, "the required valid signatures should be correct");
+  }
+
+  function test_fuzz_getRequiredValidSignatures_ownerCountLtMin(uint8 _type, uint8 _min, uint16 _target) public {
+    IHatsSignerGate.TargetThresholdType thresholdType = IHatsSignerGate.TargetThresholdType(bound(_type, 0, 1));
+    IHatsSignerGate.ThresholdConfig memory config = _createValidThresholdConfig(thresholdType, _min, _target);
+
+    // ensure the ownerCount is less than the min
+    // generate a random ownerCount such that ownerCount < min
+    uint256 ownerCount = vm.randomUint() % config.min;
+
+    // set the threshold config
+    harness.exposed_setThresholdConfig(config);
+
+    // get the required valid signatures
+    uint256 actual = harness.exposed_getRequiredValidSignatures(ownerCount);
+    uint256 expected = config.min;
+    // ensure the actual is correct
+    assertEq(actual, expected, "the required valid signatures should be the min");
+  }
+
+  function test_fuzz_getNewThreshold(uint8 _type, uint8 _min, uint16 _target, uint16 _ownerCount) public {
+    IHatsSignerGate.TargetThresholdType thresholdType = IHatsSignerGate.TargetThresholdType(bound(_type, 0, 1));
+    IHatsSignerGate.ThresholdConfig memory config = _createValidThresholdConfig(thresholdType, _min, _target);
+
+    // set the threshold config
+    harness.exposed_setThresholdConfig(config);
+
+    // get the new threshold
+    uint256 actual = harness.exposed_getNewThreshold(_ownerCount);
+
+    // calculate the expected new threshold
+    uint256 requiredSignatures = harness.exposed_getRequiredValidSignatures(_ownerCount);
+    uint256 expected = _ownerCount < requiredSignatures ? _ownerCount : requiredSignatures;
+
+    // ensure the actual is correct
+    assertEq(actual, expected, "the new threshold should be correct");
+  }
+
+  function test_fuzz_getNewThreshold_exceedsOwnerCount(uint8 _type, uint8 _min, uint16 _target) public {
+    IHatsSignerGate.TargetThresholdType thresholdType = IHatsSignerGate.TargetThresholdType(bound(_type, 0, 1));
+    IHatsSignerGate.ThresholdConfig memory config = _createValidThresholdConfig(thresholdType, _min, _target);
+
+    // set the threshold config
+    harness.exposed_setThresholdConfig(config);
+
+    // generate a random owner count that is lower than the min
+    uint256 ownerCount = vm.randomUint() % config.min;
+
+    // get the new threshold
+    uint256 actual = harness.exposed_getNewThreshold(ownerCount);
+    uint256 expected = ownerCount;
+    // ensure the actual is correct
+    assertEq(actual, expected, "the new threshold should be the owner count");
+  }
 }
