@@ -4,6 +4,7 @@ pragma solidity ^0.8.13;
 import { Test, console2 } from "../lib/forge-std/src/Test.sol";
 import { IHats } from "../lib/hats-protocol/src/Interfaces/IHats.sol";
 import { HatsSignerGate, IHatsSignerGate } from "../src/HatsSignerGate.sol";
+import { HatsSignerGateHarness } from "./harnesses/HatsSignerGateHarness.sol";
 import { ISafe } from "../src/lib/safe-interfaces/ISafe.sol";
 import { SafeProxyFactory } from "../lib/safe-smart-account/contracts/proxies/SafeProxyFactory.sol";
 import { Enum } from "../lib/safe-smart-account/contracts/common/Enum.sol";
@@ -236,6 +237,7 @@ contract TestSuite is SafeTestHelpers {
   address public eligibility = makeAddr("eligibility");
   address public toggle = makeAddr("toggle");
   address public other = makeAddr("other");
+  address[] public fuzzingAddresses;
 
   // Test delegatecall targets
   address[] public defaultDelegatecallTargets;
@@ -293,6 +295,9 @@ contract TestSuite is SafeTestHelpers {
 
     // Create test signer addresses
     (pks, signerAddresses) = _createAddressesFromPks(10);
+
+    // generate fuzzing addresses
+    fuzzingAddresses = _generateFuzzingAddresses(50);
 
     // create the test guard
     tstGuard = new TestGuard(address(hatsSignerGate));
@@ -476,6 +481,22 @@ contract TestSuite is SafeTestHelpers {
     txHash = _getTxHash(defaultDelegatecallTargets[0], 0, Enum.Operation.DelegateCall, call, safe);
   }
 
+  /*//////////////////////////////////////////////////////////////
+                        FUZZING HELPER FUNCTIONS
+  //////////////////////////////////////////////////////////////*/
+
+  function _generateFuzzingAddresses(uint256 _count) internal returns (address[] memory) {
+    address[] memory addresses = new address[](_count);
+    for (uint256 i = 0; i < addresses.length; i++) {
+      addresses[i] = makeAddr(string.concat("fuzzing-", vm.toString(i)));
+    }
+    return addresses;
+  }
+
+  /*//////////////////////////////////////////////////////////////
+                        CUSTOM ASSERTIONS
+  //////////////////////////////////////////////////////////////*/
+
   function assertValidSignerHats(uint256[] memory _signerHats) public view {
     for (uint256 i = 0; i < _signerHats.length; ++i) {
       assertTrue(hatsSignerGate.isValidSignerHat(_signerHats[i]));
@@ -500,6 +521,13 @@ contract TestSuite is SafeTestHelpers {
     assertEq(_actual.min, _expected.min, "incorrect min");
     assertEq(_actual.target, _expected.target, "incorrect target");
   }
+
+  function assertOnlyModule(ISafe _safe, address _module) public view {
+    (address[] memory modules, address next) = _safe.getModulesPaginated(SENTINELS, 1);
+    assertEq(modules.length, 1, "should only have one module");
+    assertEq(modules[0], _module, "module should be the only module");
+    assertEq(next, SENTINELS, "next should be SENTINELS");
+  }
 }
 
 contract WithHSGInstanceTest is TestSuite {
@@ -516,5 +544,38 @@ contract WithHSGInstanceTest is TestSuite {
       _hsgModules: new address[](0), // no modules
       _verbose: false
     });
+  }
+}
+
+contract WithHSGHarnessInstanceTest is TestSuite {
+  HatsSignerGateHarness public harness;
+
+  function setUp() public virtual override {
+    super.setUp();
+
+    // deploy a new HatsSignerGateHarness
+    harness = new HatsSignerGateHarness(
+      address(hats),
+      address(singletonSafe),
+      address(safeFallbackLibrary),
+      address(safeMultisendLibrary),
+      address(safeFactory)
+    );
+
+    // deploy a new Safe with no owners and threshold of 1
+    initSafeOwners[0] = address(this);
+    safe = _deploySafe(initSafeOwners, 1, TEST_SALT_NONCE);
+
+    // enable the harness as a module on the Safe
+    vm.prank(address(safe));
+    safe.enableModule(address(harness));
+
+    // set harness as the safe's guard
+    vm.prank(address(safe));
+    safe.setGuard(address(harness));
+
+    // set the fallback handler to the safeFallbackLibrary
+    vm.prank(address(safe));
+    safe.setFallbackHandler(address(safeFallbackLibrary));
   }
 }

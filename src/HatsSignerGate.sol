@@ -262,7 +262,7 @@ contract HatsSignerGate is
         }
 
         // execute the call
-        if (!s.execSafeTransactionFromHSG(addOwnerData)) revert SafeManagerLib.FailedExecAddSigner();
+        s.execSafeTransactionFromHSG(addOwnerData);
       }
     }
 
@@ -732,7 +732,7 @@ contract HatsSignerGate is
       }
 
       // execute the call
-      if (!s.execSafeTransactionFromHSG(addOwnerData)) revert SafeManagerLib.FailedExecAddSigner();
+      s.execSafeTransactionFromHSG(addOwnerData);
     }
   }
 
@@ -740,8 +740,9 @@ contract HatsSignerGate is
   /// Unsafe. Does not check for signer validity before removal
   /// @param _signer The address to remove
   function _removeSigner(address _signer) internal {
+    ISafe s = safe;
     bytes memory removeOwnerData;
-    address[] memory owners = safe.getOwners();
+    address[] memory owners = s.getOwners();
 
     delete claimedSignerHats[_signer];
 
@@ -757,7 +758,7 @@ contract HatsSignerGate is
     }
 
     // execute the call
-    if (!safe.execSafeTransactionFromHSG(removeOwnerData)) revert SafeManagerLib.FailedExecRemoveSigner();
+    s.execSafeTransactionFromHSG(removeOwnerData);
   }
 
   /// @dev Internal function to calculate the required amount of valid signatures according to the current number of
