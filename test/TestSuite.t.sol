@@ -294,7 +294,7 @@ contract TestSuite is SafeTestHelpers {
     hats = IHats(implementationDeployer.hats());
 
     // Create test signer addresses
-    (pks, signerAddresses) = _createAddressesFromPks(10);
+    (pks, signerAddresses) = _createAddressesFromPks(20);
 
     // generate fuzzing addresses
     fuzzingAddresses = _generateFuzzingAddresses(50);
@@ -593,6 +593,10 @@ contract TestSuite is SafeTestHelpers {
     }
     return _calcProportionalRequiredValidSignatures(_ownerCount, _config.min, _config.target);
   }
+
+  function _getRandomBool(uint256 _seed) internal returns (bool) {
+    return uint256(keccak256(abi.encode(vm.randomUint(), "bool", _seed))) % 2 == 0;
+  }
 }
 
 contract WithHSGInstanceTest is TestSuite {
@@ -656,7 +660,7 @@ contract WithHSGHarnessInstanceTest is TestSuite {
   }
 
   /// @dev Adds a random number of non-duplicate signers to the safe, randomly selected from the fuzzing addresses
-  function _addRandomSigners(uint256 _randomSeed, uint8 _numExistingSigners) internal {
+  function _addRandomSigners(uint8 _numExistingSigners) internal {
     // Ensure we have at least one existing signer
     _numExistingSigners = uint8(bound(_numExistingSigners, 1, fuzzingAddresses.length - 1));
 
@@ -664,7 +668,7 @@ contract WithHSGHarnessInstanceTest is TestSuite {
     uint256[] memory usedIndices = new uint256[](_numExistingSigners);
     for (uint256 i; i < _numExistingSigners; i++) {
       // Generate a new index from the random seed
-      uint256 index = uint256(keccak256(abi.encode(_randomSeed, i))) % fuzzingAddresses.length;
+      uint256 index = uint256(keccak256(abi.encode(vm.randomUint(), i))) % fuzzingAddresses.length;
 
       // Ensure no duplicates
       bool isDuplicate;
@@ -689,6 +693,122 @@ contract WithHSGHarnessInstanceTest is TestSuite {
         assertEq(safe.getThreshold(), correctThreshold, "the safe threshold should be correct");
       }
     }
+  }
+
+  /// @dev Helper function to generate unique signatures and track valid signers.
+  /// @param _dataHash The hash to sign
+  /// @param _sigCount The number of signatures to generate
+  /// @param _ethSign Whether to use eth_sign
+  /// @return signatures The concatenated signatures bytes
+  /// @return validCount The number of valid signers
+  function _generateUniqueECDSASignatures(
+    bytes32 _dataHash,
+    uint256 _sigCount,
+    bool _ethSign,
+    HatsSignerGateHarness _harness
+  ) internal returns (bytes memory signatures, uint256 validCount) {
+    signatures = new bytes(0);
+    address[] memory signers = new address[](_sigCount);
+    bool[] memory used = new bool[](signerAddresses.length);
+
+    for (uint256 i; i < _sigCount; i++) {
+      // Generate random index for selecting unused signer
+      uint256 signerIndex;
+      do {
+        signerIndex = uint256(keccak256(abi.encode(vm.randomUint(), i))) % signerAddresses.length;
+      } while (used[signerIndex]);
+
+      // Mark this signer as used
+      used[signerIndex] = true;
+
+      // if ethSign is true, use the eth_sign prefix
+      bytes32 dataHash =
+        _ethSign ? keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", _dataHash)) : _dataHash;
+
+      // create a signature for the data hash from the selected signer
+      (uint8 v, bytes32 r, bytes32 s) = vm.sign(pks[signerIndex], dataHash);
+
+      // if ethSign is true, adjust v for the eth_sign prefix
+      v = _ethSign ? v + 4 : v;
+
+      // concatenate the components into a single bytes array
+      bytes memory signature = abi.encodePacked(r, s, bytes1(v));
+      assertEq(signature.length, 65, "signature length should be 65");
+
+      // add the signature to the signatures array
+      signatures = bytes.concat(signatures, signature);
+      assertEq(signatures.length, (i + 1) * 65, "signatures length should 65 * number of sigs");
+
+      // add the signer to the signers array
+      signers[i] = signerAddresses[signerIndex];
+
+      // Set validity and track expected count
+      bool isValid = _getRandomBool(i);
+      _setSignerValidity(signers[i], signerHat, isValid);
+      if (isValid) {
+        _harness.exposed_registerSigner(signerHat, signers[i], false);
+        validCount++;
+      }
+    }
+  }
+
+  /// @dev Helper function to generate unique non-ECDSA signatures and track valid signers.
+  /// @param _sigCount The number of signatures to generate
+  /// @param _approvedHash Whether to use approved hash signatures (true) or contract signatures (false)
+  /// @return signatures The concatenated signatures bytes
+  /// @return validCount The number of valid signers
+  function _generateUniqueNonECDSASignatures(uint256 _sigCount, bool _approvedHash, HatsSignerGateHarness _harness)
+    internal
+    returns (bytes memory signatures, uint256 validCount)
+  {
+    signatures = new bytes(0);
+    address[] memory signers = new address[](_sigCount);
+    bool[] memory used = new bool[](signerAddresses.length);
+
+    for (uint256 i; i < _sigCount; i++) {
+      // Generate random index for selecting unused signer
+      uint256 signerIndex;
+      do {
+        signerIndex = uint256(keccak256(abi.encode(vm.randomUint(), i))) % signerAddresses.length;
+      } while (used[signerIndex]);
+
+      // Mark this signer as used
+      used[signerIndex] = true;
+
+      // encode the signer address into r
+      bytes32 r = bytes32(uint256(uint160(signerAddresses[signerIndex])));
+      bytes32 s = bytes32(0);
+
+      // set v based on whether we are using approved hash signatures (v=1) or contract signatures (v=0)
+      uint8 v = _approvedHash ? 1 : 0;
+
+      // concatenate the components into a single bytes array
+      bytes memory signature = abi.encodePacked(r, s, bytes1(v));
+      assertEq(signature.length, 65, "signature length should be 65");
+
+      // add the signature to the signatures array
+      signatures = bytes.concat(signatures, signature);
+      assertEq(signatures.length, (i + 1) * 65, "signatures length should 65 * number of sigs");
+
+      // add the signer to the signers array
+      signers[i] = signerAddresses[signerIndex];
+
+      // Set validity and track expected count
+      bool isValid = _getRandomBool(i);
+      _setSignerValidity(signers[i], signerHat, isValid);
+      if (isValid) {
+        _harness.exposed_registerSigner(signerHat, signers[i], false);
+        validCount++;
+      }
+    }
+  }
+
+  /// @dev Mocks the `isWearerOfHat` function for a given wearer and hat. Useful when testing with hat ids that are not
+  /// necessarily real hats.
+  function _mockHatWearer(address _wearer, uint256 _hatId, bool _isWearer) internal {
+    vm.mockCall(
+      address(hats), abi.encodeWithSelector(hats.isWearerOfHat.selector, _wearer, _hatId), abi.encode(_isWearer)
+    );
   }
 
   /// @dev Gets the existing state stored in transient storage by `_checkModuleTransaction` and asserts it matches

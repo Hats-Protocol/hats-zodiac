@@ -210,12 +210,6 @@ contract OwnerSettingsInternals is WithHSGHarnessInstanceTest {
 }
 
 contract RegisterSignerInternals is WithHSGHarnessInstanceTest {
-  function _mockHatWearer(address _wearer, uint256 _hatId, bool _isWearer) internal {
-    vm.mockCall(
-      address(hats), abi.encodeWithSelector(hats.isWearerOfHat.selector, _wearer, _hatId), abi.encode(_isWearer)
-    );
-  }
-
   function test_fuzz_happy_registerSigner_allowRegistration(uint256 _hatToRegister, uint8 _signerIndex) public {
     // bound the signer index and get the signer
     vm.assume(uint256(_signerIndex) < fuzzingAddresses.length);
@@ -375,15 +369,13 @@ contract RegisterSignerInternals is WithHSGHarnessInstanceTest {
   }
 }
 
-contract MoreEfficient is WithHSGHarnessInstanceTest { }
-
 contract AddingSignerInternals is WithHSGHarnessInstanceTest {
-  function test_fuzz_addSigner_happy(uint256 _randomSeed, uint8 _numExistingSigners, uint8 _newSignerIndex) public {
+  function test_fuzz_addSigner_happy(uint8 _numExistingSigners, uint8 _newSignerIndex) public {
     // Bound the new signer index
     vm.assume(uint256(_newSignerIndex) < fuzzingAddresses.length);
 
     // add random existing signers
-    _addRandomSigners(_randomSeed, _numExistingSigners);
+    _addRandomSigners(_numExistingSigners);
 
     // Cache the existing owner count and threshold
     uint256 existingThreshold = safe.getThreshold();
@@ -467,15 +459,15 @@ contract AddingSignerInternals is WithHSGHarnessInstanceTest {
 }
 
 contract RemovingSignerInternals is WithHSGHarnessInstanceTest {
-  function test_fuzz_removeSigner(uint256 _randomSeed, uint8 _numExistingSigners) public {
+  function test_fuzz_removeSigner(uint8 _numExistingSigners) public {
     // Add random existing signers
-    _addRandomSigners(_randomSeed, _numExistingSigners);
+    _addRandomSigners(_numExistingSigners);
 
     // cache the existing owner count
     uint256 existingOwnerCount = safe.getOwners().length;
 
     // randomly select an index to remove
-    uint256 indexToRemove = uint256(keccak256(abi.encode(_randomSeed, "remove"))) % existingOwnerCount;
+    uint256 indexToRemove = uint256(keccak256(abi.encode(vm.randomUint(), "remove"))) % existingOwnerCount;
     address signerToRemove = safe.getOwners()[indexToRemove];
 
     // test: remove the signer
@@ -533,7 +525,6 @@ contract TransactionValidationInternals is WithHSGHarnessInstanceTest {
 
   function test_fuzz_checkModuleTransaction_delegatecallToApprovedTarget(
     uint8 _toIndex,
-    uint256 _randomSeed,
     uint8 _numExistingSigners,
     uint8 _type,
     uint8 _min,
@@ -553,7 +544,7 @@ contract TransactionValidationInternals is WithHSGHarnessInstanceTest {
     harness.exposed_setThresholdConfig(config);
 
     // add some existing owners; this will create a new owners hash to check
-    _addRandomSigners(_randomSeed, _numExistingSigners);
+    _addRandomSigners(_numExistingSigners);
 
     // cache the existing owners hash, threshold, and fallback handler
     bytes32 existingOwnersHash = keccak256(abi.encode(safe.getOwners()));
@@ -779,5 +770,107 @@ contract ViewInternals is WithHSGHarnessInstanceTest {
     uint256 expected = ownerCount;
     // ensure the actual is correct
     assertEq(actual, expected, "the new threshold should be the owner count");
+  }
+
+  function test_fuzz_countValidSigners(uint8 _numSigners) public {
+    // ensure we have between 1 and the number of fuzzing addresses
+    _numSigners = uint8(bound(_numSigners, 1, fuzzingAddresses.length));
+
+    // Create fixed-size arrays
+    address[] memory signers = new address[](_numSigners);
+    bool[] memory used = new bool[](fuzzingAddresses.length);
+    uint256 expectedValidCount;
+
+    console2.log("signerHat", signerHat);
+
+    // Fill signers array with unique addresses
+    uint256 count;
+    uint256 attempts;
+    while (count < _numSigners && attempts < 100) {
+      // Added attempts limit as safety
+      // Generate index using a random uint and current attempt
+      uint256 index = uint256(keccak256(abi.encode(vm.randomUint(), attempts))) % fuzzingAddresses.length;
+
+      if (!used[index]) {
+        used[index] = true;
+        signers[count] = fuzzingAddresses[index];
+
+        // Set validity and track expected count
+        bool isValid = uint256(keccak256(abi.encode(vm.randomUint(), "validity", count))) % 2 == 0;
+        _setSignerValidity(signers[count], signerHat, isValid);
+        if (isValid) {
+          // register the signer
+          harness.exposed_registerSigner(signerHat, signers[count], false);
+          // increment the expected valid count
+          expectedValidCount++;
+        }
+
+        count++;
+      }
+      attempts++;
+    }
+
+    // Verify the count matches expected
+    assertEq(harness.exposed_countValidSigners(signers), expectedValidCount, "valid signer count should match expected");
+  }
+}
+
+contract CountingValidSignaturesInternals is WithHSGHarnessInstanceTest {
+  function test_fuzz_countValidSignatures_contractSignature(uint256 _sigCount) public {
+    // ensure we have between 1 and the number of signer addresses
+    _sigCount = bound(_sigCount, 1, signerAddresses.length);
+
+    // generate random contract signatures
+    (bytes memory signatures, uint256 expectedValidCount) = _generateUniqueNonECDSASignatures(_sigCount, false, harness);
+
+    // test: count the valid signatures
+    uint256 actual = harness.exposed_countValidSignatures(bytes32(0), signatures, _sigCount);
+
+    // ensure the actual is correct
+    assertEq(actual, expectedValidCount, "valid signer count should match expected");
+  }
+
+  function test_fuzz_countValidSignatures_approvedHash(uint256 _sigCount) public {
+    // ensure we have between 1 and the number of signer addresses
+    _sigCount = bound(_sigCount, 1, signerAddresses.length);
+
+    // generate random approved hash signatures
+    (bytes memory signatures, uint256 expectedValidCount) = _generateUniqueNonECDSASignatures(_sigCount, true, harness);
+
+    // test: count the valid signatures
+    uint256 actual = harness.exposed_countValidSignatures(bytes32(0), signatures, _sigCount);
+
+    // ensure the actual is correct
+    assertEq(actual, expectedValidCount, "valid signer count should match expected");
+  }
+
+  function test_fuzz_countValidSignatures_ethSign(bytes32 _dataHash, uint256 _sigCount) public {
+    // ensure we have between 1 and the number of signer addresses
+    _sigCount = bound(_sigCount, 1, signerAddresses.length);
+
+    // generate random eth_sign signatures
+    (bytes memory signatures, uint256 expectedValidCount) =
+      _generateUniqueECDSASignatures(_dataHash, _sigCount, true, harness);
+
+    // test: count the valid signatures
+    uint256 actual = harness.exposed_countValidSignatures(_dataHash, signatures, _sigCount);
+
+    // ensure the actual is correct
+    assertEq(actual, expectedValidCount, "valid signer count should match expected");
+  }
+
+  function test_fuzz_countValidSignatures_default(bytes32 _dataHash, uint256 _sigCount) public {
+    // ensure we have between 1 and the number of signer addresses
+    _sigCount = bound(_sigCount, 1, signerAddresses.length);
+
+    // generate random signatures
+    (bytes memory signatures, uint256 expectedValidCount) =
+      _generateUniqueECDSASignatures(_dataHash, _sigCount, false, harness);
+
+    // test: count the valid signatures
+    uint256 actual = harness.exposed_countValidSignatures(_dataHash, signatures, _sigCount);
+
+    // ensure the actual is correct
+    assertEq(actual, expectedValidCount, "valid signer count should match expected");
   }
 }

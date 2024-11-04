@@ -606,7 +606,7 @@ contract HatsSignerGate is
     emit ThresholdConfigSet(_config);
   }
 
-  /// @dev Internal function to count the number of valid signers in an array of addresses
+  /// @dev Internal function to count the number of valid signers in an array of addresses. Does not check for duplicates.
   /// @param owners The addresses to check for validity
   /// @return signerCount The number of valid signers in `owners`
   function _countValidSigners(address[] memory owners) internal view returns (uint256 signerCount) {
