@@ -487,11 +487,68 @@ contract AddingSignerInternals is WithHSGHarnessInstanceTest {
 }
 
 contract RemovingSignerInternals is WithHSGHarnessInstanceTest {
-  function test_removeSigner() public { }
+  function test_fuzz_removeSigner(uint8[] memory _existingSignersIndices) public {
+    // bound the array length
+    vm.assume(_existingSignersIndices.length > 0);
 
-  function test_removeSigner_lastSigner() public { }
+    // setup: add the existing signers
+    for (uint256 i; i < _existingSignersIndices.length; i++) {
+      // bound the signer index and get the signer
+      vm.assume(uint256(_existingSignersIndices[i]) < fuzzingAddresses.length);
+      address signer = fuzzingAddresses[_existingSignersIndices[i]];
 
-  function test_revert_removeSigner_notSigner() public { }
+      // add the signer
+      harness.exposed_addSigner(signer);
+    }
+
+    // cache the existing owner count
+    uint256 existingOwnerCount = safe.getOwners().length;
+
+    // randomly select an index to remove
+    uint256 indexToRemove = vm.randomUint() % _existingSignersIndices.length;
+    address signerToRemove = fuzzingAddresses[_existingSignersIndices[indexToRemove]];
+
+    // test: remove the signer
+    harness.exposed_removeSigner(signerToRemove);
+
+    assertFalse(safe.isOwner(signerToRemove), "the signer should no longer be an owner");
+
+    uint256 expectedOwnerCount = existingOwnerCount == 1 ? 1 : existingOwnerCount - 1;
+    assertEq(safe.getOwners().length, expectedOwnerCount, "the owner count should decrease by one");
+
+    uint256 correctThreshold = harness.exposed_getNewThreshold(safe.getOwners().length);
+    assertEq(safe.getThreshold(), correctThreshold, "the safe threshold should be correct");
+  }
+
+  function test_fuzz_removeSigner_lastSigner(uint8 _signerIndex) public {
+    // bound the signer index and get the signer
+    vm.assume(uint256(_signerIndex) < fuzzingAddresses.length);
+    address signer = fuzzingAddresses[_signerIndex];
+
+    // setup: add the signer
+    harness.exposed_addSigner(signer);
+
+    // remove the signer
+    harness.exposed_removeSigner(signer);
+
+    assertFalse(safe.isOwner(signer), "the signer should no longer be an owner");
+    assertEq(safe.getOwners().length, 1, "there should a single owner");
+    assertEq(safe.getThreshold(), 1, "the safe threshold should be one");
+    assertTrue(safe.isOwner(address(harness)), "the harness should be the owner");
+  }
+
+  function test_fuzz_revert_removeSigner_notSigner(uint8 _signerIndex) public {
+    // bound the signer index and get the signer
+    vm.assume(uint256(_signerIndex) < fuzzingAddresses.length);
+    address signer = fuzzingAddresses[_signerIndex];
+
+    // try to remove the signer, expecting tx success but nothing to change
+    harness.exposed_removeSigner(signer);
+
+    assertEq(safe.getOwners().length, 1, "there should a single owner");
+    assertEq(safe.getThreshold(), 1, "the safe threshold should be one");
+    assertTrue(safe.isOwner(address(harness)), "the harness should be the owner");
+  }
 }
 
 contract TransactionValidationInternals is WithHSGHarnessInstanceTest {
