@@ -528,6 +528,71 @@ contract TestSuite is SafeTestHelpers {
     assertEq(modules[0], _module, "module should be the only module");
     assertEq(next, SENTINELS, "next should be SENTINELS");
   }
+
+  /*//////////////////////////////////////////////////////////////
+                  THRESHOLD CONFIG HELPER FUNCTIONS
+  //////////////////////////////////////////////////////////////*/
+
+  function _createValidThresholdConfig(
+    IHatsSignerGate.TargetThresholdType _thresholdType,
+    uint8 _min, // keep values at least somewhat realistic
+    uint16 _target // keep values at least somewhat realistic
+  ) internal pure returns (IHatsSignerGate.ThresholdConfig memory) {
+    // ensure the min is at least 1
+    uint120 min = uint120(bound(_min, 1, type(uint8).max));
+
+    uint120 target;
+    if (_thresholdType == IHatsSignerGate.TargetThresholdType.ABSOLUTE) {
+      // ensure the target is at least the min
+      target = uint120(bound(_target, min, type(uint16).max));
+    } else {
+      // ensure the target is no bigger than 100% (10000)
+      target = uint120(bound(_target, 1, 10_000));
+    }
+
+    console2.log("config.thresholdType", uint8(_thresholdType));
+    console2.log("config.min", min);
+    console2.log("config.target", target);
+
+    return IHatsSignerGate.ThresholdConfig({ thresholdType: _thresholdType, min: min, target: target });
+  }
+
+  function _calcProportionalTargetSignatures(uint256 _ownerCount, uint120 _target) internal pure returns (uint256) {
+    return ((_ownerCount * _target) + 9999) / 10_000;
+  }
+
+  /// @dev Assumes _min and _target are valid
+  function _calcProportionalRequiredValidSignatures(uint256 _ownerCount, uint120 _min, uint120 _target)
+    internal
+    pure
+    returns (uint256)
+  {
+    if (_ownerCount < _min) return _min;
+    uint256 required = _calcProportionalTargetSignatures(_ownerCount, _target);
+    if (required < _min) return _min;
+    return required;
+  }
+
+  function _calcAbsoluteRequiredValidSignatures(uint256 _ownerCount, uint120 _min, uint120 _target)
+    internal
+    pure
+    returns (uint256)
+  {
+    if (_ownerCount < _min) return _min;
+    if (_ownerCount > _target) return _target;
+    return _ownerCount;
+  }
+
+  function _calcRequiredValidSignatures(uint256 _ownerCount, IHatsSignerGate.ThresholdConfig memory _config)
+    internal
+    pure
+    returns (uint256)
+  {
+    if (_config.thresholdType == IHatsSignerGate.TargetThresholdType.ABSOLUTE) {
+      return _calcAbsoluteRequiredValidSignatures(_ownerCount, _config.min, _config.target);
+    }
+    return _calcProportionalRequiredValidSignatures(_ownerCount, _config.min, _config.target);
+  }
 }
 
 contract WithHSGInstanceTest is TestSuite {
@@ -588,5 +653,21 @@ contract WithHSGHarnessInstanceTest is TestSuite {
     );
 
     safe = harness.safe();
+  }
+
+  /// @dev Gets the existing state stored in transient storage by `_checkModuleTransaction` and asserts it matches
+  /// the provided values
+  function assertCorrectTransientState(
+    bytes32 _existingOwnersHash,
+    uint256 _existingThreshold,
+    address _existingFallbackHandler
+  ) internal view {
+    assertEq(harness.exposed_existingOwnersHash(), _existingOwnersHash, "the existing owners hash should be unchanged");
+    assertEq(harness.exposed_existingThreshold(), _existingThreshold, "the existing threshold should be unchanged");
+    assertEq(
+      harness.exposed_existingFallbackHandler(),
+      _existingFallbackHandler,
+      "the existing fallback handler should be unchanged"
+    );
   }
 }

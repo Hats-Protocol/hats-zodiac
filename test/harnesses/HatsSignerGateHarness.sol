@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-// import { Test, console2 } from "../lib/forge-std/src/Test.sol"; // comment out after testing
+// import { Test, console2 } from "../../lib/forge-std/src/Test.sol"; // comment out after testing
 import { IHats } from "../../lib/hats-protocol/src/Interfaces/IHats.sol";
 import { HatsSignerGate } from "../../src/HatsSignerGate.sol";
 import { SafeManagerLibHarness } from "./SafeManagerLibHarness.sol";
@@ -22,6 +22,36 @@ contract HatsSignerGateHarness is HatsSignerGate, SafeManagerLibHarness {
     address _safeMultisendLibrary,
     address _safeProxyFactory
   ) HatsSignerGate(_hats, _safeSingleton, _safeFallbackLibrary, _safeMultisendLibrary, _safeProxyFactory) { }
+
+  /*//////////////////////////////////////////////////////////////
+                        EXPOSED TRANSIENT STATE
+  //////////////////////////////////////////////////////////////*/
+
+  bytes32 public existingOwnersHash;
+  uint256 public existingThreshold;
+  address public existingFallbackHandler;
+  Enum.Operation public operation;
+  uint256 public guardEntries;
+
+  /*//////////////////////////////////////////////////////////////
+                        TRANSIENT STATE SETTERS
+  //////////////////////////////////////////////////////////////*/
+
+  function setExistingOwnersHash(bytes32 existingOwnersHash_) public {
+    _existingOwnersHash = existingOwnersHash_;
+  }
+
+  function setExistingThreshold(uint256 existingThreshold_) public {
+    _existingThreshold = existingThreshold_;
+  }
+
+  function setExistingFallbackHandler(address existingFallbackHandler_) public {
+    _existingFallbackHandler = existingFallbackHandler_;
+  }
+
+  /*//////////////////////////////////////////////////////////////
+                        EXPOSED INTERNAL FUNCTIONS
+  //////////////////////////////////////////////////////////////*/
 
   function exposed_checkOwner() public view {
     _checkOwner();
@@ -101,5 +131,25 @@ contract HatsSignerGateHarness is HatsSignerGate, SafeManagerLibHarness {
 
   function exposed_getNewThreshold(uint256 numOwners) public view returns (uint256) {
     return _getNewThreshold(numOwners);
+  }
+
+  function exposed_existingOwnersHash() public view returns (bytes32) {
+    return _existingOwnersHash;
+  }
+
+  function exposed_existingThreshold() public view returns (uint256) {
+    return _existingThreshold;
+  }
+
+  function exposed_existingFallbackHandler() public view returns (address) {
+    return _existingFallbackHandler;
+  }
+
+  function exposed_operation() public view returns (Enum.Operation) {
+    return _operation;
+  }
+
+  function exposed_guardEntries() public view returns (uint256) {
+    return _guardEntries;
   }
 }
