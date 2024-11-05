@@ -96,7 +96,7 @@ interface IHatsSignerGate {
   /// @notice Neither Safe signers nor modules enabled on HSG can make external calls to the `safe`
   /// @dev This ensures that signers and modules cannot change any of the `safe`'s settings
   error CannotCallSafe();
-  
+
   /// @notice Neither signers nor modules enabled on HSG can change the fallback handler
   error CannotChangeFallbackHandler();
 
@@ -292,7 +292,9 @@ interface IHatsSignerGate {
   function validSignerCount() external view returns (uint256 signerCount);
 
   /// @notice Checks if a HatsSignerGate can be safely attached to a Safe, ie there must be no existing modules
-  function canAttachToSafe() external view returns (bool);
+  /// @param _safe The Safe to check
+  /// @return canAttach Whether the HSG can be attached to the Safe
+  function canAttachToSafe(ISafe _safe) external view returns (bool canAttach);
 
   /// @notice Returns the addresses of the Safe contracts used to deploy new Safes
   /// @return _safeSingleton The address of the Safe singleton used to deploy new Safes

@@ -547,8 +547,8 @@ contract HatsSignerGate is
   }
 
   /// @inheritdoc IHatsSignerGate
-  function canAttachToSafe() public view returns (bool) {
-    return safe.canAttachHSG();
+  function canAttachToSafe(ISafe _safe) public view returns (bool) {
+    return _safe.canAttachHSG();
   }
 
   /// @inheritdoc IHatsSignerGate
