@@ -408,6 +408,13 @@ contract HatsSignerGate is
     // ensure that the call is coming from the safe
     if (msg.sender != address(safe)) revert NotCalledFromSafe();
 
+    /// @dev This is a reentrancy guard designed to work with the `checkAfterExecution()` function. It allows reentrancy
+    /// into this contract so that the `checkAfterExecution()` function can be called by the `safe`, but it only allows
+    /// one call each of `checkTransaction()`, `execTransactionFromModule() and execTransactionFromModuleReturnData()`.   
+    if (_guardEntries == 1) revert NoReentryAllowed();
+    _guardEntries = 1;
+     
+
     // module guard preflight check
     if (guard != address(0)) {
       BaseGuard(guard).checkTransaction(
@@ -475,15 +482,6 @@ contract HatsSignerGate is
 
     // count the number of valid signatures and revert if there aren't enough
     if (_countValidSignatures(txHash, signatures, threshold) < threshold) revert InsufficientValidSignatures();
-
-    /// @dev This is a reentrancy guard designed to work with the `checkAfterExecution()` function. It allows reentrancy
-    /// into this contract so that the `checkAfterExecution()` function can be called by the `safe`, but it only allows
-    /// one call each of `checkTransaction()` and `checkAfterExecution()`.
-    unchecked {
-      ++_guardEntries;
-    }
-    // revert if re-entry into this function is detected prior to `checkAfterExecution()` is called
-    if (_guardEntries > 1) revert NoReentryAllowed();
   }
 
   /**
@@ -514,10 +512,6 @@ contract HatsSignerGate is
     if (_operation == Enum.Operation.DelegateCall) {
       _checkSafeState(s);
     }
-
-    // Leave checked to catch underflows triggered by calls to this function not originating from
-    // `Safe.execTransaction()`
-    --_guardEntries;
   }
 
   /*//////////////////////////////////////////////////////////////
@@ -834,6 +828,12 @@ contract HatsSignerGate is
     moduleOnly
     returns (bool success)
   {
+    /// @dev This is a reentrancy guard designed to work with the `checkAfterExecution()` function. It allows reentrancy
+    /// into this contract so that the `checkAfterExecution()` function can be called by the `safe`, but it only allows
+    /// one call each of `checkTransaction()`, `execTransactionFromModule() and execTransactionFromModuleReturnData()`.
+    if (_guardEntries == 1) revert NoReentryAllowed();
+    _guardEntries = 1;
+
     ISafe s = safe;
 
     // preflight checks
@@ -870,6 +870,12 @@ contract HatsSignerGate is
     moduleOnly
     returns (bool success, bytes memory returnData)
   {
+    /// @dev This is a reentrancy guard designed to work with the `checkAfterExecution()` function. It allows reentrancy
+    /// into this contract so that the `checkAfterExecution()` function can be called by the `safe`, but it only allows
+    /// one call each of `checkTransaction()`, `execTransactionFromModule() and execTransactionFromModuleReturnData()`.
+    if (_guardEntries == 1) revert NoReentryAllowed();
+    _guardEntries = 1;
+
     ISafe s = safe;
 
     // preflight checks
