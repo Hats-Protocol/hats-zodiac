@@ -152,4 +152,36 @@ contract HatsSignerGateHarness is HatsSignerGate, SafeManagerLibHarness {
   function exposed_guardEntries() public view returns (uint256) {
     return _guardEntries;
   }
+
+  /// @dev Exposes the transient state variables set within checkTransaction
+  function exposed_checkTransaction(
+    address to,
+    uint256 value,
+    bytes memory data,
+    Enum.Operation op,
+    uint256 safeTxGas,
+    uint256 baseGas,
+    uint256 gasPrice,
+    address gasToken,
+    address payable refundReceiver,
+    bytes memory signatures,
+    address sender
+  ) public {
+    checkTransaction(to, value, data, op, safeTxGas, baseGas, gasPrice, gasToken, refundReceiver, signatures, sender);
+
+    // store the transient state in persistent storage for access in tests
+    guardEntries = _guardEntries;
+    operation = _operation;
+    existingOwnersHash = _existingOwnersHash;
+    existingThreshold = _existingThreshold;
+    existingFallbackHandler = _existingFallbackHandler;
+  }
+
+  /// @dev Allows tests to call checkAfterExecution by mocking the guardEntries transient state variable
+  function exposed_checkAfterExecution(bytes32 _txHash, bool _success) public {
+    // force the guardEntries to be 1 as if it were set by checkTransaction
+    _guardEntries = 1;
+
+    checkAfterExecution(_txHash, _success);
+  }
 }

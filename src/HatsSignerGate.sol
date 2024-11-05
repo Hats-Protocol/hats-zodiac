@@ -403,7 +403,7 @@ contract HatsSignerGate is
     address payable refundReceiver,
     bytes memory signatures,
     address // msgSender
-  ) external override {
+  ) public override {
     // ensure that the call is coming from the safe
     if (msg.sender != address(safe)) revert NotCalledFromSafe();
 
@@ -499,7 +499,7 @@ contract HatsSignerGate is
    * @dev Modified from
    * https://github.com/gnosis/zodiac-guard-mod/blob/988ebc7b71e352f121a0be5f6ae37e79e47a4541/contracts/ModGuard.sol#L86
    */
-  function checkAfterExecution(bytes32, bool) external override {
+  function checkAfterExecution(bytes32, bool) public override {
     ISafe s = safe; // save SLOADs
     if (msg.sender != address(s)) revert NotCalledFromSafe();
     // prevent signers from disabling this guard

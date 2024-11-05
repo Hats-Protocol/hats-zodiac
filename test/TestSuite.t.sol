@@ -727,6 +727,46 @@ contract TestSuite is SafeTestHelpers {
     return address(tstGuards[guardIndex]);
   }
 
+  function _getSignaturesForEmptyTx(uint256 _signerCount, address _to, Enum.Operation _operation)
+    internal
+    returns (bytes memory)
+  {
+    // execute a transaction from the safe to set the nonce
+    bytes32 txHash;
+    if (_operation == Enum.Operation.Call) {
+      txHash = _getSafeTxHash(_to, "", safe);
+    } else {
+      txHash = _getSafeDelegatecallHash(_to, "", safe);
+    }
+    return _createNSigsForTx(txHash, _signerCount);
+  }
+
+  function _executeEmptyCallFromSafe(uint256 _signerCount, address _to) internal {
+    // add the signers
+    _addSignersSameHat(_signerCount, signerHat);
+
+    // execute a transaction from the safe to set the nonce
+    bytes memory signatures = _getSignaturesForEmptyTx(_signerCount, _to, Enum.Operation.Call);
+    safe.execTransaction(_to, 0, "", Enum.Operation.Call, 0, 0, 0, address(0), payable(address(0)), signatures);
+  }
+
+  function _createContractSignature(address _contractSigner) internal pure returns (bytes memory signature) {
+    // r encodes the address of the contract that signed the message
+    bytes32 r = bytes32(uint256(uint160(_contractSigner)));
+    // s can be 0
+    bytes32 s = bytes32(0);
+    // v must be 0
+    bytes1 v = bytes1(0);
+    return abi.encodePacked(r, s, v);
+  }
+
+  function _createNContractSigs(uint256 _signerCount) internal view returns (bytes memory signatures) {
+    for (uint256 i; i < _signerCount; ++i) {
+      signatures = bytes.concat(signatures, _createContractSignature(signerAddresses[i]));
+    }
+    return signatures;
+  }
+
   modifier callerIsOwner(bool _isOwner) {
     // randomly select a caller
     caller = _getRandomAddress();
@@ -974,6 +1014,26 @@ contract WithHSGHarnessInstanceTest is TestSuite {
         _harness.exposed_registerSigner(signerHat, signers[i], false);
         validCount++;
       }
+    }
+  }
+
+  function _assertTransientStateVariables(
+    uint256 _guardEntries,
+    Enum.Operation _operation,
+    bytes32 _existingOwnersHash,
+    uint256 _existingThreshold,
+    address _existingFallbackHandler
+  ) internal view {
+    assertEq(harness.guardEntries(), _guardEntries, "guard entries should be set");
+    assertEq(uint8(harness.operation()), uint8(_operation), "operation should be set");
+    if (_operation == Enum.Operation.DelegateCall) {
+      assertEq(harness.existingOwnersHash(), _existingOwnersHash, "existing owners hash should be set");
+      assertEq(harness.existingThreshold(), _existingThreshold, "existing threshold should be set");
+      assertEq(harness.existingFallbackHandler(), _existingFallbackHandler, "existing fallback handler should be set");
+    } else {
+      assertEq(harness.existingOwnersHash(), bytes32(0), "existing owners hash should be empty");
+      assertEq(harness.existingThreshold(), 0, "existing threshold should be empty");
+      assertEq(harness.existingFallbackHandler(), address(0), "existing fallback handler should be empty");
     }
   }
 
