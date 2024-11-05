@@ -80,7 +80,7 @@ contract HatsSignerGate is
   mapping(address => bool) public enabledDelegatecallTargets;
 
   /// @inheritdoc IHatsSignerGate
-  mapping(address => uint256) public claimedSignerHats;
+  mapping(address => uint256) public registeredSignerHats;
 
   /*//////////////////////////////////////////////////////////////
                         INTERNAL MUTABLE STATE
@@ -531,8 +531,9 @@ contract HatsSignerGate is
 
   /// @inheritdoc IHatsSignerGate
   function isValidSigner(address _account) public view returns (bool valid) {
-    /// @dev existing `claimedSignerHats` are always valid, since `_validSignerHats` is append-only
-    valid = HATS.isWearerOfHat(_account, claimedSignerHats[_account]);
+    /// @dev existing `registeredSignerHats` are always valid, since `_validSignerHats` is append-only
+    /// We don't need a special case for `_account == address(0)` because the 0 hat id does not exist
+    valid = HATS.isWearerOfHat(_account, registeredSignerHats[_account]);
   }
 
   /// @inheritdoc IHatsSignerGate
@@ -691,11 +692,11 @@ contract HatsSignerGate is
     // if specified, disallow re-registering a new hat for an existing signer that is still wearing their
     // currently-registered hat
     if (!_allowReregistration) {
-      if (HATS.isWearerOfHat(_signer, claimedSignerHats[_signer])) revert ReregistrationNotAllowed();
+      if (HATS.isWearerOfHat(_signer, registeredSignerHats[_signer])) revert ReregistrationNotAllowed();
     }
 
     // register the hat used to claim. This will be the hat checked in `checkTransaction()` for this signer
-    claimedSignerHats[_signer] = _hatToRegister;
+    registeredSignerHats[_signer] = _hatToRegister;
 
     // log the registration
     emit Registered(_hatToRegister, _signer);
@@ -740,7 +741,7 @@ contract HatsSignerGate is
     bytes memory removeOwnerData;
     address[] memory owners = s.getOwners();
 
-    delete claimedSignerHats[_signer];
+    delete registeredSignerHats[_signer];
 
     if (owners.length == 1) {
       // make address(this) the only owner

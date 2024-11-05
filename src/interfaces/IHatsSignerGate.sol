@@ -166,7 +166,7 @@ interface IHatsSignerGate {
   //////////////////////////////////////////////////////////////*/
 
   /// @notice Tracks the hat ids worn by users who have "claimed signer"
-  function claimedSignerHats(address) external view returns (uint256);
+  function registeredSignerHats(address) external view returns (uint256);
 
   /// @notice Tracks enabled delegatecall targets. Enabled targets can be delegatecalled by the `safe`
   function enabledDelegatecallTargets(address) external view returns (bool);
