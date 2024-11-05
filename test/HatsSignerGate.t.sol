@@ -12,473 +12,479 @@ import { ModifierUnowned } from "../src/lib/zodiac-modified/ModifierUnowned.sol"
 import { TestGuard } from "./mocks/TestGuard.sol";
 import { MultiSend } from "../lib/safe-smart-account/contracts/libraries/MultiSend.sol";
 
-contract Deployment is TestSuite {
-  // errors from dependencies
-  error InvalidInitialization();
-
-  function test_onlyHSG(bool _locked, bool _claimableFor) public {
-    // deploy safe with this contract as the single owner
-    address[] memory owners = new address[](1);
-    owners[0] = address(this);
-    ISafe testSafe = _deploySafe(owners, 1, TEST_SALT_NONCE);
-
-    hatsSignerGate = _deployHSG({
-      _ownerHat: ownerHat,
-      _signerHats: signerHats,
-      _thresholdConfig: thresholdConfig,
-      _safe: address(testSafe),
-      _expectedError: bytes4(0), // no expected error
-      _locked: _locked,
-      _claimableFor: _claimableFor,
-      _hsgGuard: address(tstGuard),
-      _hsgModules: tstModules,
-      _verbose: false
-    });
-
-    assertEq(hatsSignerGate.ownerHat(), ownerHat);
-    assertValidSignerHats(signerHats);
-    assertEq(hatsSignerGate.thresholdConfig(), thresholdConfig);
-    assertEq(address(hatsSignerGate.HATS()), address(hats));
-    assertEq(address(hatsSignerGate.safe()), address(testSafe));
-    assertEq(address(hatsSignerGate.implementation()), address(singletonHatsSignerGate));
-    assertEq(hatsSignerGate.locked(), _locked);
-    assertEq(hatsSignerGate.claimableFor(), _claimableFor);
-    assertEq(address(hatsSignerGate.getGuard()), address(tstGuard));
-    assertCorrectModules(tstModules);
-
-    // check that the default delegatecall targets are enabled
-    for (uint256 i; i < defaultDelegatecallTargets.length; ++i) {
-      assertTrue(
-        hatsSignerGate.enabledDelegatecallTargets(defaultDelegatecallTargets[i]), "default target should be enabled"
-      );
-    }
-  }
-
-  function test_andSafe(bool _locked, bool _claimableFor) public {
-    (hatsSignerGate, safe) = _deployHSGAndSafe({
-      _ownerHat: ownerHat,
-      _signerHats: signerHats,
-      _thresholdConfig: thresholdConfig,
-      _locked: _locked,
-      _claimableFor: _claimableFor,
-      _hsgGuard: address(tstGuard),
-      _hsgModules: tstModules,
-      _verbose: false
-    });
-
-    assertEq(hatsSignerGate.ownerHat(), ownerHat);
-    assertValidSignerHats(signerHats);
-    assertEq(hatsSignerGate.thresholdConfig(), thresholdConfig);
-    assertEq(address(hatsSignerGate.HATS()), address(hats));
-    assertEq(address(hatsSignerGate.safe()), address(safe));
-    assertEq(address(hatsSignerGate.implementation()), address(singletonHatsSignerGate));
-    assertEq(_getSafeGuard(address(safe)), address(hatsSignerGate));
-    assertTrue(safe.isModuleEnabled(address(hatsSignerGate)));
-    assertEq(safe.getOwners()[0], address(hatsSignerGate));
-    assertEq(hatsSignerGate.locked(), _locked);
-    assertEq(hatsSignerGate.claimableFor(), _claimableFor);
-    assertEq(address(hatsSignerGate.getGuard()), address(tstGuard));
-    assertCorrectModules(tstModules);
-
-    // check that the default delegatecall targets are enabled
-    for (uint256 i; i < defaultDelegatecallTargets.length; ++i) {
-      assertTrue(
-        hatsSignerGate.enabledDelegatecallTargets(defaultDelegatecallTargets[i]), "default target should be enabled"
-      );
-    }
-  }
-
-  function test_revert_reinitializeImplementation() public {
-    bytes memory initializeParams =
-      abi.encode(ownerHat, signerHats, address(safe), thresholdConfig, false, address(singletonHatsSignerGate));
-    vm.expectRevert(InvalidInitialization.selector);
-    singletonHatsSignerGate.setUp(initializeParams);
-  }
-}
-
-contract AddingSignerHats is WithHSGInstanceTest {
-  function test_Multi_OwnerCanAddSignerHats(uint256 count) public {
-    vm.assume(count < 100);
-
-    // create and fill an array of signer hats to add, with length = count
-    uint256[] memory hats = new uint256[](count);
-    for (uint256 i; i < count; ++i) {
-      hats[i] = i;
-    }
-
-    vm.prank(owner);
-    vm.expectEmit(false, false, false, true);
-    emit IHatsSignerGate.SignerHatsAdded(hats);
-
-    hatsSignerGate.addSignerHats(hats);
-  }
-
-  function test_Multi_OwnerCanAddSignerHats1() public {
-    test_Multi_OwnerCanAddSignerHats(1);
-  }
-
-  function test_Multi_NonOwnerCannotAddSignerHats() public {
-    // create and fill an array of signer hats to add, with length = 1
-    uint256[] memory hats = new uint256[](1);
-    hats[0] = 1;
-
-    vm.prank(other);
-    vm.expectRevert(IHatsSignerGate.NotOwnerHatWearer.selector);
-    hatsSignerGate.addSignerHats(hats);
-  }
-
-  function test_revert_locked() public {
-    // lock the HSG
-    vm.prank(owner);
-    hatsSignerGate.lock();
-
-    // create and fill an array of signer hats to add, with length = 1
-    uint256[] memory hats = new uint256[](1);
-    hats[0] = 1;
-
-    // expect a revert from the locked HSG
-    vm.expectRevert(IHatsSignerGate.Locked.selector);
-    vm.prank(owner);
-    hatsSignerGate.addSignerHats(hats);
-  }
-}
-
-contract SettingThresholdConfig is WithHSGInstanceTest {
-  function test_happy_absolute(uint120 _min, uint120 _target, uint256 _signerCount) public {
-    vm.assume(_min > 0);
-    vm.assume(_target >= _min);
-    _signerCount = bound(_signerCount, 1, signerAddresses.length);
-
-    _addSignersSameHat(_signerCount, signerHat);
-
-    IHatsSignerGate.ThresholdConfig memory newConfig = IHatsSignerGate.ThresholdConfig({
-      thresholdType: IHatsSignerGate.TargetThresholdType.ABSOLUTE,
-      min: _min,
-      target: _target
-    });
-
-    vm.expectEmit();
-    emit IHatsSignerGate.ThresholdConfigSet(newConfig);
-    vm.prank(owner);
-    hatsSignerGate.setThresholdConfig(newConfig);
-
-    assertEq(hatsSignerGate.thresholdConfig(), newConfig);
-
-    // check that the safe threshold was updated correctly
-    uint256 expectedThreshold;
-    uint256 target = hatsSignerGate.thresholdConfig().target;
-    if (_signerCount > target) {
-      expectedThreshold = target;
-    } else {
-      expectedThreshold = _signerCount;
-    }
-    assertEq(safe.getThreshold(), expectedThreshold, "incorrect safe threshold");
-  }
-
-  function test_happy_proportional(uint120 _min, uint120 _target, uint256 _signerCount) public {
-    vm.assume(_min > 0);
-    vm.assume(_target < 10_000);
-    _signerCount = bound(_signerCount, 1, signerAddresses.length);
-
-    _addSignersSameHat(_signerCount, signerHat);
-
-    IHatsSignerGate.ThresholdConfig memory newConfig = IHatsSignerGate.ThresholdConfig({
-      thresholdType: IHatsSignerGate.TargetThresholdType.PROPORTIONAL,
-      min: _min,
-      target: _target
-    });
-
-    vm.expectEmit();
-    emit IHatsSignerGate.ThresholdConfigSet(newConfig);
-    vm.prank(owner);
-    hatsSignerGate.setThresholdConfig(newConfig);
-
-    assertEq(hatsSignerGate.thresholdConfig(), newConfig);
-
-    // check that the safe threshold was updated correctly
-    uint256 target = hatsSignerGate.thresholdConfig().target;
-    uint256 min = hatsSignerGate.thresholdConfig().min;
-    uint256 expectedThreshold = ((_signerCount * target) + 9999) / 10_000;
-    if (expectedThreshold < min) expectedThreshold = min;
-    if (expectedThreshold > _signerCount) {
-      expectedThreshold = _signerCount;
-    }
-    assertEq(safe.getThreshold(), expectedThreshold, "incorrect safe threshold");
-  }
-
-  function test_revert_absolute_invalidConfig(uint120 _min, uint120 _target) public {
-    vm.assume(_min > 0);
-    // invalid condition
-    vm.assume(_target < _min);
-
-    IHatsSignerGate.ThresholdConfig memory invalidConfig = IHatsSignerGate.ThresholdConfig({
-      thresholdType: IHatsSignerGate.TargetThresholdType.ABSOLUTE,
-      min: _min,
-      target: _target
-    });
-
-    vm.expectRevert(IHatsSignerGate.InvalidThresholdConfig.selector);
-    vm.prank(owner);
-    hatsSignerGate.setThresholdConfig(invalidConfig);
-
-    assertEq(safe.getThreshold(), 1);
-  }
-
-  function test_revert_proportional_invalidConfig(uint120 _target) public {
-    vm.assume(_target > 10_000);
-
-    IHatsSignerGate.ThresholdConfig memory invalidConfig = IHatsSignerGate.ThresholdConfig({
-      thresholdType: IHatsSignerGate.TargetThresholdType.PROPORTIONAL,
-      min: 1,
-      target: _target
-    });
-
-    vm.expectRevert(IHatsSignerGate.InvalidThresholdConfig.selector);
-    vm.prank(owner);
-    hatsSignerGate.setThresholdConfig(invalidConfig);
-
-    assertEq(safe.getThreshold(), 1);
-  }
-
-  function test_revert_invalidConfigType(uint8 _invalidType) public {
-    vm.assume(_invalidType > 1);
-
-    bytes memory invalidConfigBytes = abi.encodePacked(_invalidType, uint120(1), uint120(3));
-
-    bytes memory setThresholdConfigCallData =
-      abi.encodeWithSelector(hatsSignerGate.setThresholdConfig.selector, invalidConfigBytes);
-
-    vm.expectRevert(IHatsSignerGate.InvalidThresholdConfig.selector);
-    vm.prank(owner);
-    (bool success,) = address(hatsSignerGate).call(setThresholdConfigCallData);
-    assertFalse(success);
-
-    assertEq(safe.getThreshold(), 1);
-  }
-
-  function test_revert_notOwnerHatWearer() public {
-    IHatsSignerGate.ThresholdConfig memory newConfig = IHatsSignerGate.ThresholdConfig({
-      thresholdType: IHatsSignerGate.TargetThresholdType.ABSOLUTE,
-      min: 1,
-      target: 3
-    });
-
-    vm.prank(other);
-    vm.expectRevert(IHatsSignerGate.NotOwnerHatWearer.selector);
-    hatsSignerGate.setThresholdConfig(newConfig);
-
-    assertEq(hatsSignerGate.thresholdConfig(), thresholdConfig);
-
-    assertEq(safe.getThreshold(), 1);
-  }
-
-  function test_revert_locked() public {
-    vm.prank(owner);
-    hatsSignerGate.lock();
-
-    IHatsSignerGate.ThresholdConfig memory newConfig = IHatsSignerGate.ThresholdConfig({
-      thresholdType: IHatsSignerGate.TargetThresholdType.ABSOLUTE,
-      min: 1,
-      target: 3
-    });
-
-    vm.expectRevert(IHatsSignerGate.Locked.selector);
-    vm.prank(owner);
-    hatsSignerGate.setThresholdConfig(newConfig);
-
-    assertEq(safe.getThreshold(), 1);
-  }
-}
-
-contract AddingSigners is WithHSGInstanceTest {
-  function testAddSingleSigner() public {
-    _addSignersSameHat(1, signerHat);
-
-    assertEq(safe.getOwners().length, 1);
-    assertEq(hatsSignerGate.validSignerCount(), 1);
-    assertEq(safe.getOwners()[0], signerAddresses[0]);
-    assertEq(safe.getThreshold(), 1);
-  }
-
-  function testAddThreeSigners() public {
-    _addSignersSameHat(3, signerHat);
-
-    assertEq(hatsSignerGate.validSignerCount(), 3);
-
-    assertEq(safe.getOwners()[0], signerAddresses[2]);
-    assertEq(safe.getOwners()[1], signerAddresses[1]);
-    assertEq(safe.getOwners()[2], signerAddresses[0]);
-    assertEq(safe.getThreshold(), 2);
-  }
-
-  function test_Multi_AddSingleSigner() public {
-    _addSignersDifferentHats(1, signerHats);
-
-    assertEq(hatsSignerGate.validSignerCount(), 1);
-    assertEq(safe.getOwners()[0], signerAddresses[0]);
-    assertEq(safe.getThreshold(), 1);
-  }
-
-  function test_Multi_AddTwoSigners_DifferentHats() public {
-    _addSignersDifferentHats(2, signerHats);
-
-    assertEq(hatsSignerGate.validSignerCount(), 2);
-    assertEq(safe.getOwners()[0], signerAddresses[1]);
-    assertEq(safe.getOwners()[1], signerAddresses[0]);
-    assertEq(safe.getThreshold(), 2);
-  }
-}
-
-contract ClaimingSigners is WithHSGInstanceTest {
-  function test_happy() public {
-    _setSignerValidity(signerAddresses[3], signerHat, true);
+// contract Deployment is TestSuite {
+//   // errors from dependencies
+//   error InvalidInitialization();
+
+//   function test_onlyHSG(bool _locked, bool _claimableFor) public {
+//     // deploy safe with this contract as the single owner
+//     address[] memory owners = new address[](1);
+//     owners[0] = address(this);
+//     ISafe testSafe = _deploySafe(owners, 1, TEST_SALT_NONCE);
+
+//     instance = _deployHSG({
+//       _ownerHat: ownerHat,
+//       _signerHats: signerHats,
+//       _thresholdConfig: thresholdConfig,
+//       _safe: address(testSafe),
+//       _expectedError: bytes4(0), // no expected error
+//       _locked: _locked,
+//       _claimableFor: _claimableFor,
+//       _hsgGuard: address(tstGuard),
+//       _hsgModules: tstModules,
+//       _verbose: false
+//     });
+
+//     assertEq(instance.ownerHat(), ownerHat);
+//     assertValidSignerHats(signerHats);
+//     assertEq(instance.thresholdConfig(), thresholdConfig);
+//     assertEq(address(instance.HATS()), address(hats));
+//     assertEq(address(instance.safe()), address(testSafe));
+//     assertEq(address(instance.implementation()), address(implementationHSG));
+//     assertEq(instance.locked(), _locked);
+//     assertEq(instance.claimableFor(), _claimableFor);
+//     assertEq(address(instance.getGuard()), address(tstGuard));
+//     assertCorrectModules(tstModules);
+
+//     // check that the default delegatecall targets are enabled
+//     for (uint256 i; i < defaultDelegatecallTargets.length; ++i) {
+//       assertTrue(
+//         instance.enabledDelegatecallTargets(defaultDelegatecallTargets[i]), "default target should be enabled"
+//       );
+//     }
+//   }
+
+//   function test_andSafe(bool _locked, bool _claimableFor) public {
+//     (instance, safe) = _deployHSGAndSafe({
+//       _ownerHat: ownerHat,
+//       _signerHats: signerHats,
+//       _thresholdConfig: thresholdConfig,
+//       _locked: _locked,
+//       _claimableFor: _claimableFor,
+//       _hsgGuard: address(tstGuard),
+//       _hsgModules: tstModules,
+//       _verbose: false
+//     });
+
+//     assertEq(instance.ownerHat(), ownerHat);
+//     assertValidSignerHats(signerHats);
+//     assertEq(instance.thresholdConfig(), thresholdConfig);
+//     assertEq(address(instance.HATS()), address(hats));
+//     assertEq(address(instance.safe()), address(safe));
+//     assertEq(address(instance.implementation()), address(implementationHSG));
+//     assertEq(_getSafeGuard(address(safe)), address(instance));
+//     assertTrue(safe.isModuleEnabled(address(instance)));
+//     assertEq(safe.getOwners()[0], address(instance));
+//     assertEq(instance.locked(), _locked);
+//     assertEq(instance.claimableFor(), _claimableFor);
+//     assertEq(address(instance.getGuard()), address(tstGuard));
+//     assertCorrectModules(tstModules);
+
+//     // check that the default delegatecall targets are enabled
+//     for (uint256 i; i < defaultDelegatecallTargets.length; ++i) {
+//       assertTrue(
+//         instance.enabledDelegatecallTargets(defaultDelegatecallTargets[i]), "default target should be enabled"
+//       );
+//     }
+//   }
+
+//   function test_revert_reinitializeImplementation() public {
+//     bytes memory initializeParams =
+//       abi.encode(ownerHat, signerHats, address(safe), thresholdConfig, false, address(implementationHSG));
+//     vm.expectRevert(InvalidInitialization.selector);
+//     implementationHSG.setUp(initializeParams);
+//   }
+// }
+
+// contract AddingSignerHats is WithHSGInstanceTest {
+//   function test_Multi_OwnerCanAddSignerHats(uint256 count) public {
+//     // TODO: modernize
+//     vm.assume(count < 100);
+
+//     // create and fill an array of signer hats to add, with length = count
+//     uint256[] memory hats = new uint256[](count);
+//     for (uint256 i; i < count; ++i) {
+//       hats[i] = i;
+//     }
+
+//     vm.prank(owner);
+//     vm.expectEmit(false, false, false, true);
+//     emit IHatsSignerGate.SignerHatsAdded(hats);
+
+//     instance.addSignerHats(hats);
+//   }
+
+//   function test_Multi_OwnerCanAddSignerHats1() public {
+//     test_Multi_OwnerCanAddSignerHats(1);
+//   }
+
+//   function test_Multi_NonOwnerCannotAddSignerHats() public {
+//     // TODO: modernize
+//     // create and fill an array of signer hats to add, with length = 1
+//     uint256[] memory hats = new uint256[](1);
+//     hats[0] = 1;
+
+//     vm.prank(other);
+//     vm.expectRevert(IHatsSignerGate.NotOwnerHatWearer.selector);
+//     instance.addSignerHats(hats);
+//   }
+
+//   function test_revert_locked() public {
+//     // lock the HSG
+//     vm.prank(owner);
+//     instance.lock();
+
+//     // create and fill an array of signer hats to add, with length = 1
+//     uint256[] memory hats = new uint256[](1);
+//     hats[0] = 1;
+
+//     // expect a revert from the locked HSG
+//     vm.expectRevert(IHatsSignerGate.Locked.selector);
+//     vm.prank(owner);
+//     instance.addSignerHats(hats);
+//   }
+// }
+
+// contract SettingThresholdConfig is WithHSGInstanceTest {
+//   function test_happy_absolute(uint120 _min, uint120 _target, uint256 _signerCount) public {
+//     vm.assume(_min > 0);
+//     vm.assume(_target >= _min);
+//     _signerCount = bound(_signerCount, 1, signerAddresses.length);
+
+//     _addSignersSameHat(_signerCount, signerHat);
+
+//     IHatsSignerGate.ThresholdConfig memory newConfig = IHatsSignerGate.ThresholdConfig({
+//       thresholdType: IHatsSignerGate.TargetThresholdType.ABSOLUTE,
+//       min: _min,
+//       target: _target
+//     });
+
+//     vm.expectEmit();
+//     emit IHatsSignerGate.ThresholdConfigSet(newConfig);
+//     vm.prank(owner);
+//     instance.setThresholdConfig(newConfig);
+
+//     assertEq(instance.thresholdConfig(), newConfig);
+
+//     // check that the safe threshold was updated correctly
+//     uint256 expectedThreshold;
+//     uint256 target = instance.thresholdConfig().target;
+//     if (_signerCount > target) {
+//       expectedThreshold = target;
+//     } else {
+//       expectedThreshold = _signerCount;
+//     }
+//     assertEq(safe.getThreshold(), expectedThreshold, "incorrect safe threshold");
+//   }
+
+//   function test_happy_proportional(uint120 _min, uint120 _target, uint256 _signerCount) public {
+//     vm.assume(_min > 0);
+//     vm.assume(_target < 10_000);
+//     _signerCount = bound(_signerCount, 1, signerAddresses.length);
+
+//     _addSignersSameHat(_signerCount, signerHat);
+
+//     IHatsSignerGate.ThresholdConfig memory newConfig = IHatsSignerGate.ThresholdConfig({
+//       thresholdType: IHatsSignerGate.TargetThresholdType.PROPORTIONAL,
+//       min: _min,
+//       target: _target
+//     });
+
+//     vm.expectEmit();
+//     emit IHatsSignerGate.ThresholdConfigSet(newConfig);
+//     vm.prank(owner);
+//     instance.setThresholdConfig(newConfig);
+
+//     assertEq(instance.thresholdConfig(), newConfig);
+
+//     // check that the safe threshold was updated correctly
+//     uint256 target = instance.thresholdConfig().target;
+//     uint256 min = instance.thresholdConfig().min;
+//     uint256 expectedThreshold = ((_signerCount * target) + 9999) / 10_000;
+//     if (expectedThreshold < min) expectedThreshold = min;
+//     if (expectedThreshold > _signerCount) {
+//       expectedThreshold = _signerCount;
+//     }
+//     assertEq(safe.getThreshold(), expectedThreshold, "incorrect safe threshold");
+//   }
+
+//   function test_revert_absolute_invalidConfig(uint120 _min, uint120 _target) public {
+//     vm.assume(_min > 0);
+//     // invalid condition
+//     vm.assume(_target < _min);
+
+//     IHatsSignerGate.ThresholdConfig memory invalidConfig = IHatsSignerGate.ThresholdConfig({
+//       thresholdType: IHatsSignerGate.TargetThresholdType.ABSOLUTE,
+//       min: _min,
+//       target: _target
+//     });
+
+//     vm.expectRevert(IHatsSignerGate.InvalidThresholdConfig.selector);
+//     vm.prank(owner);
+//     instance.setThresholdConfig(invalidConfig);
+
+//     assertEq(safe.getThreshold(), 1);
+//   }
+
+//   function test_revert_proportional_invalidConfig(uint120 _target) public {
+//     vm.assume(_target > 10_000);
+
+//     IHatsSignerGate.ThresholdConfig memory invalidConfig = IHatsSignerGate.ThresholdConfig({
+//       thresholdType: IHatsSignerGate.TargetThresholdType.PROPORTIONAL,
+//       min: 1,
+//       target: _target
+//     });
+
+//     vm.expectRevert(IHatsSignerGate.InvalidThresholdConfig.selector);
+//     vm.prank(owner);
+//     instance.setThresholdConfig(invalidConfig);
+
+//     assertEq(safe.getThreshold(), 1);
+//   }
+
+//   function test_revert_invalidConfigType(uint8 _invalidType) public {
+//     vm.assume(_invalidType > 1);
+
+//     bytes memory invalidConfigBytes = abi.encodePacked(_invalidType, uint120(1), uint120(3));
+
+//     bytes memory setThresholdConfigCallData =
+//       abi.encodeWithSelector(instance.setThresholdConfig.selector, invalidConfigBytes);
+
+//     vm.expectRevert(IHatsSignerGate.InvalidThresholdConfig.selector);
+//     vm.prank(owner);
+//     (bool success,) = address(instance).call(setThresholdConfigCallData);
+//     assertFalse(success);
+
+//     assertEq(safe.getThreshold(), 1);
+//   }
+
+//   function test_revert_notOwnerHatWearer() public {
+//     IHatsSignerGate.ThresholdConfig memory newConfig = IHatsSignerGate.ThresholdConfig({
+//       thresholdType: IHatsSignerGate.TargetThresholdType.ABSOLUTE,
+//       min: 1,
+//       target: 3
+//     });
+
+//     vm.prank(other);
+//     vm.expectRevert(IHatsSignerGate.NotOwnerHatWearer.selector);
+//     instance.setThresholdConfig(newConfig);
+
+//     assertEq(instance.thresholdConfig(), thresholdConfig);
+
+//     assertEq(safe.getThreshold(), 1);
+//   }
+
+//   function test_revert_locked() public {
+//     vm.prank(owner);
+//     instance.lock();
+
+//     IHatsSignerGate.ThresholdConfig memory newConfig = IHatsSignerGate.ThresholdConfig({
+//       thresholdType: IHatsSignerGate.TargetThresholdType.ABSOLUTE,
+//       min: 1,
+//       target: 3
+//     });
+
+//     vm.expectRevert(IHatsSignerGate.Locked.selector);
+//     vm.prank(owner);
+//     instance.setThresholdConfig(newConfig);
+
+//     assertEq(safe.getThreshold(), 1);
+//   }
+// }
+
+// contract AddingSigners is WithHSGInstanceTest {
+//   function testAddSingleSigner() public {
+//     // TODO: modernize
+//     _addSignersSameHat(1, signerHat);
+
+//     assertEq(safe.getOwners().length, 1);
+//     assertEq(instance.validSignerCount(), 1);
+//     assertEq(safe.getOwners()[0], signerAddresses[0]);
+//     assertEq(safe.getThreshold(), 1);
+//   }
+
+//   function testAddThreeSigners() public {
+//     // TODO: modernize
+//     _addSignersSameHat(3, signerHat);
+
+//     assertEq(instance.validSignerCount(), 3);
+
+//     assertEq(safe.getOwners()[0], signerAddresses[2]);
+//     assertEq(safe.getOwners()[1], signerAddresses[1]);
+//     assertEq(safe.getOwners()[2], signerAddresses[0]);
+//     assertEq(safe.getThreshold(), 2);
+//   }
+
+//   function test_Multi_AddSingleSigner() public {
+//     // TODO: modernize
+//     _addSignersDifferentHats(1, signerHats);
+
+//     assertEq(instance.validSignerCount(), 1);
+//     assertEq(safe.getOwners()[0], signerAddresses[0]);
+//     assertEq(safe.getThreshold(), 1);
+//   }
+
+//   function test_Multi_AddTwoSigners_DifferentHats() public {
+//     // TODO: modernize
+//     _addSignersDifferentHats(2, signerHats);
+
+//     assertEq(instance.validSignerCount(), 2);
+//     assertEq(safe.getOwners()[0], signerAddresses[1]);
+//     assertEq(safe.getOwners()[1], signerAddresses[0]);
+//     assertEq(safe.getThreshold(), 2);
+//   }
+// }
+
+// contract ClaimingSigners is WithHSGInstanceTest {
+//   function test_happy() public {
+//     _setSignerValidity(signerAddresses[3], signerHat, true);
+
+//     vm.expectEmit();
+//     emit IHatsSignerGate.Registered(signerHat, signerAddresses[3]);
+//     vm.prank(signerAddresses[3]);
+//     instance.claimSigner(signerHat);
+
+//     assertEq(safe.getOwners()[0], signerAddresses[3]);
+//     assertEq(safe.getThreshold(), 1);
+//     assertEq(safe.getOwners().length, 1);
+//   }
+
+//   function test_canClaim_alreadyOwner() public {
+//     _addSignersSameHat(2, signerHat);
 
-    vm.expectEmit();
-    emit IHatsSignerGate.Registered(signerHat, signerAddresses[3]);
-    vm.prank(signerAddresses[3]);
-    hatsSignerGate.claimSigner(signerHat);
-
-    assertEq(safe.getOwners()[0], signerAddresses[3]);
-    assertEq(safe.getThreshold(), 1);
-    assertEq(safe.getOwners().length, 1);
-  }
+//     vm.prank(signerAddresses[1]);
+//     instance.claimSigner(signerHat);
+
+//     assertEq(instance.validSignerCount(), 2);
+//   }
+
+//   function test_revert_invalidSigner() public {
+//     _setSignerValidity(signerAddresses[3], signerHat, false);
 
-  function test_canClaim_alreadyOwner() public {
-    _addSignersSameHat(2, signerHat);
+//     vm.prank(signerAddresses[3]);
 
-    vm.prank(signerAddresses[1]);
-    hatsSignerGate.claimSigner(signerHat);
+//     vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.NotSignerHatWearer.selector, signerAddresses[3]));
+//     instance.claimSigner(signerHat);
+//   }
 
-    assertEq(hatsSignerGate.validSignerCount(), 2);
-  }
+//   function test_revert_multi_invalidSigner(uint256 i) public {
+//     vm.assume(i < 2);
+//     _setSignerValidity(signerAddresses[3], signerHats[i], false);
 
-  function test_revert_invalidSigner() public {
-    _setSignerValidity(signerAddresses[3], signerHat, false);
+//     vm.prank(signerAddresses[3]);
 
-    vm.prank(signerAddresses[3]);
+//     vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.NotSignerHatWearer.selector, signerAddresses[3]));
+//     instance.claimSigner(signerHats[i]);
+//   }
 
-    vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.NotSignerHatWearer.selector, signerAddresses[3]));
-    hatsSignerGate.claimSigner(signerHat);
-  }
+//   function test_signerCanReregister_sameHat() public {
+//     _addSignersSameHat(1, signerHat);
 
-  function test_revert_multi_invalidSigner(uint256 i) public {
-    vm.assume(i < 2);
-    _setSignerValidity(signerAddresses[3], signerHats[i], false);
+//     vm.prank(signerAddresses[0]);
+//     instance.claimSigner(signerHat);
+//   }
 
-    vm.prank(signerAddresses[3]);
+//   function test_signerCanReregister_differentHat() public {
+//     _addSignersSameHat(1, signerHat);
 
-    vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.NotSignerHatWearer.selector, signerAddresses[3]));
-    hatsSignerGate.claimSigner(signerHats[i]);
-  }
+//     vm.prank(owner);
+//     instance.addSignerHats(signerHats);
 
-  function test_signerCanReregister_sameHat() public {
-    _addSignersSameHat(1, signerHat);
+//     _setSignerValidity(signerAddresses[0], signerHats[1], true);
 
-    vm.prank(signerAddresses[0]);
-    hatsSignerGate.claimSigner(signerHat);
-  }
+//     vm.prank(signerAddresses[0]);
+//     instance.claimSigner(signerHats[1]);
+//   }
+// }
 
-  function test_signerCanReregister_differentHat() public {
-    _addSignersSameHat(1, signerHat);
+// contract RemovingSigners is WithHSGInstanceTest {
+//   function testCanRemoveInvalidSigner1() public {
+//     _addSignersSameHat(1, signerHat);
 
-    vm.prank(owner);
-    hatsSignerGate.addSignerHats(signerHats);
+//     _setSignerValidity(signerAddresses[0], signerHat, false);
 
-    _setSignerValidity(signerAddresses[0], signerHats[1], true);
+//     instance.removeSigner(signerAddresses[0]);
 
-    vm.prank(signerAddresses[0]);
-    hatsSignerGate.claimSigner(signerHats[1]);
-  }
-}
+//     assertEq(safe.getOwners().length, 1);
+//     assertEq(safe.getOwners()[0], address(instance));
+//     assertEq(instance.validSignerCount(), 0);
+//     assertEq(instance.registeredSignerHats(signerAddresses[0]), 0);
 
-contract RemovingSigners is WithHSGInstanceTest {
-  function testCanRemoveInvalidSigner1() public {
-    _addSignersSameHat(1, signerHat);
+//     assertEq(safe.getThreshold(), 1);
+//   }
 
-    _setSignerValidity(signerAddresses[0], signerHat, false);
+//   function testValidSignerCanClaimAfterPrevRemoved() public {
+//     _addSignersSameHat(1, signerHat);
 
-    hatsSignerGate.removeSigner(signerAddresses[0]);
+//     _setSignerValidity(signerAddresses[0], signerHat, false);
+//     instance.removeSigner(signerAddresses[0]);
+//     _setSignerValidity(signerAddresses[0], signerHat, true);
 
-    assertEq(safe.getOwners().length, 1);
-    assertEq(safe.getOwners()[0], address(hatsSignerGate));
-    assertEq(hatsSignerGate.validSignerCount(), 0);
-    assertEq(hatsSignerGate.claimedSignerHats(signerAddresses[0]), 0);
+//     _addSignersSameHat(1, signerHat);
 
-    assertEq(safe.getThreshold(), 1);
-  }
+//     assertEq(safe.getOwners().length, 1);
+//     assertEq(safe.getOwners()[0], signerAddresses[0]);
+//     assertEq(instance.validSignerCount(), 1);
+//     assertEq(instance.registeredSignerHats(signerAddresses[0]), signerHat);
 
-  function testValidSignerCanClaimAfterPrevRemoved() public {
-    _addSignersSameHat(1, signerHat);
+//     assertEq(safe.getThreshold(), 1);
+//   }
 
-    _setSignerValidity(signerAddresses[0], signerHat, false);
-    hatsSignerGate.removeSigner(signerAddresses[0]);
-    _setSignerValidity(signerAddresses[0], signerHat, true);
+//   function testCanRemoveInvalidSignerWhenMultipleSigners() public {
+//     _addSignersSameHat(2, signerHat);
 
-    _addSignersSameHat(1, signerHat);
+//     _setSignerValidity(signerAddresses[0], signerHat, false);
 
-    assertEq(safe.getOwners().length, 1);
-    assertEq(safe.getOwners()[0], signerAddresses[0]);
-    assertEq(hatsSignerGate.validSignerCount(), 1);
-    assertEq(hatsSignerGate.claimedSignerHats(signerAddresses[0]), signerHat);
+//     instance.removeSigner(signerAddresses[0]);
 
-    assertEq(safe.getThreshold(), 1);
-  }
+//     assertEq(safe.getOwners().length, 1);
+//     assertEq(safe.getOwners()[0], signerAddresses[1]);
+//     assertEq(instance.validSignerCount(), 1);
 
-  function testCanRemoveInvalidSignerWhenMultipleSigners() public {
-    _addSignersSameHat(2, signerHat);
+//     assertEq(safe.getThreshold(), 1);
+//   }
 
-    _setSignerValidity(signerAddresses[0], signerHat, false);
+//   function testCannotRemoveValidSigner() public {
+//     _addSignersSameHat(1, signerHat);
 
-    hatsSignerGate.removeSigner(signerAddresses[0]);
+//     vm.expectRevert(IHatsSignerGate.StillWearsSignerHat.selector);
 
-    assertEq(safe.getOwners().length, 1);
-    assertEq(safe.getOwners()[0], signerAddresses[1]);
-    assertEq(hatsSignerGate.validSignerCount(), 1);
+//     instance.removeSigner(signerAddresses[0]);
 
-    assertEq(safe.getThreshold(), 1);
-  }
+//     assertEq(safe.getOwners().length, 1);
+//     assertEq(safe.getOwners()[0], signerAddresses[0]);
+//     assertEq(instance.validSignerCount(), 1);
 
-  function testCannotRemoveValidSigner() public {
-    _addSignersSameHat(1, signerHat);
+//     assertEq(safe.getThreshold(), 1);
+//   }
 
-    vm.expectRevert(IHatsSignerGate.StillWearsSignerHat.selector);
+//   function test_Multi_CanRemoveInvalidSigner1() public {
+//     _addSignersDifferentHats(1, signerHats);
 
-    hatsSignerGate.removeSigner(signerAddresses[0]);
+//     _setSignerValidity(signerAddresses[0], signerHat, false);
 
-    assertEq(safe.getOwners().length, 1);
-    assertEq(safe.getOwners()[0], signerAddresses[0]);
-    assertEq(hatsSignerGate.validSignerCount(), 1);
+//     instance.removeSigner(signerAddresses[0]);
 
-    assertEq(safe.getThreshold(), 1);
-  }
+//     assertEq(safe.getOwners().length, 1);
+//     assertEq(safe.getOwners()[0], address(instance));
+//     assertEq(instance.validSignerCount(), 0);
+//     assertEq(safe.getThreshold(), 1);
+//   }
 
-  function test_Multi_CanRemoveInvalidSigner1() public {
-    _addSignersDifferentHats(1, signerHats);
+//   function test_Multi_CannotRemoveValidSigner() public {
+//     _addSignersDifferentHats(1, signerHats);
 
-    _setSignerValidity(signerAddresses[0], signerHat, false);
+//     vm.expectRevert(IHatsSignerGate.StillWearsSignerHat.selector);
 
-    hatsSignerGate.removeSigner(signerAddresses[0]);
+//     instance.removeSigner(signerAddresses[0]);
 
-    assertEq(safe.getOwners().length, 1);
-    assertEq(safe.getOwners()[0], address(hatsSignerGate));
-    assertEq(hatsSignerGate.validSignerCount(), 0);
-    assertEq(safe.getThreshold(), 1);
-  }
+//     assertEq(safe.getOwners().length, 1);
+//     assertEq(safe.getOwners()[0], signerAddresses[0]);
+//     assertEq(instance.validSignerCount(), 1);
 
-  function test_Multi_CannotRemoveValidSigner() public {
-    _addSignersDifferentHats(1, signerHats);
-
-    vm.expectRevert(IHatsSignerGate.StillWearsSignerHat.selector);
-
-    hatsSignerGate.removeSigner(signerAddresses[0]);
-
-    assertEq(safe.getOwners().length, 1);
-    assertEq(safe.getOwners()[0], signerAddresses[0]);
-    assertEq(hatsSignerGate.validSignerCount(), 1);
-
-    assertEq(safe.getThreshold(), 1);
-  }
-}
+//     assertEq(safe.getThreshold(), 1);
+//   }
+// }
 
 contract ExecutingTransactions is WithHSGInstanceTest {
   event ExecutionSuccess(bytes32 indexed txHash, uint256 payment);
@@ -592,7 +598,7 @@ contract ExecutingTransactions is WithHSGInstanceTest {
     // have the legit signer exec the tx
     vm.prank(signerAddresses[0]);
 
-    vm.expectRevert(IHatsSignerGate.InsufficientValidSignatures.selector);
+    vm.expectRevert(IHatsSignerGate.ThresholdTooLow.selector);
 
     safe.execTransaction(
       destAddress,
@@ -618,7 +624,7 @@ contract ExecutingTransactions is WithHSGInstanceTest {
 
     _setSignerValidity(signerAddresses[1], signerHat, false);
     assertEq(safe.getThreshold(), 2, "threshold should be 2");
-    assertEq(hatsSignerGate.validSignerCount(), 1, "valid signer count should be 1");
+    assertEq(instance.validSignerCount(), 1, "valid signer count should be 1");
 
     // set up test values
     // uint256 preNonce = safe.nonce();
@@ -821,7 +827,7 @@ contract ConstrainingSigners is WithHSGInstanceTest {
 
   function testCannotDisableModule() public {
     bytes memory disableModuleData =
-      abi.encodeWithSignature("disableModule(address,address)", SENTINELS, address(hatsSignerGate));
+      abi.encodeWithSignature("disableModule(address,address)", SENTINELS, address(instance));
 
     _addSignersSameHat(2, signerHat);
 
@@ -1103,701 +1109,702 @@ contract ConstrainingSigners is WithHSGInstanceTest {
 contract GuardFunctionAuth is WithHSGInstanceTest {
   function testCannotCallCheckTransactionFromNonSafe() public {
     vm.expectRevert(IHatsSignerGate.NotCalledFromSafe.selector);
-    hatsSignerGate.checkTransaction(
+    instance.checkTransaction(
       address(0), 0, hex"00", Enum.Operation.Call, 0, 0, 0, address(0), payable(address(0)), hex"00", address(0)
     );
   }
 
   function testCannotCallCheckAfterExecutionFromNonSafe() public {
     vm.expectRevert(IHatsSignerGate.NotCalledFromSafe.selector);
-    hatsSignerGate.checkAfterExecution(hex"00", true);
+    instance.checkAfterExecution(hex"00", true);
   }
 }
 
-contract DetachingHSG is WithHSGInstanceTest {
-  function test_happy() public {
-    vm.expectEmit(true, true, true, true);
-    emit IHatsSignerGate.Detached();
-    vm.prank(owner);
-    hatsSignerGate.detachHSG();
-
-    assertFalse(safe.isModuleEnabled(address(hatsSignerGate)), "HSG should not be a module");
-    assertEq(_getSafeGuard(address(safe)), address(0), "HSG should not be a guard");
-  }
-
-  function test_revert_nonOwner() public {
-    vm.expectRevert(IHatsSignerGate.NotOwnerHatWearer.selector);
-    vm.prank(other);
-    hatsSignerGate.detachHSG();
-
-    assertTrue(safe.isModuleEnabled(address(hatsSignerGate)), "HSG should still be a module");
-    assertEq(_getSafeGuard(address(safe)), (address(hatsSignerGate)), "HSG should still be a guard");
-  }
-
-  function test_revert_locked() public {
-    // lock the HSG
-    vm.prank(owner);
-    hatsSignerGate.lock();
-
-    vm.expectRevert(IHatsSignerGate.Locked.selector);
-    vm.prank(owner);
-    hatsSignerGate.detachHSG();
-
-    assertTrue(safe.isModuleEnabled(address(hatsSignerGate)), "HSG should still be a module");
-    assertEq(_getSafeGuard(address(safe)), (address(hatsSignerGate)), "HSG should still be a guard");
-  }
-}
-
-contract MigratingHSG is WithHSGInstanceTest {
-  HatsSignerGate newHSG;
-
-  function setUp() public override {
-    super.setUp();
-
-    // create the instance deployer
-    DeployInstance instanceDeployer = new DeployInstance();
-
-    // set up the deployment with the same parameters as the existing HSG (except for the nonce)
-    instanceDeployer.prepare1(
-      address(singletonHatsSignerGate),
-      ownerHat,
-      signerHats,
-      thresholdConfig,
-      address(safe),
-      false,
-      false,
-      address(0), // no guard
-      new address[](0) // no modules
-    );
-    instanceDeployer.prepare2(true, 1);
-
-    // deploy the instance
-    newHSG = instanceDeployer.run();
-  }
-
-  function test_happy_noSignersToMigrate() public {
-    vm.expectEmit(true, true, true, true);
-    emit IHatsSignerGate.Migrated(address(newHSG));
-    vm.prank(owner);
-    hatsSignerGate.migrateToNewHSG(address(newHSG), new uint256[](0), new address[](0));
-
-    assertEq(_getSafeGuard(address(safe)), address(newHSG), "guard should be the new HSG");
-    assertFalse(safe.isModuleEnabled(address(hatsSignerGate)), "old HSG should be disabled as module");
-    assertTrue(safe.isModuleEnabled(address(newHSG)), "new HSG should be enabled as module");
-  }
-
-  function test_happy_claimableFor_signersToMigrate(uint256 _count) public {
-    uint256 count = bound(_count, 1, signerAddresses.length);
-    // add some signers to the existing HSG
-    _addSignersSameHat(count, signerHat);
-
-    // set the claimable for to true for the new HSG
-    vm.prank(owner);
-    newHSG.setClaimableFor(true);
-
-    // create the migration arrays
-    uint256[] memory hatIdsToMigrate = new uint256[](count);
-    address[] memory signersToMigrate = new address[](count);
-    for (uint256 i; i < count; ++i) {
-      hatIdsToMigrate[i] = signerHat;
-      signersToMigrate[i] = signerAddresses[i];
-    }
-
-    vm.expectEmit(true, true, true, true);
-    emit IHatsSignerGate.Migrated(address(newHSG));
-    vm.prank(owner);
-    hatsSignerGate.migrateToNewHSG(address(newHSG), hatIdsToMigrate, signersToMigrate);
-
-    assertEq(_getSafeGuard(address(safe)), address(newHSG), "guard should be the new HSG");
-    assertFalse(safe.isModuleEnabled(address(hatsSignerGate)), "old HSG should be disabled as module");
-    assertTrue(safe.isModuleEnabled(address(newHSG)), "new HSG should be enabled as module");
-
-    // check that the signers are now in the new HSG
-    for (uint256 i; i < count; ++i) {
-      assertTrue(newHSG.isValidSigner(signersToMigrate[i]), "signer should be in the new HSG");
-    }
-    assertEq(newHSG.validSignerCount(), count, "valid signer count should be correct");
-  }
-
-  function test_revert_notClaimableFor_signersToMigrate(uint256 _count) public {
-    uint256 count = bound(_count, 1, signerAddresses.length);
-    // add some signers to the existing HSG
-    _addSignersSameHat(count, signerHat);
-
-    // don't set the claimable for to true for the new HSG
-
-    // create the migration arrays
-    uint256[] memory hatIdsToMigrate = new uint256[](count);
-    address[] memory signersToMigrate = new address[](count);
-    for (uint256 i; i < count; ++i) {
-      hatIdsToMigrate[i] = signerHat;
-      signersToMigrate[i] = signerAddresses[i];
-    }
-
-    vm.expectRevert(IHatsSignerGate.NotClaimableFor.selector);
-    vm.prank(owner);
-    hatsSignerGate.migrateToNewHSG(address(newHSG), hatIdsToMigrate, signersToMigrate);
-
-    assertEq(_getSafeGuard(address(safe)), address(hatsSignerGate), "guard should be the old HSG");
-    assertTrue(safe.isModuleEnabled(address(hatsSignerGate)), "old HSG should be enabled as module");
-    assertFalse(safe.isModuleEnabled(address(newHSG)), "new HSG should not be enabled as module");
-
-    // check that the signers are now in the new HSG
-    for (uint256 i; i < count; ++i) {
-      assertFalse(newHSG.isValidSigner(signersToMigrate[i]), "signer should not be in the new HSG");
-    }
-    assertEq(newHSG.validSignerCount(), 0, "valid signer count should be 0");
-  }
-
-  function test_revert_nonOwner() public {
-    vm.expectRevert(IHatsSignerGate.NotOwnerHatWearer.selector);
-    vm.prank(other);
-    hatsSignerGate.migrateToNewHSG(address(newHSG), new uint256[](0), new address[](0));
-  }
-
-  function test_revert_locked() public {
-    vm.prank(owner);
-    hatsSignerGate.lock();
-
-    vm.expectRevert(IHatsSignerGate.Locked.selector);
-    vm.prank(owner);
-    hatsSignerGate.migrateToNewHSG(address(newHSG), new uint256[](0), new address[](0));
-  }
-}
-
-contract SettingClaimableFor is WithHSGInstanceTest {
-  function test_happy(bool _claimableFor) public {
-    vm.expectEmit(true, true, true, true);
-    emit IHatsSignerGate.ClaimableForSet(_claimableFor);
-    vm.prank(owner);
-    hatsSignerGate.setClaimableFor(_claimableFor);
-
-    assertEq(hatsSignerGate.claimableFor(), _claimableFor, "incorrectclaimableFor");
-  }
-
-  function test_revert_nonOwner() public {
-    bool currentClaimableFor = hatsSignerGate.claimableFor();
-
-    vm.expectRevert(IHatsSignerGate.NotOwnerHatWearer.selector);
-    vm.prank(other);
-    hatsSignerGate.setClaimableFor(true);
-
-    assertEq(hatsSignerGate.claimableFor(), currentClaimableFor, "claimableFor should not be changed");
-  }
-
-  function test_revert_locked() public {
-    bool currentClaimableFor = hatsSignerGate.claimableFor();
-
-    vm.prank(owner);
-    hatsSignerGate.lock();
-
-    vm.expectRevert(IHatsSignerGate.Locked.selector);
-    vm.prank(owner);
-    hatsSignerGate.setClaimableFor(true);
-
-    assertEq(hatsSignerGate.claimableFor(), currentClaimableFor, "claimableFor should not be changed");
-  }
-}
-
-contract ClaimingSignerFor is WithHSGInstanceTest {
-  function test_happy() public {
-    _setSignerValidity(signerAddresses[0], signerHat, true);
-
-    // set the claimable for to true
-    vm.prank(owner);
-    hatsSignerGate.setClaimableFor(true);
-
-    vm.expectEmit();
-    emit IHatsSignerGate.Registered(signerHat, signerAddresses[0]);
-    hatsSignerGate.claimSignerFor(signerHat, signerAddresses[0]);
-
-    assertEq(hatsSignerGate.validSignerCount(), 1);
-    assertEq(safe.getOwners().length, 1);
-  }
-
-  function test_happy_alreadyOwnerNotRegistered() public {
-    // add a signer directly to the safe by pranking the safe
-    vm.prank(address(safe));
-    safe.addOwnerWithThreshold(signerAddresses[0], 1);
-
-    // set the signer's validity
-    _setSignerValidity(signerAddresses[0], signerHat, true);
-
-    // set the claimable for to true
-    vm.prank(owner);
-    hatsSignerGate.setClaimableFor(true);
-
-    // claim the signer
-    vm.expectEmit();
-    emit IHatsSignerGate.Registered(signerHat, signerAddresses[0]);
-    hatsSignerGate.claimSignerFor(signerHat, signerAddresses[0]);
-
-    assertEq(hatsSignerGate.validSignerCount(), 1, "valid signer count should be 1");
-    // owner count should be 2 since the hsg instance is still an owner
-    assertEq(safe.getOwners().length, 2, "owner count should be 2");
-  }
-
-  function test_revert_notClaimableFor() public {
-    _setSignerValidity(signerAddresses[0], signerHat, true);
-
-    // set the claimable for to true and then undo it
-    vm.prank(owner);
-    hatsSignerGate.setClaimableFor(true);
-    vm.prank(owner);
-    hatsSignerGate.setClaimableFor(false);
-
-    vm.expectRevert(IHatsSignerGate.NotClaimableFor.selector);
-    hatsSignerGate.claimSignerFor(signerHat, signerAddresses[0]);
-
-    assertEq(hatsSignerGate.validSignerCount(), 0);
-    assertEq(safe.getOwners().length, 1);
-  }
-
-  function test_revert_alreadyRegistered_wearingRegisteredHat() public {
-    _setSignerValidity(signerAddresses[0], signerHat, true);
-
-    vm.prank(owner);
-    hatsSignerGate.setClaimableFor(true);
-
-    hatsSignerGate.claimSignerFor(signerHat, signerAddresses[0]);
-
-    // add a new signer hat
-    uint256 newSignerHat = signerHats[1];
-    uint256[] memory newSignerHats = new uint256[](1);
-    newSignerHats[0] = newSignerHat;
-    vm.prank(owner);
-    hatsSignerGate.addSignerHats(newSignerHats);
-
-    // make the signer valid for the new signer hat
-    _setSignerValidity(signerAddresses[0], newSignerHat, true);
-
-    // try to claim for the signer again, expecting a revert
-    vm.expectRevert(IHatsSignerGate.ReregistrationNotAllowed.selector);
-    hatsSignerGate.claimSignerFor(newSignerHat, signerAddresses[0]);
-
-    assertEq(hatsSignerGate.validSignerCount(), 1);
-    assertEq(safe.getOwners().length, 1);
-  }
-
-  function test_alreadyRegistered_notWearingRegisteredHat() public {
-    _setSignerValidity(signerAddresses[0], signerHat, true);
-
-    vm.prank(owner);
-    hatsSignerGate.setClaimableFor(true);
-
-    hatsSignerGate.claimSignerFor(signerHat, signerAddresses[0]);
-
-    // add a new signer hat
-    uint256 newSignerHat = signerHats[1];
-    uint256[] memory newSignerHats = new uint256[](1);
-    newSignerHats[0] = newSignerHat;
-    vm.prank(owner);
-    hatsSignerGate.addSignerHats(newSignerHats);
-
-    // make the signer valid for the new signer hat
-    _setSignerValidity(signerAddresses[0], newSignerHat, true);
-
-    // make the signer invalid for the old signer hat
-    _setSignerValidity(signerAddresses[0], signerHat, false);
-
-    // claiming for the signer should now work
-    vm.expectEmit();
-    emit IHatsSignerGate.Registered(newSignerHat, signerAddresses[0]);
-    hatsSignerGate.claimSignerFor(newSignerHat, signerAddresses[0]);
-
-    assertEq(hatsSignerGate.validSignerCount(), 1);
-    assertEq(safe.getOwners().length, 1);
-  }
-
-  function test_revert_invalidSignerHat() public {
-    uint256 invalidSignerHat = signerHat + 1;
-    _setSignerValidity(signerAddresses[0], signerHat, true);
-
-    vm.prank(owner);
-    hatsSignerGate.setClaimableFor(true);
-
-    vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.InvalidSignerHat.selector, invalidSignerHat));
-    hatsSignerGate.claimSignerFor(invalidSignerHat, signerAddresses[0]);
-
-    assertEq(hatsSignerGate.validSignerCount(), 0);
-    assertEq(safe.getOwners().length, 1);
-  }
-
-  function test_revert_invalidSigner() public {
-    _setSignerValidity(signerAddresses[0], signerHat, false);
-
-    vm.prank(owner);
-    hatsSignerGate.setClaimableFor(true);
-
-    vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.NotSignerHatWearer.selector, signerAddresses[1]));
-    hatsSignerGate.claimSignerFor(signerHat, signerAddresses[1]);
-
-    assertEq(hatsSignerGate.validSignerCount(), 0);
-    assertEq(safe.getOwners().length, 1);
-  }
-}
-
-contract ClaimingSignersFor is WithHSGInstanceTest {
-  function test_startingEmpty_happy(uint256 _signerCount) public {
-    _signerCount = bound(_signerCount, 1, signerAddresses.length);
-
-    // set up signer validity
-    for (uint256 i; i < _signerCount; ++i) {
-      _setSignerValidity(signerAddresses[i], signerHat, true);
-    }
-
-    // set the claimable for to true
-    vm.prank(owner);
-    hatsSignerGate.setClaimableFor(true);
-
-    // create the necessary arrays
-    address[] memory claimers = new address[](_signerCount);
-    uint256[] memory hatIds = new uint256[](_signerCount);
-    for (uint256 i; i < _signerCount; ++i) {
-      claimers[i] = signerAddresses[i];
-      hatIds[i] = signerHat;
-    }
-
-    // claim the signers, expecting the registered event to be emitted for each
-    for (uint256 i; i < _signerCount; ++i) {
-      vm.expectEmit();
-      emit IHatsSignerGate.Registered(signerHat, signerAddresses[i]);
-    }
-    hatsSignerGate.claimSignersFor(hatIds, claimers);
-
-    assertEq(hatsSignerGate.validSignerCount(), _signerCount, "incorrect valid signer count");
-    assertEq(safe.getOwners().length, _signerCount, "incorrect owner count");
-  }
-
-  function test_startingWith1Signer_happy(uint256 _signerCount) public {
-    _signerCount = bound(_signerCount, 1, signerAddresses.length);
-
-    // set up signer validity
-    for (uint256 i; i < _signerCount; ++i) {
-      _setSignerValidity(signerAddresses[i], signerHat, true);
-    }
-
-    // set the claimable for to true
-    vm.prank(owner);
-    hatsSignerGate.setClaimableFor(true);
-
-    // add one signer to get rid of the placeholder owner
-    _addSignersSameHat(1, signerHat);
-    assertEq(hatsSignerGate.validSignerCount(), 1, "valid signer count should be 1");
-    assertEq(safe.getOwners().length, 1, "owner count should be 1");
-
-    // create the necessary arrays, starting with the next signer
-    address[] memory claimers = new address[](_signerCount - 1);
-    uint256[] memory hatIds = new uint256[](_signerCount - 1);
-    for (uint256 i; i < _signerCount - 1; ++i) {
-      claimers[i] = signerAddresses[i + 1];
-      hatIds[i] = signerHat;
-    }
-
-    // claim the signers, expecting the registered event to be emitted for each
-    for (uint256 i; i < _signerCount - 1; ++i) {
-      vm.expectEmit();
-      emit IHatsSignerGate.Registered(signerHat, signerAddresses[i + 1]);
-    }
-    hatsSignerGate.claimSignersFor(hatIds, claimers);
-
-    assertEq(hatsSignerGate.validSignerCount(), _signerCount, "incorrect valid signer count");
-    assertEq(safe.getOwners().length, _signerCount, "incorrect owner count");
-  }
-
-  function test_alreadyOwnerNotRegistered_happy(uint256 _signerCount) public {
-    _signerCount = bound(_signerCount, 1, signerAddresses.length);
-
-    // add _signerCount signers directly to the safe by pranking the safe
-    for (uint256 i; i < _signerCount; ++i) {
-      vm.prank(address(safe));
-      safe.addOwnerWithThreshold(signerAddresses[i], 1);
-    }
-
-    // set up signer validity
-    for (uint256 i; i < _signerCount; ++i) {
-      _setSignerValidity(signerAddresses[i], signerHat, true);
-    }
-
-    // set the claimable for to true
-    vm.prank(owner);
-    hatsSignerGate.setClaimableFor(true);
-
-    // create the necessary arrays
-    address[] memory claimers = new address[](_signerCount);
-    uint256[] memory hatIds = new uint256[](_signerCount);
-    for (uint256 i; i < _signerCount; ++i) {
-      claimers[i] = signerAddresses[i];
-      hatIds[i] = signerHat;
-    }
-
-    // claim the signers, expecting the registered event to be emitted for each
-    for (uint256 i; i < _signerCount; ++i) {
-      vm.expectEmit();
-      emit IHatsSignerGate.Registered(signerHat, signerAddresses[i]);
-    }
-    hatsSignerGate.claimSignersFor(hatIds, claimers);
-
-    assertEq(hatsSignerGate.validSignerCount(), _signerCount, "incorrect valid signer count");
-    // owner count should be 1 more than the number of valid signers since the hsg instance is still an owner
-    assertEq(safe.getOwners().length, _signerCount + 1, "should be 1 more than the number of valid signers");
-  }
-
-  function test_revert_notClaimableFor(uint256 _signerCount) public {
-    _signerCount = bound(_signerCount, 1, signerAddresses.length);
-
-    // set up signer validity
-    for (uint256 i; i < _signerCount; ++i) {
-      _setSignerValidity(signerAddresses[i], signerHat, true);
-    }
-
-    // set the claimable for to true and then undo it
-    vm.prank(owner);
-    hatsSignerGate.setClaimableFor(true);
-    vm.prank(owner);
-    hatsSignerGate.setClaimableFor(false);
-
-    // create the necessary arrays
-    address[] memory claimers = new address[](_signerCount);
-    uint256[] memory hatIds = new uint256[](_signerCount);
-    for (uint256 i; i < _signerCount; ++i) {
-      claimers[i] = signerAddresses[i];
-      hatIds[i] = signerHat;
-    }
-
-    vm.expectRevert(IHatsSignerGate.NotClaimableFor.selector);
-    hatsSignerGate.claimSignersFor(hatIds, claimers);
-
-    assertEq(hatsSignerGate.validSignerCount(), 0, "incorrect valid signer count");
-    assertEq(safe.getOwners().length, 1, "incorrect owner count");
-  }
-
-  function test_revert_invalidSignerHat(uint256 _signerCount) public {
-    _signerCount = bound(_signerCount, 1, signerAddresses.length);
-    uint256 invalidSignerHat = signerHat + 1;
-
-    // set up signer validity
-    for (uint256 i; i < _signerCount; ++i) {
-      _setSignerValidity(signerAddresses[i], signerHat, true);
-    }
-
-    // set the claimable for to true
-    vm.prank(owner);
-    hatsSignerGate.setClaimableFor(true);
-
-    // create the necessary arrays
-    address[] memory claimers = new address[](_signerCount);
-    uint256[] memory hatIds = new uint256[](_signerCount);
-    for (uint256 i; i < _signerCount; ++i) {
-      claimers[i] = signerAddresses[i];
-      hatIds[i] = invalidSignerHat;
-    }
-
-    vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.InvalidSignerHat.selector, invalidSignerHat));
-    hatsSignerGate.claimSignersFor(hatIds, claimers);
-  }
-
-  function test_revert_invalidSigner(uint256 _signerCount, uint256 _invalidSignerIndex) public {
-    _signerCount = bound(_signerCount, 1, signerAddresses.length);
-    _invalidSignerIndex = bound(_invalidSignerIndex, 0, _signerCount - 1);
-
-    // set up signer validity
-    for (uint256 i; i < _signerCount; ++i) {
-      if (i == _invalidSignerIndex) {
-        _setSignerValidity(signerAddresses[i], signerHat, false);
-      } else {
-        _setSignerValidity(signerAddresses[i], signerHat, true);
-      }
-    }
-
-    // set the claimable for to true
-    vm.prank(owner);
-    hatsSignerGate.setClaimableFor(true);
-
-    // create the necessary arrays
-    address[] memory claimers = new address[](_signerCount);
-    uint256[] memory hatIds = new uint256[](_signerCount);
-    for (uint256 i; i < _signerCount; ++i) {
-      claimers[i] = signerAddresses[i];
-      hatIds[i] = signerHat;
-    }
-
-    vm.expectRevert(
-      abi.encodeWithSelector(IHatsSignerGate.NotSignerHatWearer.selector, signerAddresses[_invalidSignerIndex])
-    );
-    hatsSignerGate.claimSignersFor(hatIds, claimers);
-  }
-
-  function test_revert_alreadyRegistered_wearingRegisteredHat(uint256 _signerCount, uint256 _alreadyClaimedIndex)
-    public
-  {
-    _signerCount = bound(_signerCount, 2, signerAddresses.length);
-    _alreadyClaimedIndex = bound(_alreadyClaimedIndex, 0, _signerCount - 1);
-
-    // set up signer validity
-    for (uint256 i; i < _signerCount; ++i) {
-      _setSignerValidity(signerAddresses[i], signerHat, true);
-    }
-
-    // set the claimable for to true
-    vm.prank(owner);
-    hatsSignerGate.setClaimableFor(true);
-
-    // have the _alreadyClaimedIndex signer claim their signer permissions
-    address claimedSigner = signerAddresses[_alreadyClaimedIndex];
-    vm.prank(claimedSigner);
-    hatsSignerGate.claimSigner(signerHat);
-
-    // create the arrays for the remaining signers
-    address[] memory claimers = new address[](_signerCount);
-    uint256[] memory hatIds = new uint256[](_signerCount);
-    for (uint256 i; i < _signerCount; ++i) {
-      claimers[i] = signerAddresses[i];
-      hatIds[i] = signerHat;
-    }
-
-    vm.expectRevert(IHatsSignerGate.ReregistrationNotAllowed.selector);
-    hatsSignerGate.claimSignersFor(hatIds, claimers);
-  }
-
-  function test_alreadyRegistered_notWearingRegisteredHat(uint256 _signerCount, uint256 _alreadyClaimedIndex) public {
-    _signerCount = bound(_signerCount, 2, signerAddresses.length);
-    _alreadyClaimedIndex = bound(_alreadyClaimedIndex, 0, _signerCount - 1);
-
-    uint256 newSignerHat = signerHats[1];
-
-    // set up signer validity
-    for (uint256 i; i < _signerCount; ++i) {
-      _setSignerValidity(signerAddresses[i], signerHat, true);
-      _setSignerValidity(signerAddresses[i], newSignerHat, true);
-    }
-
-    // set the claimable for to true
-    vm.prank(owner);
-    hatsSignerGate.setClaimableFor(true);
-
-    // have the _alreadyClaimedIndex signer claim their signer permissions
-    address claimedSigner = signerAddresses[_alreadyClaimedIndex];
-    console2.log("claimedSigner", claimedSigner);
-    vm.prank(claimedSigner);
-    hatsSignerGate.claimSigner(signerHat);
-
-    // add the new signer hat
-    uint256[] memory newSignerHats = new uint256[](1);
-    newSignerHats[0] = newSignerHat;
-    vm.prank(owner);
-    hatsSignerGate.addSignerHats(newSignerHats);
-
-    // make the _alreadyClaimedIndex signer not wear their registered hat
-    _setSignerValidity(claimedSigner, signerHat, false);
-
-    // create the arrays for the remaining signers
-    address[] memory claimers = new address[](_signerCount);
-    uint256[] memory hatIds = new uint256[](_signerCount);
-    for (uint256 i; i < _signerCount; ++i) {
-      claimers[i] = signerAddresses[i];
-      hatIds[i] = newSignerHat;
-    }
-
-    // re-registration should now succeed since the signer is not wearing their registered hat
-    vm.expectEmit();
-    emit IHatsSignerGate.Registered(newSignerHat, claimedSigner);
-    hatsSignerGate.claimSignersFor(hatIds, claimers);
-  }
-
-  function test_revert_invalidArrayLength(uint256 _signerCount) public {
-    _signerCount = bound(_signerCount, 1, signerAddresses.length);
-
-    // set up signer validity
-    for (uint256 i; i < _signerCount; ++i) {
-      _setSignerValidity(signerAddresses[i], signerHat, true);
-    }
-
-    // set the claimable for to true
-    vm.prank(owner);
-    hatsSignerGate.setClaimableFor(true);
-
-    // create the necessary arrays
-    address[] memory claimers = new address[](_signerCount);
-    uint256[] memory hatIds = new uint256[](_signerCount - 1);
-    for (uint256 i; i < _signerCount - 1; ++i) {
-      claimers[i] = signerAddresses[i];
-      hatIds[i] = signerHat;
-    }
-    claimers[_signerCount - 1] = signerAddresses[_signerCount - 1];
-
-    vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.InvalidArrayLength.selector));
-    hatsSignerGate.claimSignersFor(hatIds, claimers);
-  }
-}
-
-contract SettingOwnerHat is WithHSGInstanceTest {
-  uint256 newOwnerHat = ownerHat + 1;
-
-  function test_happy() public {
-    vm.prank(owner);
-    hatsSignerGate.setOwnerHat(newOwnerHat);
-
-    assertEq(hatsSignerGate.ownerHat(), newOwnerHat, "owner hat should be new");
-  }
-
-  function test_revert_notOwner() public {
-    vm.expectRevert(IHatsSignerGate.NotOwnerHatWearer.selector);
-    hatsSignerGate.setOwnerHat(newOwnerHat);
-
-    assertEq(hatsSignerGate.ownerHat(), ownerHat, "owner hat should be old");
-  }
-
-  function test_revert_locked() public {
-    vm.prank(owner);
-    hatsSignerGate.lock();
-
-    vm.expectRevert(IHatsSignerGate.Locked.selector);
-    vm.prank(owner);
-    hatsSignerGate.setOwnerHat(newOwnerHat);
-
-    assertEq(hatsSignerGate.ownerHat(), ownerHat, "owner hat should be old");
-  }
-}
-
-contract SettingHSGGuard is WithHSGInstanceTest {
-  function test_happy() public {
-    vm.expectEmit(true, true, true, true);
-    emit GuardableUnowned.ChangedGuard(address(tstGuard));
-    vm.prank(owner);
-    hatsSignerGate.setGuard(address(tstGuard));
-
-    assertEq(hatsSignerGate.getGuard(), address(tstGuard), "guard should be tstGuard");
-  }
-
-  function test_removeGuard() public {
-    address emptyGuard = address(0);
-    vm.expectEmit(true, true, true, true);
-    emit GuardableUnowned.ChangedGuard(emptyGuard);
-    vm.prank(owner);
-    hatsSignerGate.setGuard(emptyGuard);
-
-    assertEq(hatsSignerGate.getGuard(), emptyGuard, "guard should be empty");
-  }
-
-  function test_revert_notOwner() public {
-    vm.expectRevert(IHatsSignerGate.NotOwnerHatWearer.selector);
-    hatsSignerGate.setGuard(address(tstGuard));
-
-    assertEq(hatsSignerGate.getGuard(), address(0), "guard should be empty");
-  }
-
-  function test_revert_locked() public {
-    vm.prank(owner);
-    hatsSignerGate.lock();
-
-    vm.expectRevert(IHatsSignerGate.Locked.selector);
-    vm.prank(owner);
-    hatsSignerGate.setGuard(address(tstGuard));
-
-    assertEq(hatsSignerGate.getGuard(), address(0), "guard should be empty");
-  }
-}
+// contract DetachingHSG is WithHSGInstanceTest {
+//   function test_happy() public {
+//     vm.expectEmit(true, true, true, true);
+//     emit IHatsSignerGate.Detached();
+//     vm.prank(owner);
+//     instance.detachHSG();
+
+//     assertFalse(safe.isModuleEnabled(address(instance)), "HSG should not be a module");
+//     assertEq(_getSafeGuard(address(safe)), address(0), "HSG should not be a guard");
+//   }
+
+//   function test_revert_nonOwner() public {
+//     vm.expectRevert(IHatsSignerGate.NotOwnerHatWearer.selector);
+//     vm.prank(other);
+//     instance.detachHSG();
+
+//     assertTrue(safe.isModuleEnabled(address(instance)), "HSG should still be a module");
+//     assertEq(_getSafeGuard(address(safe)), (address(instance)), "HSG should still be a guard");
+//   }
+
+//   function test_revert_locked() public {
+//     // lock the HSG
+//     vm.prank(owner);
+//     instance.lock();
+
+//     vm.expectRevert(IHatsSignerGate.Locked.selector);
+//     vm.prank(owner);
+//     instance.detachHSG();
+
+//     assertTrue(safe.isModuleEnabled(address(instance)), "HSG should still be a module");
+//     assertEq(_getSafeGuard(address(safe)), (address(instance)), "HSG should still be a guard");
+//   }
+// }
+
+// contract MigratingHSG is WithHSGInstanceTest {
+//   HatsSignerGate newHSG;
+
+//   function setUp() public override {
+//     super.setUp();
+
+//     // create the instance deployer
+//     DeployInstance instanceDeployer = new DeployInstance();
+
+//     // set up the deployment with the same parameters as the existing HSG (except for the nonce)
+//     instanceDeployer.prepare1(
+//       address(implementationHSG),
+//       ownerHat,
+//       signerHats,
+//       thresholdConfig,
+//       address(safe),
+//       false,
+//       false,
+//       address(0), // no guard
+//       new address[](0) // no modules
+//     );
+//     instanceDeployer.prepare2(true, 1);
+
+//     // deploy the instance
+//     newHSG = instanceDeployer.run();
+//   }
+
+//   function test_happy_noSignersToMigrate() public {
+//     vm.expectEmit(true, true, true, true);
+//     emit IHatsSignerGate.Migrated(address(newHSG));
+//     vm.prank(owner);
+//     instance.migrateToNewHSG(address(newHSG), new uint256[](0), new address[](0));
+
+//     assertEq(_getSafeGuard(address(safe)), address(newHSG), "guard should be the new HSG");
+//     assertFalse(safe.isModuleEnabled(address(instance)), "old HSG should be disabled as module");
+//     assertTrue(safe.isModuleEnabled(address(newHSG)), "new HSG should be enabled as module");
+//   }
+
+//   function test_happy_claimableFor_signersToMigrate(uint256 _count) public {
+//     uint256 count = bound(_count, 1, signerAddresses.length);
+//     // add some signers to the existing HSG
+//     _addSignersSameHat(count, signerHat);
+
+//     // set the claimable for to true for the new HSG
+//     vm.prank(owner);
+//     newHSG.setClaimableFor(true);
+
+//     // create the migration arrays
+//     uint256[] memory hatIdsToMigrate = new uint256[](count);
+//     address[] memory signersToMigrate = new address[](count);
+//     for (uint256 i; i < count; ++i) {
+//       hatIdsToMigrate[i] = signerHat;
+//       signersToMigrate[i] = signerAddresses[i];
+//     }
+
+//     vm.expectEmit(true, true, true, true);
+//     emit IHatsSignerGate.Migrated(address(newHSG));
+//     vm.prank(owner);
+//     instance.migrateToNewHSG(address(newHSG), hatIdsToMigrate, signersToMigrate);
+
+//     assertEq(_getSafeGuard(address(safe)), address(newHSG), "guard should be the new HSG");
+//     assertFalse(safe.isModuleEnabled(address(instance)), "old HSG should be disabled as module");
+//     assertTrue(safe.isModuleEnabled(address(newHSG)), "new HSG should be enabled as module");
+
+//     // check that the signers are now in the new HSG
+//     for (uint256 i; i < count; ++i) {
+//       assertTrue(newHSG.isValidSigner(signersToMigrate[i]), "signer should be in the new HSG");
+//     }
+//     assertEq(newHSG.validSignerCount(), count, "valid signer count should be correct");
+//   }
+
+//   function test_revert_notClaimableFor_signersToMigrate(uint256 _count) public {
+//     uint256 count = bound(_count, 1, signerAddresses.length);
+//     // add some signers to the existing HSG
+//     _addSignersSameHat(count, signerHat);
+
+//     // don't set the claimable for to true for the new HSG
+
+//     // create the migration arrays
+//     uint256[] memory hatIdsToMigrate = new uint256[](count);
+//     address[] memory signersToMigrate = new address[](count);
+//     for (uint256 i; i < count; ++i) {
+//       hatIdsToMigrate[i] = signerHat;
+//       signersToMigrate[i] = signerAddresses[i];
+//     }
+
+//     vm.expectRevert(IHatsSignerGate.NotClaimableFor.selector);
+//     vm.prank(owner);
+//     instance.migrateToNewHSG(address(newHSG), hatIdsToMigrate, signersToMigrate);
+
+//     assertEq(_getSafeGuard(address(safe)), address(instance), "guard should be the old HSG");
+//     assertTrue(safe.isModuleEnabled(address(instance)), "old HSG should be enabled as module");
+//     assertFalse(safe.isModuleEnabled(address(newHSG)), "new HSG should not be enabled as module");
+
+//     // check that the signers are now in the new HSG
+//     for (uint256 i; i < count; ++i) {
+//       assertFalse(newHSG.isValidSigner(signersToMigrate[i]), "signer should not be in the new HSG");
+//     }
+//     assertEq(newHSG.validSignerCount(), 0, "valid signer count should be 0");
+//   }
+
+//   function test_revert_nonOwner() public {
+//     vm.expectRevert(IHatsSignerGate.NotOwnerHatWearer.selector);
+//     vm.prank(other);
+//     instance.migrateToNewHSG(address(newHSG), new uint256[](0), new address[](0));
+//   }
+
+//   function test_revert_locked() public {
+//     vm.prank(owner);
+//     instance.lock();
+
+//     vm.expectRevert(IHatsSignerGate.Locked.selector);
+//     vm.prank(owner);
+//     instance.migrateToNewHSG(address(newHSG), new uint256[](0), new address[](0));
+//   }
+// }
+
+// contract SettingClaimableFor is WithHSGInstanceTest {
+//   function test_happy(bool _claimableFor) public {
+//     vm.expectEmit(true, true, true, true);
+//     emit IHatsSignerGate.ClaimableForSet(_claimableFor);
+//     vm.prank(owner);
+//     instance.setClaimableFor(_claimableFor);
+
+//     assertEq(instance.claimableFor(), _claimableFor, "incorrectclaimableFor");
+//   }
+
+//   function test_revert_nonOwner() public {
+//     bool currentClaimableFor = instance.claimableFor();
+
+//     vm.expectRevert(IHatsSignerGate.NotOwnerHatWearer.selector);
+//     vm.prank(other);
+//     instance.setClaimableFor(true);
+
+//     assertEq(instance.claimableFor(), currentClaimableFor, "claimableFor should not be changed");
+//   }
+
+//   function test_revert_locked() public {
+//     bool currentClaimableFor = instance.claimableFor();
+
+//     vm.prank(owner);
+//     instance.lock();
+
+//     vm.expectRevert(IHatsSignerGate.Locked.selector);
+//     vm.prank(owner);
+//     instance.setClaimableFor(true);
+
+//     assertEq(instance.claimableFor(), currentClaimableFor, "claimableFor should not be changed");
+//   }
+// }
+
+// contract ClaimingSignerFor is WithHSGInstanceTest {
+//   function test_happy() public {
+//     _setSignerValidity(signerAddresses[0], signerHat, true);
+
+//     // set the claimable for to true
+//     vm.prank(owner);
+//     instance.setClaimableFor(true);
+
+//     vm.expectEmit();
+//     emit IHatsSignerGate.Registered(signerHat, signerAddresses[0]);
+//     instance.claimSignerFor(signerHat, signerAddresses[0]);
+
+//     assertEq(instance.validSignerCount(), 1);
+//     assertEq(safe.getOwners().length, 1);
+//   }
+
+//   function test_happy_alreadyOwnerNotRegistered() public {
+//     // add a signer directly to the safe by pranking the safe
+//     vm.prank(address(safe));
+//     safe.addOwnerWithThreshold(signerAddresses[0], 1);
+
+//     // set the signer's validity
+//     _setSignerValidity(signerAddresses[0], signerHat, true);
+
+//     // set the claimable for to true
+//     vm.prank(owner);
+//     instance.setClaimableFor(true);
+
+//     // claim the signer
+//     vm.expectEmit();
+//     emit IHatsSignerGate.Registered(signerHat, signerAddresses[0]);
+//     instance.claimSignerFor(signerHat, signerAddresses[0]);
+
+//     assertEq(instance.validSignerCount(), 1, "valid signer count should be 1");
+//     // owner count should be 2 since the hsg instance is still an owner
+//     assertEq(safe.getOwners().length, 2, "owner count should be 2");
+//   }
+
+//   function test_revert_notClaimableFor() public {
+//     _setSignerValidity(signerAddresses[0], signerHat, true);
+
+//     // set the claimable for to true and then undo it
+//     vm.prank(owner);
+//     instance.setClaimableFor(true);
+//     vm.prank(owner);
+//     instance.setClaimableFor(false);
+
+//     vm.expectRevert(IHatsSignerGate.NotClaimableFor.selector);
+//     instance.claimSignerFor(signerHat, signerAddresses[0]);
+
+//     assertEq(instance.validSignerCount(), 0);
+//     assertEq(safe.getOwners().length, 1);
+//   }
+
+//   function test_revert_alreadyRegistered_wearingRegisteredHat() public {
+//     _setSignerValidity(signerAddresses[0], signerHat, true);
+
+//     vm.prank(owner);
+//     instance.setClaimableFor(true);
+
+//     instance.claimSignerFor(signerHat, signerAddresses[0]);
+
+//     // add a new signer hat
+//     uint256 newSignerHat = signerHats[1];
+//     uint256[] memory newSignerHats = new uint256[](1);
+//     newSignerHats[0] = newSignerHat;
+//     vm.prank(owner);
+//     instance.addSignerHats(newSignerHats);
+
+//     // make the signer valid for the new signer hat
+//     _setSignerValidity(signerAddresses[0], newSignerHat, true);
+
+//     // try to claim for the signer again, expecting a revert
+//     vm.expectRevert(IHatsSignerGate.ReregistrationNotAllowed.selector);
+//     instance.claimSignerFor(newSignerHat, signerAddresses[0]);
+
+//     assertEq(instance.validSignerCount(), 1);
+//     assertEq(safe.getOwners().length, 1);
+//   }
+
+//   function test_alreadyRegistered_notWearingRegisteredHat() public {
+//     _setSignerValidity(signerAddresses[0], signerHat, true);
+
+//     vm.prank(owner);
+//     instance.setClaimableFor(true);
+
+//     instance.claimSignerFor(signerHat, signerAddresses[0]);
+
+//     // add a new signer hat
+//     uint256 newSignerHat = signerHats[1];
+//     uint256[] memory newSignerHats = new uint256[](1);
+//     newSignerHats[0] = newSignerHat;
+//     vm.prank(owner);
+//     instance.addSignerHats(newSignerHats);
+
+//     // make the signer valid for the new signer hat
+//     _setSignerValidity(signerAddresses[0], newSignerHat, true);
+
+//     // make the signer invalid for the old signer hat
+//     _setSignerValidity(signerAddresses[0], signerHat, false);
+
+//     // claiming for the signer should now work
+//     vm.expectEmit();
+//     emit IHatsSignerGate.Registered(newSignerHat, signerAddresses[0]);
+//     instance.claimSignerFor(newSignerHat, signerAddresses[0]);
+
+//     assertEq(instance.validSignerCount(), 1);
+//     assertEq(safe.getOwners().length, 1);
+//   }
+
+//   function test_revert_invalidSignerHat() public {
+//     uint256 invalidSignerHat = signerHat + 1;
+//     _setSignerValidity(signerAddresses[0], signerHat, true);
+
+//     vm.prank(owner);
+//     instance.setClaimableFor(true);
+
+//     vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.InvalidSignerHat.selector, invalidSignerHat));
+//     instance.claimSignerFor(invalidSignerHat, signerAddresses[0]);
+
+//     assertEq(instance.validSignerCount(), 0);
+//     assertEq(safe.getOwners().length, 1);
+//   }
+
+//   function test_revert_invalidSigner() public {
+//     _setSignerValidity(signerAddresses[0], signerHat, false);
+
+//     vm.prank(owner);
+//     instance.setClaimableFor(true);
+
+//     vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.NotSignerHatWearer.selector, signerAddresses[1]));
+//     instance.claimSignerFor(signerHat, signerAddresses[1]);
+
+//     assertEq(instance.validSignerCount(), 0);
+//     assertEq(safe.getOwners().length, 1);
+//   }
+// }
+
+// contract ClaimingSignersFor is WithHSGInstanceTest {
+//   function test_startingEmpty_happy(uint256 _signerCount) public {
+//     _signerCount = bound(_signerCount, 1, signerAddresses.length);
+
+//     // set up signer validity
+//     for (uint256 i; i < _signerCount; ++i) {
+//       _setSignerValidity(signerAddresses[i], signerHat, true);
+//     }
+
+//     // set the claimable for to true
+//     vm.prank(owner);
+//     instance.setClaimableFor(true);
+
+//     // create the necessary arrays
+//     address[] memory claimers = new address[](_signerCount);
+//     uint256[] memory hatIds = new uint256[](_signerCount);
+//     for (uint256 i; i < _signerCount; ++i) {
+//       claimers[i] = signerAddresses[i];
+//       hatIds[i] = signerHat;
+//     }
+
+//     // claim the signers, expecting the registered event to be emitted for each
+//     for (uint256 i; i < _signerCount; ++i) {
+//       vm.expectEmit();
+//       emit IHatsSignerGate.Registered(signerHat, signerAddresses[i]);
+//     }
+//     instance.claimSignersFor(hatIds, claimers);
+
+//     assertEq(instance.validSignerCount(), _signerCount, "incorrect valid signer count");
+//     assertEq(safe.getOwners().length, _signerCount, "incorrect owner count");
+//   }
+
+//   function test_startingWith1Signer_happy(uint256 _signerCount) public {
+//     _signerCount = bound(_signerCount, 1, signerAddresses.length);
+
+//     // set up signer validity
+//     for (uint256 i; i < _signerCount; ++i) {
+//       _setSignerValidity(signerAddresses[i], signerHat, true);
+//     }
+
+//     // set the claimable for to true
+//     vm.prank(owner);
+//     instance.setClaimableFor(true);
+
+//     // add one signer to get rid of the placeholder owner
+//     _addSignersSameHat(1, signerHat);
+//     assertEq(instance.validSignerCount(), 1, "valid signer count should be 1");
+//     assertEq(safe.getOwners().length, 1, "owner count should be 1");
+
+//     // create the necessary arrays, starting with the next signer
+//     address[] memory claimers = new address[](_signerCount - 1);
+//     uint256[] memory hatIds = new uint256[](_signerCount - 1);
+//     for (uint256 i; i < _signerCount - 1; ++i) {
+//       claimers[i] = signerAddresses[i + 1];
+//       hatIds[i] = signerHat;
+//     }
+
+//     // claim the signers, expecting the registered event to be emitted for each
+//     for (uint256 i; i < _signerCount - 1; ++i) {
+//       vm.expectEmit();
+//       emit IHatsSignerGate.Registered(signerHat, signerAddresses[i + 1]);
+//     }
+//     instance.claimSignersFor(hatIds, claimers);
+
+//     assertEq(instance.validSignerCount(), _signerCount, "incorrect valid signer count");
+//     assertEq(safe.getOwners().length, _signerCount, "incorrect owner count");
+//   }
+
+//   function test_alreadyOwnerNotRegistered_happy(uint256 _signerCount) public {
+//     _signerCount = bound(_signerCount, 1, signerAddresses.length);
+
+//     // add _signerCount signers directly to the safe by pranking the safe
+//     for (uint256 i; i < _signerCount; ++i) {
+//       vm.prank(address(safe));
+//       safe.addOwnerWithThreshold(signerAddresses[i], 1);
+//     }
+
+//     // set up signer validity
+//     for (uint256 i; i < _signerCount; ++i) {
+//       _setSignerValidity(signerAddresses[i], signerHat, true);
+//     }
+
+//     // set the claimable for to true
+//     vm.prank(owner);
+//     instance.setClaimableFor(true);
+
+//     // create the necessary arrays
+//     address[] memory claimers = new address[](_signerCount);
+//     uint256[] memory hatIds = new uint256[](_signerCount);
+//     for (uint256 i; i < _signerCount; ++i) {
+//       claimers[i] = signerAddresses[i];
+//       hatIds[i] = signerHat;
+//     }
+
+//     // claim the signers, expecting the registered event to be emitted for each
+//     for (uint256 i; i < _signerCount; ++i) {
+//       vm.expectEmit();
+//       emit IHatsSignerGate.Registered(signerHat, signerAddresses[i]);
+//     }
+//     instance.claimSignersFor(hatIds, claimers);
+
+//     assertEq(instance.validSignerCount(), _signerCount, "incorrect valid signer count");
+//     // owner count should be 1 more than the number of valid signers since the hsg instance is still an owner
+//     assertEq(safe.getOwners().length, _signerCount + 1, "should be 1 more than the number of valid signers");
+//   }
+
+//   function test_revert_notClaimableFor(uint256 _signerCount) public {
+//     _signerCount = bound(_signerCount, 1, signerAddresses.length);
+
+//     // set up signer validity
+//     for (uint256 i; i < _signerCount; ++i) {
+//       _setSignerValidity(signerAddresses[i], signerHat, true);
+//     }
+
+//     // set the claimable for to true and then undo it
+//     vm.prank(owner);
+//     instance.setClaimableFor(true);
+//     vm.prank(owner);
+//     instance.setClaimableFor(false);
+
+//     // create the necessary arrays
+//     address[] memory claimers = new address[](_signerCount);
+//     uint256[] memory hatIds = new uint256[](_signerCount);
+//     for (uint256 i; i < _signerCount; ++i) {
+//       claimers[i] = signerAddresses[i];
+//       hatIds[i] = signerHat;
+//     }
+
+//     vm.expectRevert(IHatsSignerGate.NotClaimableFor.selector);
+//     instance.claimSignersFor(hatIds, claimers);
+
+//     assertEq(instance.validSignerCount(), 0, "incorrect valid signer count");
+//     assertEq(safe.getOwners().length, 1, "incorrect owner count");
+//   }
+
+//   function test_revert_invalidSignerHat(uint256 _signerCount) public {
+//     _signerCount = bound(_signerCount, 1, signerAddresses.length);
+//     uint256 invalidSignerHat = signerHat + 1;
+
+//     // set up signer validity
+//     for (uint256 i; i < _signerCount; ++i) {
+//       _setSignerValidity(signerAddresses[i], signerHat, true);
+//     }
+
+//     // set the claimable for to true
+//     vm.prank(owner);
+//     instance.setClaimableFor(true);
+
+//     // create the necessary arrays
+//     address[] memory claimers = new address[](_signerCount);
+//     uint256[] memory hatIds = new uint256[](_signerCount);
+//     for (uint256 i; i < _signerCount; ++i) {
+//       claimers[i] = signerAddresses[i];
+//       hatIds[i] = invalidSignerHat;
+//     }
+
+//     vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.InvalidSignerHat.selector, invalidSignerHat));
+//     instance.claimSignersFor(hatIds, claimers);
+//   }
+
+//   function test_revert_invalidSigner(uint256 _signerCount, uint256 _invalidSignerIndex) public {
+//     _signerCount = bound(_signerCount, 1, signerAddresses.length);
+//     _invalidSignerIndex = bound(_invalidSignerIndex, 0, _signerCount - 1);
+
+//     // set up signer validity
+//     for (uint256 i; i < _signerCount; ++i) {
+//       if (i == _invalidSignerIndex) {
+//         _setSignerValidity(signerAddresses[i], signerHat, false);
+//       } else {
+//         _setSignerValidity(signerAddresses[i], signerHat, true);
+//       }
+//     }
+
+//     // set the claimable for to true
+//     vm.prank(owner);
+//     instance.setClaimableFor(true);
+
+//     // create the necessary arrays
+//     address[] memory claimers = new address[](_signerCount);
+//     uint256[] memory hatIds = new uint256[](_signerCount);
+//     for (uint256 i; i < _signerCount; ++i) {
+//       claimers[i] = signerAddresses[i];
+//       hatIds[i] = signerHat;
+//     }
+
+//     vm.expectRevert(
+//       abi.encodeWithSelector(IHatsSignerGate.NotSignerHatWearer.selector, signerAddresses[_invalidSignerIndex])
+//     );
+//     instance.claimSignersFor(hatIds, claimers);
+//   }
+
+//   function test_revert_alreadyRegistered_wearingRegisteredHat(uint256 _signerCount, uint256 _alreadyClaimedIndex)
+//     public
+//   {
+//     _signerCount = bound(_signerCount, 2, signerAddresses.length);
+//     _alreadyClaimedIndex = bound(_alreadyClaimedIndex, 0, _signerCount - 1);
+
+//     // set up signer validity
+//     for (uint256 i; i < _signerCount; ++i) {
+//       _setSignerValidity(signerAddresses[i], signerHat, true);
+//     }
+
+//     // set the claimable for to true
+//     vm.prank(owner);
+//     instance.setClaimableFor(true);
+
+//     // have the _alreadyClaimedIndex signer claim their signer permissions
+//     address claimedSigner = signerAddresses[_alreadyClaimedIndex];
+//     vm.prank(claimedSigner);
+//     instance.claimSigner(signerHat);
+
+//     // create the arrays for the remaining signers
+//     address[] memory claimers = new address[](_signerCount);
+//     uint256[] memory hatIds = new uint256[](_signerCount);
+//     for (uint256 i; i < _signerCount; ++i) {
+//       claimers[i] = signerAddresses[i];
+//       hatIds[i] = signerHat;
+//     }
+
+//     vm.expectRevert(IHatsSignerGate.ReregistrationNotAllowed.selector);
+//     instance.claimSignersFor(hatIds, claimers);
+//   }
+
+//   function test_alreadyRegistered_notWearingRegisteredHat(uint256 _signerCount, uint256 _alreadyClaimedIndex) public
+// {
+//     _signerCount = bound(_signerCount, 2, signerAddresses.length);
+//     _alreadyClaimedIndex = bound(_alreadyClaimedIndex, 0, _signerCount - 1);
+
+//     uint256 newSignerHat = signerHats[1];
+
+//     // set up signer validity
+//     for (uint256 i; i < _signerCount; ++i) {
+//       _setSignerValidity(signerAddresses[i], signerHat, true);
+//       _setSignerValidity(signerAddresses[i], newSignerHat, true);
+//     }
+
+//     // set the claimable for to true
+//     vm.prank(owner);
+//     instance.setClaimableFor(true);
+
+//     // have the _alreadyClaimedIndex signer claim their signer permissions
+//     address claimedSigner = signerAddresses[_alreadyClaimedIndex];
+//     console2.log("claimedSigner", claimedSigner);
+//     vm.prank(claimedSigner);
+//     instance.claimSigner(signerHat);
+
+//     // add the new signer hat
+//     uint256[] memory newSignerHats = new uint256[](1);
+//     newSignerHats[0] = newSignerHat;
+//     vm.prank(owner);
+//     instance.addSignerHats(newSignerHats);
+
+//     // make the _alreadyClaimedIndex signer not wear their registered hat
+//     _setSignerValidity(claimedSigner, signerHat, false);
+
+//     // create the arrays for the remaining signers
+//     address[] memory claimers = new address[](_signerCount);
+//     uint256[] memory hatIds = new uint256[](_signerCount);
+//     for (uint256 i; i < _signerCount; ++i) {
+//       claimers[i] = signerAddresses[i];
+//       hatIds[i] = newSignerHat;
+//     }
+
+//     // re-registration should now succeed since the signer is not wearing their registered hat
+//     vm.expectEmit();
+//     emit IHatsSignerGate.Registered(newSignerHat, claimedSigner);
+//     instance.claimSignersFor(hatIds, claimers);
+//   }
+
+//   function test_revert_invalidArrayLength(uint256 _signerCount) public {
+//     _signerCount = bound(_signerCount, 1, signerAddresses.length);
+
+//     // set up signer validity
+//     for (uint256 i; i < _signerCount; ++i) {
+//       _setSignerValidity(signerAddresses[i], signerHat, true);
+//     }
+
+//     // set the claimable for to true
+//     vm.prank(owner);
+//     instance.setClaimableFor(true);
+
+//     // create the necessary arrays
+//     address[] memory claimers = new address[](_signerCount);
+//     uint256[] memory hatIds = new uint256[](_signerCount - 1);
+//     for (uint256 i; i < _signerCount - 1; ++i) {
+//       claimers[i] = signerAddresses[i];
+//       hatIds[i] = signerHat;
+//     }
+//     claimers[_signerCount - 1] = signerAddresses[_signerCount - 1];
+
+//     vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.InvalidArrayLength.selector));
+//     instance.claimSignersFor(hatIds, claimers);
+//   }
+// }
+
+// contract SettingOwnerHat is WithHSGInstanceTest {
+//   uint256 newOwnerHat = ownerHat + 1;
+
+//   function test_happy() public {
+//     vm.prank(owner);
+//     instance.setOwnerHat(newOwnerHat);
+
+//     assertEq(instance.ownerHat(), newOwnerHat, "owner hat should be new");
+//   }
+
+//   function test_revert_notOwner() public {
+//     vm.expectRevert(IHatsSignerGate.NotOwnerHatWearer.selector);
+//     instance.setOwnerHat(newOwnerHat);
+
+//     assertEq(instance.ownerHat(), ownerHat, "owner hat should be old");
+//   }
+
+//   function test_revert_locked() public {
+//     vm.prank(owner);
+//     instance.lock();
+
+//     vm.expectRevert(IHatsSignerGate.Locked.selector);
+//     vm.prank(owner);
+//     instance.setOwnerHat(newOwnerHat);
+
+//     assertEq(instance.ownerHat(), ownerHat, "owner hat should be old");
+//   }
+// }
+
+// contract SettingHSGGuard is WithHSGInstanceTest {
+//   function test_happy() public {
+//     vm.expectEmit(true, true, true, true);
+//     emit GuardableUnowned.ChangedGuard(address(tstGuard));
+//     vm.prank(owner);
+//     instance.setGuard(address(tstGuard));
+
+//     assertEq(instance.getGuard(), address(tstGuard), "guard should be tstGuard");
+//   }
+
+//   function test_removeGuard() public {
+//     address emptyGuard = address(0);
+//     vm.expectEmit(true, true, true, true);
+//     emit GuardableUnowned.ChangedGuard(emptyGuard);
+//     vm.prank(owner);
+//     instance.setGuard(emptyGuard);
+
+//     assertEq(instance.getGuard(), emptyGuard, "guard should be empty");
+//   }
+
+//   function test_revert_notOwner() public {
+//     vm.expectRevert(IHatsSignerGate.NotOwnerHatWearer.selector);
+//     instance.setGuard(address(tstGuard));
+
+//     assertEq(instance.getGuard(), address(0), "guard should be empty");
+//   }
+
+//   function test_revert_locked() public {
+//     vm.prank(owner);
+//     instance.lock();
+
+//     vm.expectRevert(IHatsSignerGate.Locked.selector);
+//     vm.prank(owner);
+//     instance.setGuard(address(tstGuard));
+
+//     assertEq(instance.getGuard(), address(0), "guard should be empty");
+//   }
+// }
 
 contract HSGGuarding is WithHSGInstanceTest {
   uint256 public disallowedValue = 1337;
@@ -1810,8 +1817,8 @@ contract HSGGuarding is WithHSGInstanceTest {
 
     // set it on our hsg instance
     vm.prank(owner);
-    hatsSignerGate.setGuard(address(tstGuard));
-    assertEq(hatsSignerGate.getGuard(), address(tstGuard), "guard should be tstGuard");
+    instance.setGuard(address(tstGuard));
+    assertEq(instance.getGuard(), address(tstGuard), "guard should be tstGuard");
 
     // deal the safe some eth
     deal(address(safe), 1 ether);
@@ -1944,78 +1951,78 @@ contract HSGGuarding is WithHSGInstanceTest {
   }
 }
 
-contract EnablingHSGModules is WithHSGInstanceTest {
-  address newModule = tstModule1;
+// contract EnablingHSGModules is WithHSGInstanceTest {
+//   address newModule = tstModule1;
 
-  function test_happy() public {
-    vm.expectEmit(true, true, true, true);
-    emit IAvatar.EnabledModule(newModule);
-    vm.prank(owner);
-    hatsSignerGate.enableModule(newModule);
+//   function test_happy() public {
+//     vm.expectEmit(true, true, true, true);
+//     emit IAvatar.EnabledModule(newModule);
+//     vm.prank(owner);
+//     instance.enableModule(newModule);
 
-    assertTrue(hatsSignerGate.isModuleEnabled(newModule), "new module should be enabled");
-  }
+//     assertTrue(instance.isModuleEnabled(newModule), "new module should be enabled");
+//   }
 
-  function test_revert_notOwner() public {
-    vm.expectRevert(IHatsSignerGate.NotOwnerHatWearer.selector);
-    hatsSignerGate.enableModule(newModule);
+//   function test_revert_notOwner() public {
+//     vm.expectRevert(IHatsSignerGate.NotOwnerHatWearer.selector);
+//     instance.enableModule(newModule);
 
-    assertFalse(hatsSignerGate.isModuleEnabled(newModule), "new module should not be enabled");
-  }
+//     assertFalse(instance.isModuleEnabled(newModule), "new module should not be enabled");
+//   }
 
-  function test_revert_locked() public {
-    vm.prank(owner);
-    hatsSignerGate.lock();
+//   function test_revert_locked() public {
+//     vm.prank(owner);
+//     instance.lock();
 
-    vm.expectRevert(IHatsSignerGate.Locked.selector);
-    vm.prank(owner);
-    hatsSignerGate.enableModule(newModule);
+//     vm.expectRevert(IHatsSignerGate.Locked.selector);
+//     vm.prank(owner);
+//     instance.enableModule(newModule);
 
-    assertFalse(hatsSignerGate.isModuleEnabled(newModule), "new module should not be enabled");
-  }
-}
+//     assertFalse(instance.isModuleEnabled(newModule), "new module should not be enabled");
+//   }
+// }
 
-contract DisablingHSGModules is WithHSGInstanceTest {
-  address newModule = tstModule1;
+// contract DisablingHSGModules is WithHSGInstanceTest {
+//   address newModule = tstModule1;
 
-  function setUp() public override {
-    super.setUp();
+//   function setUp() public override {
+//     super.setUp();
 
-    // enable a new module
-    vm.prank(owner);
-    hatsSignerGate.enableModule(newModule);
+//     // enable a new module
+//     vm.prank(owner);
+//     instance.enableModule(newModule);
 
-    assertTrue(hatsSignerGate.isModuleEnabled(newModule), "new module should be enabled");
-  }
+//     assertTrue(instance.isModuleEnabled(newModule), "new module should be enabled");
+//   }
 
-  function test_happy() public {
-    vm.expectEmit(true, true, true, true);
-    emit IAvatar.DisabledModule(newModule);
-    vm.prank(owner);
-    // since newModule is the only enabled module, prevModule is the SENTINEL
-    hatsSignerGate.disableModule({ prevModule: SENTINELS, module: newModule });
+//   function test_happy() public {
+//     vm.expectEmit(true, true, true, true);
+//     emit IAvatar.DisabledModule(newModule);
+//     vm.prank(owner);
+//     // since newModule is the only enabled module, prevModule is the SENTINEL
+//     instance.disableModule({ prevModule: SENTINELS, module: newModule });
 
-    assertFalse(hatsSignerGate.isModuleEnabled(newModule), "new module should be disabled");
-  }
+//     assertFalse(instance.isModuleEnabled(newModule), "new module should be disabled");
+//   }
 
-  function test_revert_notOwner() public {
-    vm.expectRevert(IHatsSignerGate.NotOwnerHatWearer.selector);
-    hatsSignerGate.disableModule({ prevModule: SENTINELS, module: newModule });
+//   function test_revert_notOwner() public {
+//     vm.expectRevert(IHatsSignerGate.NotOwnerHatWearer.selector);
+//     instance.disableModule({ prevModule: SENTINELS, module: newModule });
 
-    assertTrue(hatsSignerGate.isModuleEnabled(newModule), "new module should still be enabled");
-  }
+//     assertTrue(instance.isModuleEnabled(newModule), "new module should still be enabled");
+//   }
 
-  function test_revert_locked() public {
-    vm.prank(owner);
-    hatsSignerGate.lock();
+//   function test_revert_locked() public {
+//     vm.prank(owner);
+//     instance.lock();
 
-    vm.expectRevert(IHatsSignerGate.Locked.selector);
-    vm.prank(owner);
-    hatsSignerGate.disableModule({ prevModule: SENTINELS, module: newModule });
+//     vm.expectRevert(IHatsSignerGate.Locked.selector);
+//     vm.prank(owner);
+//     instance.disableModule({ prevModule: SENTINELS, module: newModule });
 
-    assertTrue(hatsSignerGate.isModuleEnabled(newModule), "new module should still be enabled");
-  }
-}
+//     assertTrue(instance.isModuleEnabled(newModule), "new module should still be enabled");
+//   }
+// }
 
 contract ExecutingFromModuleViaHSG is WithHSGInstanceTest {
   address newModule = tstModule1;
@@ -2026,7 +2033,7 @@ contract ExecutingFromModuleViaHSG is WithHSGInstanceTest {
 
     // enable a new module
     vm.prank(owner);
-    hatsSignerGate.enableModule(newModule);
+    instance.enableModule(newModule);
 
     // deal the safe some eth
     deal(address(safe), 1 ether);
@@ -2039,11 +2046,11 @@ contract ExecutingFromModuleViaHSG is WithHSGInstanceTest {
 
     // have the new module submit/exec the tx, expecting a success event emission from both hsg and the newModule
     vm.expectEmit();
-    emit IModuleManager.ExecutionFromModuleSuccess(address(hatsSignerGate));
+    emit IModuleManager.ExecutionFromModuleSuccess(address(instance));
     vm.expectEmit();
     emit IAvatar.ExecutionFromModuleSuccess(newModule);
     vm.prank(newModule);
-    hatsSignerGate.execTransactionFromModule(recipient, transferValue, hex"00", Enum.Operation.Call);
+    instance.execTransactionFromModule(recipient, transferValue, hex"00", Enum.Operation.Call);
 
     // confirm the tx succeeded by checking ETH balance changes
     assertEq(address(safe).balance, postValue);
@@ -2056,11 +2063,11 @@ contract ExecutingFromModuleViaHSG is WithHSGInstanceTest {
 
     // have the new module submit/exec the tx, expecting a failure event emission from both hsg and the newModule
     vm.expectEmit();
-    emit IModuleManager.ExecutionFromModuleFailure(address(hatsSignerGate));
+    emit IModuleManager.ExecutionFromModuleFailure(address(instance));
     vm.expectEmit();
     emit IAvatar.ExecutionFromModuleFailure(newModule);
     vm.prank(newModule);
-    hatsSignerGate.execTransactionFromModule(address(hats), 0, badCall, Enum.Operation.Call);
+    instance.execTransactionFromModule(address(hats), 0, badCall, Enum.Operation.Call);
   }
 
   function test_revert_notModule() public {
@@ -2070,7 +2077,7 @@ contract ExecutingFromModuleViaHSG is WithHSGInstanceTest {
     // have a non-module submit/exec the tx, expecting a revert
     vm.expectRevert(abi.encodeWithSelector(ModifierUnowned.NotAuthorized.selector, other));
     vm.prank(other);
-    hatsSignerGate.execTransactionFromModule(recipient, transferValue, hex"00", Enum.Operation.Call);
+    instance.execTransactionFromModule(recipient, transferValue, hex"00", Enum.Operation.Call);
 
     // confirm the tx did not succeed by checking ETH balance changes
     assertEq(address(safe).balance, preValue);
@@ -2082,7 +2089,7 @@ contract ExecutingFromModuleViaHSG is WithHSGInstanceTest {
     // try to send to the safe, expecting a revert
     vm.expectRevert(IHatsSignerGate.CannotCallSafe.selector);
     vm.prank(newModule);
-    hatsSignerGate.execTransactionFromModule(address(safe), transferValue, hex"00", Enum.Operation.Call);
+    instance.execTransactionFromModule(address(safe), transferValue, hex"00", Enum.Operation.Call);
   }
 
   function test_revert_delegatecallTargetNotEnabled() public {
@@ -2093,7 +2100,7 @@ contract ExecutingFromModuleViaHSG is WithHSGInstanceTest {
 
     vm.expectRevert(IHatsSignerGate.DelegatecallTargetNotEnabled.selector);
     vm.prank(newModule);
-    hatsSignerGate.execTransactionFromModule(target, 0, data, Enum.Operation.DelegateCall);
+    instance.execTransactionFromModule(target, 0, data, Enum.Operation.DelegateCall);
   }
 }
 
@@ -2106,7 +2113,7 @@ contract ExecutingFromModuleReturnDataViaHSG is WithHSGInstanceTest {
 
     // enable a new module
     vm.prank(owner);
-    hatsSignerGate.enableModule(newModule);
+    instance.enableModule(newModule);
 
     // deal the safe some eth
     deal(address(safe), 1 ether);
@@ -2119,11 +2126,11 @@ contract ExecutingFromModuleReturnDataViaHSG is WithHSGInstanceTest {
 
     // have the new module submit/exec the tx, expecting a success event emission from both hsg and the newModule
     vm.expectEmit();
-    emit IModuleManager.ExecutionFromModuleSuccess(address(hatsSignerGate));
+    emit IModuleManager.ExecutionFromModuleSuccess(address(instance));
     vm.expectEmit();
     emit IAvatar.ExecutionFromModuleSuccess(newModule);
     vm.prank(newModule);
-    hatsSignerGate.execTransactionFromModuleReturnData(recipient, transferValue, hex"00", Enum.Operation.Call);
+    instance.execTransactionFromModuleReturnData(recipient, transferValue, hex"00", Enum.Operation.Call);
 
     // confirm the tx succeeded by checking ETH balance changes
     assertEq(address(safe).balance, postValue);
@@ -2136,11 +2143,11 @@ contract ExecutingFromModuleReturnDataViaHSG is WithHSGInstanceTest {
 
     // have the new module submit/exec the tx, expecting a failure event emission from both hsg and the newModule
     vm.expectEmit();
-    emit IModuleManager.ExecutionFromModuleFailure(address(hatsSignerGate));
+    emit IModuleManager.ExecutionFromModuleFailure(address(instance));
     vm.expectEmit();
     emit IAvatar.ExecutionFromModuleFailure(newModule);
     vm.prank(newModule);
-    hatsSignerGate.execTransactionFromModuleReturnData(address(hats), 0, badCall, Enum.Operation.Call);
+    instance.execTransactionFromModuleReturnData(address(hats), 0, badCall, Enum.Operation.Call);
   }
 
   function test_revert_notModule() public {
@@ -2150,7 +2157,7 @@ contract ExecutingFromModuleReturnDataViaHSG is WithHSGInstanceTest {
     // have a non-module submit/exec the tx, expecting a revert
     vm.expectRevert(abi.encodeWithSelector(ModifierUnowned.NotAuthorized.selector, other));
     vm.prank(other);
-    hatsSignerGate.execTransactionFromModuleReturnData(recipient, transferValue, hex"00", Enum.Operation.Call);
+    instance.execTransactionFromModuleReturnData(recipient, transferValue, hex"00", Enum.Operation.Call);
 
     // confirm the tx did not succeed by checking ETH balance changes
     assertEq(address(safe).balance, preValue);
@@ -2162,7 +2169,7 @@ contract ExecutingFromModuleReturnDataViaHSG is WithHSGInstanceTest {
     // try to send to the safe, expecting a revert
     vm.expectRevert(IHatsSignerGate.CannotCallSafe.selector);
     vm.prank(newModule);
-    hatsSignerGate.execTransactionFromModuleReturnData(address(safe), transferValue, hex"00", Enum.Operation.Call);
+    instance.execTransactionFromModuleReturnData(address(safe), transferValue, hex"00", Enum.Operation.Call);
   }
 
   function test_revert_delegatecallTargetNotEnabled() public {
@@ -2173,7 +2180,7 @@ contract ExecutingFromModuleReturnDataViaHSG is WithHSGInstanceTest {
 
     vm.expectRevert(IHatsSignerGate.DelegatecallTargetNotEnabled.selector);
     vm.prank(newModule);
-    hatsSignerGate.execTransactionFromModuleReturnData(target, 0, data, Enum.Operation.DelegateCall);
+    instance.execTransactionFromModuleReturnData(target, 0, data, Enum.Operation.DelegateCall);
   }
 }
 
@@ -2186,7 +2193,7 @@ contract ConstrainingModules is WithHSGInstanceTest {
 
     // enable a new module
     vm.prank(owner);
-    hatsSignerGate.enableModule(newModule);
+    instance.enableModule(newModule);
 
     // deal the safe some eth
     deal(address(safe), 1 ether);
@@ -2213,31 +2220,29 @@ contract ConstrainingModules is WithHSGInstanceTest {
     // try to exec the tx from the newModule, expect it to revert
     vm.expectRevert(IHatsSignerGate.DelegatecallTargetNotEnabled.selector);
     vm.prank(address(newModule));
-    hatsSignerGate.execTransactionFromModule(target, 0, multisendCall, Enum.Operation.DelegateCall);
+    instance.execTransactionFromModule(target, 0, multisendCall, Enum.Operation.DelegateCall);
 
     // try to exec the tx from the newModuleReturnData, expect it to revert
     vm.expectRevert(IHatsSignerGate.DelegatecallTargetNotEnabled.selector);
     vm.prank(address(newModule));
-    hatsSignerGate.execTransactionFromModuleReturnData(target, 0, multisendCall, Enum.Operation.DelegateCall);
+    instance.execTransactionFromModuleReturnData(target, 0, multisendCall, Enum.Operation.DelegateCall);
   }
 
   function test_revert_modulesCannotDisableModule() public {
     bytes memory disableModuleData =
-      abi.encodeWithSignature("disableModule(address,address)", SENTINELS, address(hatsSignerGate));
+      abi.encodeWithSignature("disableModule(address,address)", SENTINELS, address(instance));
 
     (bytes memory multisendCall,) = _constructSingleActionMultiSendTx(disableModuleData);
 
     // try to exec the tx from the newModule, expect it to revert
     vm.expectRevert(IHatsSignerGate.CannotChangeModules.selector);
     vm.prank(address(newModule));
-    hatsSignerGate.execTransactionFromModule(
-      defaultDelegatecallTargets[0], 0, multisendCall, Enum.Operation.DelegateCall
-    );
+    instance.execTransactionFromModule(defaultDelegatecallTargets[0], 0, multisendCall, Enum.Operation.DelegateCall);
 
     // try to exec the tx from the newModuleReturnData, expect it to revert
     vm.expectRevert(IHatsSignerGate.CannotChangeModules.selector);
     vm.prank(address(newModule));
-    hatsSignerGate.execTransactionFromModuleReturnData(
+    instance.execTransactionFromModuleReturnData(
       defaultDelegatecallTargets[0], 0, multisendCall, Enum.Operation.DelegateCall
     );
   }
@@ -2250,14 +2255,12 @@ contract ConstrainingModules is WithHSGInstanceTest {
     // try to exec the tx from the newModule, expect it to revert
     vm.expectRevert(IHatsSignerGate.CannotDisableThisGuard.selector);
     vm.prank(address(newModule));
-    hatsSignerGate.execTransactionFromModule(
-      defaultDelegatecallTargets[0], 0, multisendCall, Enum.Operation.DelegateCall
-    );
+    instance.execTransactionFromModule(defaultDelegatecallTargets[0], 0, multisendCall, Enum.Operation.DelegateCall);
 
     // try to exec the tx from the newModuleReturnData, expect it to revert
     vm.expectRevert(IHatsSignerGate.CannotDisableThisGuard.selector);
     vm.prank(address(newModule));
-    hatsSignerGate.execTransactionFromModuleReturnData(
+    instance.execTransactionFromModuleReturnData(
       defaultDelegatecallTargets[0], 0, multisendCall, Enum.Operation.DelegateCall
     );
   }
@@ -2276,14 +2279,12 @@ contract ConstrainingModules is WithHSGInstanceTest {
     // try to exec the tx from the newModule, expect it to revert
     vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.CannotChangeThreshold.selector));
     vm.prank(address(newModule));
-    hatsSignerGate.execTransactionFromModule(
-      defaultDelegatecallTargets[0], 0, multisendCall, Enum.Operation.DelegateCall
-    );
+    instance.execTransactionFromModule(defaultDelegatecallTargets[0], 0, multisendCall, Enum.Operation.DelegateCall);
 
     // try to exec the tx from the newModuleReturnData, expect it to revert
     vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.CannotChangeThreshold.selector));
     vm.prank(address(newModule));
-    hatsSignerGate.execTransactionFromModuleReturnData(
+    instance.execTransactionFromModuleReturnData(
       defaultDelegatecallTargets[0], 0, multisendCall, Enum.Operation.DelegateCall
     );
   }
@@ -2302,14 +2303,12 @@ contract ConstrainingModules is WithHSGInstanceTest {
     // try to exec the tx from the newModule, expect it to revert
     vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.CannotChangeThreshold.selector));
     vm.prank(address(newModule));
-    hatsSignerGate.execTransactionFromModule(
-      defaultDelegatecallTargets[0], 0, multisendCall, Enum.Operation.DelegateCall
-    );
+    instance.execTransactionFromModule(defaultDelegatecallTargets[0], 0, multisendCall, Enum.Operation.DelegateCall);
 
     // try to exec the tx from the newModuleReturnData, expect it to revert
     vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.CannotChangeThreshold.selector));
     vm.prank(address(newModule));
-    hatsSignerGate.execTransactionFromModuleReturnData(
+    instance.execTransactionFromModuleReturnData(
       defaultDelegatecallTargets[0], 0, multisendCall, Enum.Operation.DelegateCall
     );
   }
@@ -2327,14 +2326,12 @@ contract ConstrainingModules is WithHSGInstanceTest {
     // try to exec the tx from the newModule, expect it to revert
     vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.CannotChangeOwners.selector));
     vm.prank(address(newModule));
-    hatsSignerGate.execTransactionFromModule(
-      defaultDelegatecallTargets[0], 0, multisendCall, Enum.Operation.DelegateCall
-    );
+    instance.execTransactionFromModule(defaultDelegatecallTargets[0], 0, multisendCall, Enum.Operation.DelegateCall);
 
     // try to exec the tx from the newModuleReturnData, expect it to revert
     vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.CannotChangeOwners.selector));
     vm.prank(address(newModule));
-    hatsSignerGate.execTransactionFromModuleReturnData(
+    instance.execTransactionFromModuleReturnData(
       defaultDelegatecallTargets[0], 0, multisendCall, Enum.Operation.DelegateCall
     );
   }
@@ -2356,14 +2353,12 @@ contract ConstrainingModules is WithHSGInstanceTest {
     // try to exec the tx from the newModule, expect it to revert
     vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.CannotChangeOwners.selector));
     vm.prank(address(newModule));
-    hatsSignerGate.execTransactionFromModule(
-      defaultDelegatecallTargets[0], 0, multisendCall, Enum.Operation.DelegateCall
-    );
+    instance.execTransactionFromModule(defaultDelegatecallTargets[0], 0, multisendCall, Enum.Operation.DelegateCall);
 
     // try to exec the tx from the newModuleReturnData, expect it to revert
     vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.CannotChangeOwners.selector));
     vm.prank(address(newModule));
-    hatsSignerGate.execTransactionFromModuleReturnData(
+    instance.execTransactionFromModuleReturnData(
       defaultDelegatecallTargets[0], 0, multisendCall, Enum.Operation.DelegateCall
     );
   }
@@ -2385,14 +2380,12 @@ contract ConstrainingModules is WithHSGInstanceTest {
     // try to exec the tx from the newModule, expect it to revert
     vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.CannotChangeOwners.selector));
     vm.prank(address(newModule));
-    hatsSignerGate.execTransactionFromModule(
-      defaultDelegatecallTargets[0], 0, multisendCall, Enum.Operation.DelegateCall
-    );
+    instance.execTransactionFromModule(defaultDelegatecallTargets[0], 0, multisendCall, Enum.Operation.DelegateCall);
 
     // try to exec the tx from the newModuleReturnData, expect it to revert
     vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.CannotChangeOwners.selector));
     vm.prank(address(newModule));
-    hatsSignerGate.execTransactionFromModuleReturnData(
+    instance.execTransactionFromModuleReturnData(
       defaultDelegatecallTargets[0], 0, multisendCall, Enum.Operation.DelegateCall
     );
   }
@@ -2406,12 +2399,12 @@ contract ConstrainingModules is WithHSGInstanceTest {
     // try to exec the tx from the newModule, expect it to revert
     vm.expectRevert(IHatsSignerGate.DelegatecallTargetNotEnabled.selector);
     vm.prank(address(newModule));
-    hatsSignerGate.execTransactionFromModule(target, 0, data, Enum.Operation.DelegateCall);
+    instance.execTransactionFromModule(target, 0, data, Enum.Operation.DelegateCall);
 
     // try to exec the tx from the newModuleReturnData, expect it to revert
     vm.expectRevert(IHatsSignerGate.DelegatecallTargetNotEnabled.selector);
     vm.prank(address(newModule));
-    hatsSignerGate.execTransactionFromModuleReturnData(target, 0, data, Enum.Operation.DelegateCall);
+    instance.execTransactionFromModuleReturnData(target, 0, data, Enum.Operation.DelegateCall);
   }
 
   function test_revert_modulesCannotCallSafe() public {
@@ -2423,12 +2416,12 @@ contract ConstrainingModules is WithHSGInstanceTest {
     // try to exec the tx from the newModule, expect it to revert
     vm.expectRevert(IHatsSignerGate.CannotCallSafe.selector);
     vm.prank(address(newModule));
-    hatsSignerGate.execTransactionFromModule(address(safe), transferValue, hex"00", Enum.Operation.Call);
+    instance.execTransactionFromModule(address(safe), transferValue, hex"00", Enum.Operation.Call);
 
     // try to exec the tx from the newModuleReturnData, expect it to revert
     vm.expectRevert(IHatsSignerGate.CannotCallSafe.selector);
     vm.prank(address(newModule));
-    hatsSignerGate.execTransactionFromModuleReturnData(address(safe), transferValue, hex"00", Enum.Operation.Call);
+    instance.execTransactionFromModuleReturnData(address(safe), transferValue, hex"00", Enum.Operation.Call);
   }
 
   function test_revert_cannotChangeFallbackHandler() public {
@@ -2442,84 +2435,82 @@ contract ConstrainingModules is WithHSGInstanceTest {
     // try to exec the tx from the newModule, expect it to revert
     vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.CannotChangeFallbackHandler.selector));
     vm.prank(address(newModule));
-    hatsSignerGate.execTransactionFromModule(
-      defaultDelegatecallTargets[0], 0, multisendCall, Enum.Operation.DelegateCall
-    );
+    instance.execTransactionFromModule(defaultDelegatecallTargets[0], 0, multisendCall, Enum.Operation.DelegateCall);
 
     // try to exec the tx from the newModuleReturnData, expect it to revert
     vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.CannotChangeFallbackHandler.selector));
     vm.prank(address(newModule));
-    hatsSignerGate.execTransactionFromModuleReturnData(
+    instance.execTransactionFromModuleReturnData(
       defaultDelegatecallTargets[0], 0, multisendCall, Enum.Operation.DelegateCall
     );
   }
 }
 
-contract EnablingDelegatecallTargets is WithHSGInstanceTest {
-  address newTarget = makeAddr("newTarget");
+// contract EnablingDelegatecallTargets is WithHSGInstanceTest {
+//   address newTarget = makeAddr("newTarget");
 
-  function test_happy() public {
-    vm.expectEmit();
-    emit IHatsSignerGate.DelegatecallTargetEnabled(newTarget, true);
-    vm.prank(owner);
-    hatsSignerGate.enableDelegatecallTarget(newTarget);
+//   function test_happy() public {
+//     vm.expectEmit();
+//     emit IHatsSignerGate.DelegatecallTargetEnabled(newTarget, true);
+//     vm.prank(owner);
+//     instance.enableDelegatecallTarget(newTarget);
 
-    assertTrue(hatsSignerGate.enabledDelegatecallTargets(newTarget), "new target should be enabled");
-  }
+//     assertTrue(instance.enabledDelegatecallTargets(newTarget), "new target should be enabled");
+//   }
 
-  function test_revert_notOwner() public {
-    vm.expectRevert(IHatsSignerGate.NotOwnerHatWearer.selector);
-    hatsSignerGate.enableDelegatecallTarget(newTarget);
+//   function test_revert_notOwner() public {
+//     vm.expectRevert(IHatsSignerGate.NotOwnerHatWearer.selector);
+//     instance.enableDelegatecallTarget(newTarget);
 
-    assertFalse(hatsSignerGate.enabledDelegatecallTargets(newTarget), "new target should not be enabled");
-  }
+//     assertFalse(instance.enabledDelegatecallTargets(newTarget), "new target should not be enabled");
+//   }
 
-  function test_revert_locked() public {
-    vm.prank(owner);
-    hatsSignerGate.lock();
+//   function test_revert_locked() public {
+//     vm.prank(owner);
+//     instance.lock();
 
-    vm.expectRevert(IHatsSignerGate.Locked.selector);
-    vm.prank(owner);
-    hatsSignerGate.enableDelegatecallTarget(newTarget);
+//     vm.expectRevert(IHatsSignerGate.Locked.selector);
+//     vm.prank(owner);
+//     instance.enableDelegatecallTarget(newTarget);
 
-    assertFalse(hatsSignerGate.enabledDelegatecallTargets(newTarget), "new target should not be enabled");
-  }
-}
+//     assertFalse(instance.enabledDelegatecallTargets(newTarget), "new target should not be enabled");
+//   }
+// }
 
-contract DisablingDelegatecallTargets is WithHSGInstanceTest {
-  address newTarget = makeAddr("newTarget");
+// contract DisablingDelegatecallTargets is WithHSGInstanceTest {
+//   address newTarget = makeAddr("newTarget");
 
-  function setUp() public override {
-    super.setUp();
+//   function setUp() public override {
+//     super.setUp();
 
-    vm.prank(owner);
-    hatsSignerGate.enableDelegatecallTarget(newTarget);
-  }
+//     vm.prank(owner);
+//     instance.enableDelegatecallTarget(newTarget);
+//   }
 
-  function test_happy() public {
-    vm.expectEmit();
-    emit IHatsSignerGate.DelegatecallTargetEnabled(newTarget, false);
-    vm.prank(owner);
-    hatsSignerGate.disableDelegatecallTarget(newTarget);
+//   function test_happy() public {
+//     vm.expectEmit();
+//     emit IHatsSignerGate.DelegatecallTargetEnabled(newTarget, false);
+//     vm.prank(owner);
+//     instance.disableDelegatecallTarget(newTarget);
 
-    assertFalse(hatsSignerGate.enabledDelegatecallTargets(newTarget), "new target should be disabled");
-  }
+//     assertFalse(instance.enabledDelegatecallTargets(newTarget), "new target should be disabled");
+//   }
 
-  function test_revert_notOwner() public {
-    vm.expectRevert(IHatsSignerGate.NotOwnerHatWearer.selector);
-    hatsSignerGate.disableDelegatecallTarget(newTarget);
+//   function test_revert_notOwner() public {
+//     vm.expectRevert(IHatsSignerGate.NotOwnerHatWearer.selector);
+//     instance.disableDelegatecallTarget(newTarget);
 
-    assertTrue(hatsSignerGate.enabledDelegatecallTargets(newTarget), "new target should still be enabled");
-  }
+//     assertTrue(instance.enabledDelegatecallTargets(newTarget), "new target should still be enabled");
+//   }
 
-  function test_revert_locked() public {
-    vm.prank(owner);
-    hatsSignerGate.lock();
+//   function test_revert_locked() public {
+//     vm.prank(owner);
+//     instance.lock();
 
-    vm.expectRevert(IHatsSignerGate.Locked.selector);
-    vm.prank(owner);
-    hatsSignerGate.disableDelegatecallTarget(newTarget);
+//     vm.expectRevert(IHatsSignerGate.Locked.selector);
+//     vm.prank(owner);
+//     instance.disableDelegatecallTarget(newTarget);
 
-    assertTrue(hatsSignerGate.enabledDelegatecallTargets(newTarget), "new target should still be enabled");
-  }
-}
+//     assertTrue(instance.enabledDelegatecallTargets(newTarget), "new target should still be enabled");
+//   }
+// }

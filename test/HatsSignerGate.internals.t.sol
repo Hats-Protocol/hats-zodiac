@@ -61,15 +61,20 @@ contract OwnerSettingsInternals is WithHSGHarnessInstanceTest {
     assertEq(harness.claimableFor(), _claimableFor, "claimableFor should be set to the new claimableFor");
   }
 
-  function test_fuzz_addSignerHats(uint256[] memory _signerHats) public {
-    vm.assume(_signerHats.length > 0);
+  function test_fuzz_addSignerHats(uint8 _numHats) public {
+    // Bound number of hats to a semi-reasonable range
+    uint256 numHats = bound(_numHats, 1, 100);
+
+    // Create array of signer hats
+    uint256[] memory signerHats = _getRandomSignerHats(numHats);
 
     vm.expectEmit();
-    emit IHatsSignerGate.SignerHatsAdded(_signerHats);
-    harness.exposed_addSignerHats(_signerHats);
+    emit IHatsSignerGate.SignerHatsAdded(signerHats);
+    harness.exposed_addSignerHats(signerHats);
 
-    for (uint256 i; i < _signerHats.length; i++) {
-      assertTrue(harness.isValidSignerHat(_signerHats[i]), "signerHat should be valid");
+    // Verify each hat was properly registered
+    for (uint256 i; i < signerHats.length; i++) {
+      assertTrue(harness.isValidSignerHat(signerHats[i]), "signerHat should be valid");
     }
   }
 
@@ -234,7 +239,7 @@ contract RegisterSignerInternals is WithHSGHarnessInstanceTest {
     emit IHatsSignerGate.Registered(_hatToRegister, signer);
     harness.exposed_registerSigner(_hatToRegister, signer, true);
 
-    assertEq(harness.claimedSignerHats(signer), _hatToRegister, "signer should be registered with the hat");
+    assertEq(harness.registeredSignerHats(signer), _hatToRegister, "signer should be registered with the hat");
   }
 
   function test_fuzz_happy_registerSigner_disallowRegistration(
@@ -280,7 +285,7 @@ contract RegisterSignerInternals is WithHSGHarnessInstanceTest {
     emit IHatsSignerGate.Registered(_hatToRegister, signer);
     harness.exposed_registerSigner(_hatToRegister, signer, false);
 
-    assertEq(harness.claimedSignerHats(signer), _hatToRegister, "signer should be registered with the new hat");
+    assertEq(harness.registeredSignerHats(signer), _hatToRegister, "signer should be registered with the new hat");
   }
 
   function test_fuzz_revert_registerSigner_invalidHat(
@@ -299,7 +304,7 @@ contract RegisterSignerInternals is WithHSGHarnessInstanceTest {
     vm.expectRevert(abi.encodeWithSelector(IHatsSignerGate.InvalidSignerHat.selector, _hatToRegister));
     harness.exposed_registerSigner(_hatToRegister, signer, _allowRegistration);
 
-    assertEq(harness.claimedSignerHats(signer), 0, "signer should not be registered");
+    assertEq(harness.registeredSignerHats(signer), 0, "signer should not be registered");
   }
 
   function test_fuzz_revert_registerSigner_notSignerHatWearer(

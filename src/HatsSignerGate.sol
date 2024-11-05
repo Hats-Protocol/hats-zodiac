@@ -163,7 +163,6 @@ contract HatsSignerGate is
 
     // set the instance's owner hat
     _setOwnerHat(params.ownerHat);
-
     // lock the instance if configured as such
     if (params.locked) _lock();
 
@@ -609,7 +608,8 @@ contract HatsSignerGate is
     emit ThresholdConfigSet(_config);
   }
 
-  /// @dev Internal function to count the number of valid signers in an array of addresses. Does not check for duplicates.
+  /// @dev Internal function to count the number of valid signers in an array of addresses. Does not check for
+  /// duplicates.
   /// @param owners The addresses to check for validity
   /// @return signerCount The number of valid signers in `owners`
   function _countValidSigners(address[] memory owners) internal view returns (uint256 signerCount) {

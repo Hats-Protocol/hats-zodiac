@@ -110,7 +110,7 @@ contract SafeManagerLib_ExecutingActions is WithHSGHarnessInstanceTest {
   function test_execDisableHSGAsOnlyModule() public {
     harness.execDisableHSGAsOnlyModule(safe);
 
-    assertFalse(safe.isModuleEnabled(address(hatsSignerGate)), "hsg should no longer be a module");
+    assertFalse(safe.isModuleEnabled(address(instance)), "hsg should no longer be a module");
   }
 
   function test_fuzz_execDisableHSGAsModule(uint256 _otherModulesCount) public {
@@ -210,7 +210,7 @@ contract SafeManagerLib_DeployingSafeAndAttachingHSG is TestSuite {
 
 contract SafeManagerLib_Views is WithHSGInstanceTest {
   function test_getSafeGuard() public view {
-    assertEq(SafeManagerLib.getSafeGuard(safe), address(hatsSignerGate), "harness should be set as guard");
+    assertEq(SafeManagerLib.getSafeGuard(safe), address(instance), "harness should be set as guard");
   }
 
   function test_getSafeFallbackHandler() public {
@@ -239,13 +239,13 @@ contract SafeManagerLib_Views is WithHSGInstanceTest {
     (address[] memory modulesWith1, address next) = SafeManagerLib.getModulesWith1(safe);
 
     assertEq(modulesWith1.length, 1, "there should be only one module");
-    assertEq(modulesWith1[0], address(hatsSignerGate), "the only module should be the HatsSignerGate");
+    assertEq(modulesWith1[0], address(instance), "the only module should be the HatsSignerGate");
     assertEq(next, SafeManagerLib.SENTINELS, "the next pointer should be the sentinel");
   }
 
   function test_canAttachHSG_false() public view {
     assertFalse(
-      SafeManagerLib.canAttachHSG(safe), "hatsSignerGate should not be able to attach, since it is already a module"
+      SafeManagerLib.canAttachHSG(safe), "instance should not be able to attach, since it is already a module"
     );
   }
 
@@ -254,16 +254,16 @@ contract SafeManagerLib_Views is WithHSGInstanceTest {
     initSafeOwners[0] = address(this);
     ISafe freshSafe = _deploySafe(initSafeOwners, 1, TEST_SALT_NONCE);
 
-    assertTrue(SafeManagerLib.canAttachHSG(freshSafe), "hatsSignerGate should be able to attach to freshSafe");
+    assertTrue(SafeManagerLib.canAttachHSG(freshSafe), "instance should be able to attach to freshSafe");
   }
 
   function test_findPrevOwner() public {
-    address prevOwner = SafeManagerLib.findPrevOwner(safe.getOwners(), address(hatsSignerGate));
+    address prevOwner = SafeManagerLib.findPrevOwner(safe.getOwners(), address(instance));
     assertEq(prevOwner, SENTINELS, "HSG's previous owner should be the sentinel");
 
     // add a bunch of owners to the safe and test each
     vm.startPrank(address(safe));
-    address latestOwner = address(hatsSignerGate);
+    address latestOwner = address(instance);
     for (uint256 i; i < fuzzingAddresses.length; i++) {
       address thisOwner = fuzzingAddresses[i];
       // add the new owner (no need to change the threshold)
