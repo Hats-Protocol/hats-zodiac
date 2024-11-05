@@ -456,7 +456,7 @@ contract HatsSignerGate is
     // the safe's threshold is always the minimum between the required amount of valid signatures and the number of
     // owners. if the threshold is lower than the required amount of valid signatures, it means that there are currently
     // not enough owners to approve the tx, so we can revert without further checks
-    if (threshold != _getRequiredValidSignatures(owners.length)) revert InsufficientValidSignatures();
+    if (threshold != _getRequiredValidSignatures(owners.length)) revert ThresholdTooLow();
 
     // get the tx hash
     bytes32 txHash = safe.getTransactionHash(

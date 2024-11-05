@@ -65,6 +65,9 @@ interface IHatsSignerGate {
   /// @notice Only wearers of a valid signer hat can become signers
   error NotSignerHatWearer(address user);
 
+  /// @notice Thrown when the safe threshold is lower than the number of required valid signatures
+  error ThresholdTooLow();
+
   /// @notice Thrown when the number of signatures from valid signers is less than the correct threshold
   error InsufficientValidSignatures();
 
