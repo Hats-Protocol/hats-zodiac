@@ -1494,36 +1494,6 @@ contract CheckAfterExecution is WithHSGHarnessInstanceTest {
   }
 }
 
-contract ExececutingFromModule is WithHSGInstanceTest {
-  // TODO
-  function test_happy_executeFromModule() public {
-    // sets transient variables
-  }
-
-  function test_executeFromModule_delegatecallTargetEnabled() public { }
-
-  function test_revert_notCalledFromModule() public { }
-
-  function test_revert_delegatecallTargetNotEnabled() public { }
-
-  function test_revert_cannotCallSafe() public { }
-}
-
-contract ExececutingFromModuleReturnData is WithHSGInstanceTest {
-  // TODO
-  function test_happy_executeFromModuleReturnData() public {
-    // sets transient variables
-  }
-
-  function test_executeFromModuleReturnData_delegatecallTargetEnabled() public { }
-
-  function test_revert_notCalledFromModule() public { }
-
-  function test_revert_delegatecallTargetNotEnabled() public { }
-
-  function test_revert_cannotCallSafe() public { }
-}
-
 contract Views is WithHSGInstanceTest {
   function test_fuzz_validSignerCount(uint256 _count) public {
     uint256 count = bound(_count, 0, signerAddresses.length);
