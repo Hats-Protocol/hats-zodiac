@@ -413,6 +413,9 @@ contract HatsSignerGate is
     // ensure that the call is coming from the safe
     if (msg.sender != address(safe)) revert NotCalledFromSafe();
 
+    // prevent calling this function from execTransactionFromModule or execTransactionFromModuleReturnData
+    if (_reentrancyGuard == 1) revert NoReentryAllowed();
+
     // record the initial nonce of the safe at the beginning of the transaction
     if (_entrancyCounter == 0) {
       _initialNonce = safe.nonce() - 1;
