@@ -95,28 +95,28 @@ contract HatsSignerGate is
   /*//////////////////////////////////////////////////////////////
                           TRANSIENT STATE
   //////////////////////////////////////////////////////////////*/
-
+  
   /// @dev Temporary record of the existing owners on the `safe` when a transaction is submitted
   bytes32 transient _existingOwnersHash;
-
+  
   /// @dev Temporary record of the existing threshold on the `safe` when a transaction is submitted
   uint256 transient _existingThreshold;
-
+  
   /// @dev Temporary record of the existing fallback handler on the `safe` when a transaction is submitted
   address transient _existingFallbackHandler;
-
+  
   /// @dev Temporary record of the operation type when a transaction is submitted
   Enum.Operation transient _operation;
-
+  
   /// @dev A simple re-entrancy guard
   uint256 transient _reentrancyGuard;
-
+  
   /// @dev The safe's nonce at the beginning of a transaction
   uint256 transient _initialNonce;
-
+  
   /// @dev The number of times the checkTransaction function has been called in a transaction
   uint256 transient _entrancyCounter;
-
+  
   /*//////////////////////////////////////////////////////////////
                       AUTHENTICATION FUNCTIONS
   //////////////////////////////////////////////////////////////*/
@@ -413,7 +413,10 @@ contract HatsSignerGate is
     // ensure that the call is coming from the safe
     if (msg.sender != address(safe)) revert NotCalledFromSafe();
 
-    // prevent calling this function from execTransactionFromModule or execTransactionFromModuleReturnData
+    // if _reentrancyGuard equals 1 it means that there is an ongoing execution either from execTransactionFromModule or
+    // execTransactionFromModuleReturnData.
+    // this check prevents entering the checkTransaction in this case in order to avoid overriding the snapshot of the
+    // Safe state
     if (_reentrancyGuard == 1) revert NoReentryAllowed();
 
     // record the initial nonce of the safe at the beginning of the transaction
@@ -424,7 +427,13 @@ contract HatsSignerGate is
     // increment the entrancy count
     _entrancyCounter++;
 
-    // prevent entrancy to this function other than by the safe
+    // Whenever this function is called from a source other than Safe.execTransaction, it`s possible that
+    // it is a malicious call attempting to manipulate the transient storage so that an attacker can
+    // make malicious changes to the Safe state without detection by this guard in
+    // IGuard.checkAfterExecution. To prevent this, we rely on the invariant that the Safe nonce
+    // increments every time Safe.execTransaction calls out to IGuard.checkTransaction, allowing us to
+    // ensure that this function is only called the same number of times in a single transaction as
+    // Safe.execTransaction calls, ie by how much the Safe's nonce increases.
     if (safe.nonce() - _initialNonce != _entrancyCounter) revert NoReentryAllowed();
 
     // module guard preflight check
@@ -838,6 +847,13 @@ contract HatsSignerGate is
     moduleOnly
     returns (bool success)
   {
+    // the _entrancyCounter transient variable is counting the number of times that the checkTransaction function
+    // was called in the current transaction. this check prevents entering this function while there is an ongoing
+    // execution via the safe's execTransaction function. this is necessary to prevent overriding the safe's
+    // snapshot that happens in the checkTransaction function.
+    if (_entrancyCounter > 0) revert NoReentryAllowed();
+
+    // prevent re-entering this function while the safe is executing
     if (_reentrancyGuard == 1) revert NoReentryAllowed();
     _reentrancyGuard = 1;
 
@@ -879,6 +895,13 @@ contract HatsSignerGate is
     moduleOnly
     returns (bool success, bytes memory returnData)
   {
+    // the _entrancyCounter transient variable is counting the number of times that the checkTransaction function
+    // was called in the current transaction. this check prevents entering this function while there is an ongoing
+    // execution via the safe's execTransaction function. this is necessary to prevent overriding the safe's
+    // snapshot that happens in the checkTransaction function.
+    if (_entrancyCounter > 0) revert NoReentryAllowed();
+
+    // prevent re-entering this function while the safe is executing
     if (_reentrancyGuard == 1) revert NoReentryAllowed();
     _reentrancyGuard = 1;
 
