@@ -1263,7 +1263,7 @@ contract CheckTransaction is WithHSGHarnessInstanceTest {
       target, 0, new bytes(0), Enum.Operation.Call, 0, 0, 0, address(0), payable(0), signatures, address(0)
     );
 
-    _assertTransientStateVariables(1, Enum.Operation.Call, bytes32(0), 0, address(0));
+    _assertTransientStateVariables(Enum.Operation.Call, bytes32(0), 0, address(0), 0, safe.nonce() - 1, 1);
   }
 
   function test_revert_notCalledFromSafe() public callerIsSafe(false) {
@@ -1273,7 +1273,7 @@ contract CheckTransaction is WithHSGHarnessInstanceTest {
       address(0), 0, new bytes(0), Enum.Operation.Call, 0, 0, 0, address(0), payable(0), new bytes(0), address(0)
     );
 
-    _assertTransientStateVariables(0, Enum.Operation(uint8(0)), bytes32(0), 0, address(0));
+    _assertTransientStateVariables(Enum.Operation(uint8(0)), bytes32(0), 0, address(0), 0, 0, 0);
   }
 
   function test_revert_guardReverts() public callerIsSafe(true) {
@@ -1291,7 +1291,7 @@ contract CheckTransaction is WithHSGHarnessInstanceTest {
       address(0), 0, new bytes(0), Enum.Operation.Call, 0, 0, 0, address(0), payable(0), new bytes(0), address(0)
     );
 
-    _assertTransientStateVariables(0, Enum.Operation(uint8(0)), bytes32(0), 0, address(0));
+    _assertTransientStateVariables(Enum.Operation(uint8(0)), bytes32(0), 0, address(0), 0, 0, 0);
   }
 
   function test_delegatecallTargetEnabled() public callerIsSafe(true) {
@@ -1315,7 +1315,13 @@ contract CheckTransaction is WithHSGHarnessInstanceTest {
     );
 
     _assertTransientStateVariables(
-      1, Enum.Operation.DelegateCall, expectedOwnersHash, expectedThreshold, expectedFallbackHandler
+      Enum.Operation.DelegateCall,
+      expectedOwnersHash,
+      expectedThreshold,
+      expectedFallbackHandler,
+      0,
+      safe.nonce() - 1,
+      1
     );
   }
 
@@ -1337,7 +1343,7 @@ contract CheckTransaction is WithHSGHarnessInstanceTest {
       address(0)
     );
 
-    _assertTransientStateVariables(0, Enum.Operation(uint8(0)), bytes32(0), 0, address(0));
+    _assertTransientStateVariables(Enum.Operation(uint8(0)), bytes32(0), 0, address(0), 0, 0, 0);
   }
 
   function test_revert_cannotCallSafe() public callerIsSafe(true) {
@@ -1347,7 +1353,7 @@ contract CheckTransaction is WithHSGHarnessInstanceTest {
       address(safe), 0, new bytes(0), Enum.Operation.Call, 0, 0, 0, address(0), payable(0), new bytes(0), address(0)
     );
 
-    _assertTransientStateVariables(0, Enum.Operation(uint8(0)), bytes32(0), 0, address(0));
+    _assertTransientStateVariables(Enum.Operation(uint8(0)), bytes32(0), 0, address(0), 0, 0, 0);
   }
 
   function test_revert_thresholdTooLow(uint8 _operation) public callerIsSafe(true) {
@@ -1377,7 +1383,7 @@ contract CheckTransaction is WithHSGHarnessInstanceTest {
       target, 0, new bytes(0), operation, 0, 0, 0, address(0), payable(0), new bytes(0), address(0)
     );
 
-    _assertTransientStateVariables(0, Enum.Operation(uint8(0)), bytes32(0), 0, address(0));
+    _assertTransientStateVariables(Enum.Operation(uint8(0)), bytes32(0), 0, address(0), 0, 0, 0);
   }
 
   function test_revert_insufficientValidSignatures(uint8 _operation) public callerIsSafe(true) {
@@ -1408,7 +1414,7 @@ contract CheckTransaction is WithHSGHarnessInstanceTest {
       target, 0, new bytes(0), operation, 0, 0, 0, address(0), payable(0), signatures, address(0)
     );
 
-    _assertTransientStateVariables(0, Enum.Operation(uint8(0)), bytes32(0), 0, address(0));
+    _assertTransientStateVariables(Enum.Operation(uint8(0)), bytes32(0), 0, address(0), 0, 0, 0);
   }
 
   function test_revert_noReentryAllowed() public callerIsSafe(true) {
@@ -1483,12 +1489,6 @@ contract CheckAfterExecution is WithHSGHarnessInstanceTest {
 
     // call to checkAfterExecution should revert
     vm.expectRevert();
-    vm.prank(caller);
-    harness.exposed_checkAfterExecution(_txHash, _success);
-  }
-
-  function test_revert_notCalledFromSafe(bytes32 _txHash, bool _success) public callerIsSafe(false) {
-    vm.expectRevert(IHatsSignerGate.NotCalledFromSafe.selector);
     vm.prank(caller);
     harness.exposed_checkAfterExecution(_txHash, _success);
   }

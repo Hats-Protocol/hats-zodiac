@@ -1018,14 +1018,18 @@ contract WithHSGHarnessInstanceTest is TestSuite {
   }
 
   function _assertTransientStateVariables(
-    uint256 _guardEntries,
     Enum.Operation _operation,
     bytes32 _existingOwnersHash,
     uint256 _existingThreshold,
-    address _existingFallbackHandler
+    address _existingFallbackHandler,
+    uint256 _reentrancyGuard,
+    uint256 _initialNonce,
+    uint256 _entrancyCounter
   ) internal view {
-    assertEq(harness.guardEntries(), _guardEntries, "guard entries should be set");
     assertEq(uint8(harness.operation()), uint8(_operation), "operation should be set");
+    assertEq(harness.reentrancyGuard(), _reentrancyGuard, "reentrancy guard should be set");
+    assertEq(harness.initialNonce(), _initialNonce, "initial nonce should be set");
+    assertEq(harness.entrancyCounter(), _entrancyCounter, "entrancy counter should be set");
     if (_operation == Enum.Operation.DelegateCall) {
       assertEq(harness.existingOwnersHash(), _existingOwnersHash, "existing owners hash should be set");
       assertEq(harness.existingThreshold(), _existingThreshold, "existing threshold should be set");

@@ -95,22 +95,28 @@ contract HatsSignerGate is
   /*//////////////////////////////////////////////////////////////
                           TRANSIENT STATE
   //////////////////////////////////////////////////////////////*/
-
+  
   /// @dev Temporary record of the existing owners on the `safe` when a transaction is submitted
   bytes32 transient _existingOwnersHash;
-
-  /// @dev A simple re-entrancy guard
-  uint256 transient _guardEntries;
-
+  
   /// @dev Temporary record of the existing threshold on the `safe` when a transaction is submitted
   uint256 transient _existingThreshold;
-
+  
   /// @dev Temporary record of the existing fallback handler on the `safe` when a transaction is submitted
   address transient _existingFallbackHandler;
-
+  
   /// @dev Temporary record of the operation type when a transaction is submitted
   Enum.Operation transient _operation;
-
+  
+  /// @dev A simple re-entrancy guard
+  uint256 transient _reentrancyGuard;
+  
+  /// @dev The safe's nonce at the beginning of a transaction
+  uint256 transient _initialNonce;
+  
+  /// @dev The number of times the checkTransaction function has been called in a transaction
+  uint256 transient _entrancyCounter;
+  
   /*//////////////////////////////////////////////////////////////
                       AUTHENTICATION FUNCTIONS
   //////////////////////////////////////////////////////////////*/
@@ -407,14 +413,28 @@ contract HatsSignerGate is
     // ensure that the call is coming from the safe
     if (msg.sender != address(safe)) revert NotCalledFromSafe();
 
-     /// @dev This is a reentrancy guard designed to work with the `checkAfterExecution()` function. It allows reentrancy
-    /// into this contract so that the `checkAfterExecution()` function can be called by the `safe`, but it only allows
-    /// one call each of `checkTransaction()` and `checkAfterExecution()`.
-    unchecked {
-      ++_guardEntries;
+    // if _reentrancyGuard equals 1 it means that there is an ongoing execution either from execTransactionFromModule or
+    // execTransactionFromModuleReturnData.
+    // this check prevents entering the checkTransaction in this case in order to avoid overriding the snapshot of the
+    // Safe state
+    if (_reentrancyGuard == 1) revert NoReentryAllowed();
+
+    // record the initial nonce of the safe at the beginning of the transaction
+    if (_entrancyCounter == 0) {
+      _initialNonce = safe.nonce() - 1;
     }
-    // revert if re-entry into this function is detected prior to `checkAfterExecution()` is called
-    if (_guardEntries > 1) revert NoReentryAllowed();
+
+    // increment the entrancy count
+    _entrancyCounter++;
+
+    // Whenever this function is called from a source other than Safe.execTransaction, it`s possible that
+    // it is a malicious call attempting to manipulate the transient storage so that an attacker can
+    // make malicious changes to the Safe state without detection by this guard in
+    // IGuard.checkAfterExecution. To prevent this, we rely on the invariant that the Safe nonce
+    // increments every time Safe.execTransaction calls out to IGuard.checkTransaction, allowing us to
+    // ensure that this function is only called the same number of times in a single transaction as
+    // Safe.execTransaction calls, ie by how much the Safe's nonce increases.
+    if (safe.nonce() - _initialNonce != _entrancyCounter) revert NoReentryAllowed();
 
     // module guard preflight check
     if (guard != address(0)) {
@@ -483,8 +503,6 @@ contract HatsSignerGate is
 
     // count the number of valid signatures and revert if there aren't enough
     if (_countValidSignatures(txHash, signatures, threshold) < threshold) revert InsufficientValidSignatures();
-
-   
   }
 
   /**
@@ -500,10 +518,6 @@ contract HatsSignerGate is
    * https://github.com/gnosis/zodiac-guard-mod/blob/988ebc7b71e352f121a0be5f6ae37e79e47a4541/contracts/ModGuard.sol#L86
    */
   function checkAfterExecution(bytes32, bool) public override {
-    ISafe s = safe; // save SLOADs
-    if (msg.sender != address(s)) revert NotCalledFromSafe();
-    // prevent signers from disabling this guard
-
     // module guard postflight check
     if (guard != address(0)) {
       BaseGuard(guard).checkAfterExecution(bytes32(0), false);
@@ -513,12 +527,8 @@ contract HatsSignerGate is
     // we don't need to check the Safe state for regular calls since the Safe state cannot be altered except by calling
     // into the Safe, which is explicitly disallowed
     if (_operation == Enum.Operation.DelegateCall) {
-      _checkSafeState(s);
+      _checkSafeState(safe);
     }
-
-    // Leave checked to catch underflows triggered by calls to this function not originating from
-    // `Safe.execTransaction()`
-    --_guardEntries;
   }
 
   /*//////////////////////////////////////////////////////////////
@@ -837,6 +847,16 @@ contract HatsSignerGate is
     moduleOnly
     returns (bool success)
   {
+    // the _entrancyCounter transient variable is counting the number of times that the checkTransaction function
+    // was called in the current transaction. this check prevents entering this function while there is an ongoing
+    // execution via the safe's execTransaction function. this is necessary to prevent overriding the safe's
+    // snapshot that happens in the checkTransaction function.
+    if (_entrancyCounter > 0) revert NoReentryAllowed();
+
+    // prevent re-entering this function while the safe is executing
+    if (_reentrancyGuard == 1) revert NoReentryAllowed();
+    _reentrancyGuard = 1;
+
     ISafe s = safe;
 
     // preflight checks
@@ -855,6 +875,8 @@ contract HatsSignerGate is
     // Ensure that the Safe state is not altered by delegatecalls. We don't need to check the Safe state for regular
     // calls since the Safe state cannot be altered except by calling into the Safe, which is explicitly disallowed.
     if (operation == Enum.Operation.DelegateCall) _checkSafeState(s);
+
+    _reentrancyGuard = 0;
   }
 
   /// @notice Allows a module to execute a call from the context of the Safe. Modules are not allowed to...
@@ -873,6 +895,16 @@ contract HatsSignerGate is
     moduleOnly
     returns (bool success, bytes memory returnData)
   {
+    // the _entrancyCounter transient variable is counting the number of times that the checkTransaction function
+    // was called in the current transaction. this check prevents entering this function while there is an ongoing
+    // execution via the safe's execTransaction function. this is necessary to prevent overriding the safe's
+    // snapshot that happens in the checkTransaction function.
+    if (_entrancyCounter > 0) revert NoReentryAllowed();
+
+    // prevent re-entering this function while the safe is executing
+    if (_reentrancyGuard == 1) revert NoReentryAllowed();
+    _reentrancyGuard = 1;
+
     ISafe s = safe;
 
     // preflight checks
@@ -891,6 +923,8 @@ contract HatsSignerGate is
     // Ensure that the Safe state is not altered by delegatecalls. We don't need to check the Safe state for regular
     // calls since the Safe state cannot be altered except by calling into the Safe, which is explicitly disallowed.
     if (operation == Enum.Operation.DelegateCall) _checkSafeState(s);
+
+    _reentrancyGuard = 0;
   }
 
   /// @inheritdoc ModifierUnowned

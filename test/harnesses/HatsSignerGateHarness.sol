@@ -31,7 +31,9 @@ contract HatsSignerGateHarness is HatsSignerGate, SafeManagerLibHarness {
   uint256 public existingThreshold;
   address public existingFallbackHandler;
   Enum.Operation public operation;
-  uint256 public guardEntries;
+  uint256 public reentrancyGuard;
+  uint256 public initialNonce;
+  uint256 public entrancyCounter;
 
   /*//////////////////////////////////////////////////////////////
                         TRANSIENT STATE SETTERS
@@ -149,8 +151,16 @@ contract HatsSignerGateHarness is HatsSignerGate, SafeManagerLibHarness {
     return _operation;
   }
 
-  function exposed_guardEntries() public view returns (uint256) {
-    return _guardEntries;
+  function exposed_reentrancyGuard() public view returns (uint256) {
+    return _reentrancyGuard;
+  }
+
+  function exposed_initialNonce() public view returns (uint256) {
+    return _initialNonce;
+  }
+
+  function exposed_entrancyCounter() public view returns (uint256) {
+    return _entrancyCounter;
   }
 
   /// @dev Exposes the transient state variables set within checkTransaction
@@ -170,18 +180,17 @@ contract HatsSignerGateHarness is HatsSignerGate, SafeManagerLibHarness {
     checkTransaction(to, value, data, op, safeTxGas, baseGas, gasPrice, gasToken, refundReceiver, signatures, sender);
 
     // store the transient state in persistent storage for access in tests
-    guardEntries = _guardEntries;
     operation = _operation;
     existingOwnersHash = _existingOwnersHash;
     existingThreshold = _existingThreshold;
     existingFallbackHandler = _existingFallbackHandler;
+    reentrancyGuard = _reentrancyGuard;
+    initialNonce = _initialNonce;
+    entrancyCounter = _entrancyCounter;
   }
 
   /// @dev Allows tests to call checkAfterExecution by mocking the guardEntries transient state variable
   function exposed_checkAfterExecution(bytes32 _txHash, bool _success) public {
-    // force the guardEntries to be 1 as if it were set by checkTransaction
-    _guardEntries = 1;
-
     checkAfterExecution(_txHash, _success);
   }
 }

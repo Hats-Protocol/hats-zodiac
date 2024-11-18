@@ -199,9 +199,11 @@ contract SafeManagerLib_DeployingSafeAndAttachingHSG is TestSuite {
       address(hats), address(singletonSafe), safeFallbackLibrary, safeMultisendLibrary, address(safeFactory)
     );
 
-    safe = ISafe(harness.deploySafeAndAttachHSG(
-      address(safeFactory), address(singletonSafe), safeFallbackLibrary, safeMultisendLibrary
-    ));
+    safe = ISafe(
+      harness.deploySafeAndAttachHSG(
+        address(safeFactory), address(singletonSafe), safeFallbackLibrary, safeMultisendLibrary
+      )
+    );
 
     assertTrue(safe.isModuleEnabled(address(harness)), "harness should be a module on the safe");
     assertEq(SafeManagerLib.getSafeGuard(safe), address(harness), "harness should be set as guard");
