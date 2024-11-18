@@ -1,207 +1,385 @@
 No files changed, compilation skipped
 
-Ran 1 test for test/HatsSignerGate.t.sol:EnablingHSGModules
-[PASS] test_happy() (gas: 92418)
-Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 2.47s (103.95ms CPU time)
-
-Ran 2 tests for test/HatsSignerGate.t.sol:GuardFunctionAuth
-[PASS] testCannotCallCheckAfterExecutionFromNonSafe() (gas: 34650)
-[PASS] testCannotCallCheckTransactionFromNonSafe() (gas: 38347)
-Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 2.59s (255.40ms CPU time)
-
-Ran 2 tests for test/HatsSignerGate.t.sol:SettingHSGGuard
-[PASS] test_happy() (gas: 90136)
-[PASS] test_removeGuard() (gas: 64280)
-Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 2.66s (276.58ms CPU time)
-
-Ran 1 test for test/HatsSignerGate.t.sol:DisablingDelegatecallTargets
-[PASS] test_happy() (gas: 60708)
-Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 2.66s (75.65ms CPU time)
-
-Ran 2 tests for test/HatsSignerGate.t.sol:ExecutingFromModuleReturnDataViaHSG
-[PASS] test_happy_executionFailure() (gas: 67145)
-[PASS] test_happy_executionSuccess() (gas: 104412)
-Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 2.66s (196.83ms CPU time)
-
-Ran 2 tests for test/HatsSignerGate.t.sol:ClaimingSignerFor
-[PASS] test_happy() (gas: 308644)
-[PASS] test_happy_alreadyOwnerNotRegistered() (gas: 345641)
-Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 2.85s (492.33ms CPU time)
+Ran 2 tests for test/HatsSignerGate.internals.t.sol:AuthInternals
+[PASS] test_happy_checkOwner() (gas: 34286)
+[PASS] test_happy_checkUnlocked() (gas: 10262)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 1.77s (406.21µs CPU time)
 
 Ran 1 test for test/HatsSignerGate.t.sol:DetachingHSG
-[PASS] test_happy() (gas: 89694)
-Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 2.01s (110.07ms CPU time)
+[PASS] test_happy_detachHSG() (gas: 218630)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 1.89s (136.84ms CPU time)
 
-Ran 1 test for test/HatsSignerGate.t.sol:SettingOwnerHat
-[PASS] test_happy() (gas: 65577)
-Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 2.20s (108.56ms CPU time)
+Ran 2 tests for test/HatsSignerGate.moduleTxs.sol:ExecutingFromModuleViaHSG
+[PASS] test_happy_executionFailure() (gas: 66230)
+[PASS] test_happy_executionSuccess() (gas: 103519)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 1.97s (80.78ms CPU time)
 
-Ran 1 test for test/HatsSignerGate.t.sol:DisablingHSGModules
-[PASS] test_happy() (gas: 66051)
-Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 2.12s (118.83ms CPU time)
+Ran 1 test for test/HatsSignerGate.signerTxs.sol:HSGGuarding
+[PASS] test_executed() (gas: 433155)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 1.56s (54.93ms CPU time)
 
-Ran 2 tests for test/HatsSignerGate.t.sol:ExecutingFromModuleViaHSG
-[PASS] test_happy_executionFailure() (gas: 65685)
-[PASS] test_happy_executionSuccess() (gas: 102952)
-Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 2.25s (127.77ms CPU time)
+Ran 7 tests for test/HatsSignerGate.signerTxs.sol:ConstrainingSigners
+[PASS] testCannotDecreaseThreshold() (gas: 1092698)
+[PASS] testCannotDisableGuard() (gas: 858428)
+[PASS] testCannotDisableModule() (gas: 877441)
+[PASS] testCannotIncreaseThreshold() (gas: 1092686)
+[PASS] testSignersCannotAddOwners() (gas: 1126662)
+[PASS] testSignersCannotRemoveOwners() (gas: 1109093)
+[PASS] testSignersCannotSwapOwners() (gas: 1131591)
+Suite result: ok. 7 passed; 0 failed; 0 skipped; finished in 4.31s (2.56s CPU time)
 
-Ran 1 test for test/HatsSignerGate.t.sol:HSGGuarding
-[PASS] test_executed() (gas: 430670)
-Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 2.38s (57.56ms CPU time)
-
-Ran 4 tests for test/HatsSignerGate.t.sol:ClaimingSigners
-[PASS] test_canClaim_alreadyOwner() (gas: 546063)
-[PASS] test_happy() (gas: 252843)
-[PASS] test_signerCanReregister_differentHat() (gas: 477490)
-[PASS] test_signerCanReregister_sameHat() (gas: 303397)
-Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 3.13s (1.42s CPU time)
-
-Ran 7 tests for test/HatsSignerGate.t.sol:ConstrainingSigners
-[PASS] testCannotDecreaseThreshold() (gas: 1085410)
-[PASS] testCannotDisableGuard() (gas: 851057)
-[PASS] testCannotDisableModule() (gas: 867539)
-[PASS] testCannotIncreaseThreshold() (gas: 1085420)
-[PASS] testSignersCannotAddOwners() (gas: 1119396)
-[PASS] testSignersCannotRemoveOwners() (gas: 1101827)
-[PASS] testSignersCannotSwapOwners() (gas: 1124303)
-Suite result: ok. 7 passed; 0 failed; 0 skipped; finished in 6.56s (4.26s CPU time)
-
-Ran 1 test for test/HatsSignerGate.t.sol:EnablingDelegatecallTargets
-[PASS] test_happy() (gas: 87430)
-Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 1.81s (104.78ms CPU time)
-
-Ran 7 tests for test/HatsSignerGate.t.sol:ExecutingTransactions
-[PASS] testExecByLessThanMinThresholdReverts() (gas: 874469)
-[PASS] testExecTxByHatWearers() (gas: 1201068)
-[PASS] testExecTxByNonHatWearersReverts() (gas: 1227316)
-[PASS] testExecTxByTooFewOwnersReverts() (gas: 455664)
-[PASS] test_Multi_ExecTxByHatWearers() (gas: 1218611)
-[PASS] test_Multi_ExecTxByNonHatWearersReverts() (gas: 1247092)
-[PASS] test_happy_delegateCall() (gas: 1243356)
-Suite result: ok. 7 passed; 0 failed; 0 skipped; finished in 6.77s (4.41s CPU time)
-
-Ran 6 tests for test/HatsSignerGate.t.sol:RemovingSigners
-[PASS] testCanRemoveInvalidSigner1() (gas: 388175)
-[PASS] testCanRemoveInvalidSignerWhenMultipleSigners() (gas: 603735)
-[PASS] testCannotRemoveValidSigner() (gas: 307686)
-[PASS] testValidSignerCanClaimAfterPrevRemoved() (gas: 597617)
-[PASS] test_Multi_CanRemoveInvalidSigner1() (gas: 397447)
-[PASS] test_Multi_CannotRemoveValidSigner() (gas: 316924)
-Suite result: ok. 6 passed; 0 failed; 0 skipped; finished in 4.03s (2.51s CPU time)
-
-Ran 3 tests for test/HatsSignerGate.t.sol:AddingSignerHats
-[PASS] test_Multi_NonOwnerCannotAddSignerHats() (gas: 58954)
-[PASS] test_Multi_OwnerCanAddSignerHats(uint256) (runs: 256, μ: 368974, ~: 108996)
-[PASS] test_Multi_OwnerCanAddSignerHats1() (gas: 85612)
-Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 23.64s (21.44s CPU time)
-
-Ran 1 test for test/HatsSignerGate.t.sol:SettingClaimableFor
-[PASS] test_happy(bool) (runs: 256, μ: 63876, ~: 65261)
-Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 20.83s (18.93s CPU time)
-
-Ran 2 tests for test/HatsSignerGate.t.sol:Deployment
-[PASS] test_andSafe(bool,bool) (runs: 256, μ: 3068525, ~: 3073633)
-[PASS] test_onlyHSG(bool,bool) (runs: 256, μ: 2991895, ~: 2991406)
-Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 82.03s (141.10s CPU time)
+Ran 7 tests for test/HatsSignerGate.signerTxs.sol:ExecutingTransactions
+[PASS] testExecByLessThanMinThresholdReverts() (gas: 877579)
+[PASS] testExecTxByHatWearers() (gas: 1203260)
+[PASS] testExecTxByNonHatWearersReverts() (gas: 1230247)
+[PASS] testExecTxByTooFewOwnersReverts() (gas: 458838)
+[PASS] test_Multi_ExecTxByHatWearers() (gas: 1231547)
+[PASS] test_Multi_ExecTxByNonHatWearersReverts() (gas: 1260795)
+[PASS] test_happy_delegateCall() (gas: 1272654)
+Suite result: ok. 7 passed; 0 failed; 0 skipped; finished in 4.45s (2.70s CPU time)
 
 Ran 8 tests for test/HatsSignerGate.attacks.t.sol:AttacksScenarios
-[PASS] testAttackerCannotExploitSigHandlingDifferences() (gas: 1573312)
-[PASS] testCanClaimToReplaceInvalidSignerAtMaxSigner() (gas: 1460709)
-[PASS] testRemoveSignerCorrectlyUpdates() (gas: 1428493)
-[PASS] testSetTargetThresholdCannotSetBelowMinThreshold() (gas: 68756)
-[PASS] testSetTargetThresholdUpdatesThresholdCorrectly() (gas: 1393888)
-[PASS] testSignersCannotAddNewModules() (gas: 886851)
-[PASS] testSignersCannotReenterCheckTransactionToAddOwners() (gas: 1268236)
-[PASS] testTargetSigAttackFails() (gas: 1871684)
-Suite result: ok. 8 passed; 0 failed; 0 skipped; finished in 113.67s (8.00s CPU time)
+[PASS] testAttackerCannotExploitSigHandlingDifferences() (gas: 1576164)
+[PASS] testCanClaimToReplaceInvalidSignerAtMaxSigner() (gas: 1460066)
+[PASS] testRemoveSignerCorrectlyUpdates() (gas: 1427846)
+[PASS] testSetTargetThresholdCannotSetBelowMinThreshold() (gas: 68793)
+[PASS] testSetTargetThresholdUpdatesThresholdCorrectly() (gas: 1393389)
+[PASS] testSignersCannotAddNewModules() (gas: 896764)
+[PASS] testSignersCannotReenterCheckTransactionToAddOwners() (gas: 1250647)
+[PASS] testTargetSigAttackFails() (gas: 1871128)
+Suite result: ok. 8 passed; 0 failed; 0 skipped; finished in 6.41s (4.65s CPU time)
 
-Ran 2 tests for test/HatsSignerGate.t.sol:MigratingHSG
-[PASS] test_happy_claimableFor_signersToMigrate(uint256) (runs: 256, μ: 1578554, ~: 1349027)
-[PASS] test_happy_noSignersToMigrate() (gas: 152036)
-Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 135.91s (133.43s CPU time)
+Ran 1 test for test/HatsSignerGate.t.sol:CheckAfterExecution
+[PASS] test_happy_checkAfterExecution(bytes32,bool) (runs: 256, μ: 59484, ~: 59606)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 16.22s (14.45s CPU time)
 
-Ran 4 tests for test/HatsSignerGate.t.sol:AddingSigners
-[PASS] testAddSingleSigner() (gas: 260816)
-[PASS] testAddThreeSigners() (gas: 733846)
-[PASS] test_Multi_AddSingleSigner() (gas: 266758)
-[PASS] test_Multi_AddTwoSigners_DifferentHats() (gas: 506348)
-Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 131.77s (1.50s CPU time)
+Ran 2 tests for test/HatsSignerGate.t.sol:CheckTransaction
+[PASS] test_delegatecallTargetEnabled() (gas: 337618)
+[PASS] test_happy_checkTransaction_callToNonSafe(uint256) (runs: 256, μ: 190169, ~: 190170)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 16.71s (14.70s CPU time)
 
-Ran 2 tests for test/HatsSignerGate.t.sol:SettingThresholdConfig
-[PASS] test_happy_absolute(uint120,uint120,uint256) (runs: 256, μ: 1330014, ~: 1282861)
-[PASS] test_happy_proportional(uint120,uint120,uint256) (runs: 256, μ: 1352524, ~: 1285077)
-Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 132.01s (257.83s CPU time)
+Ran 3 tests for test/HatsSignerGate.internals.t.sol:TransactionValidationInternals
+[FAIL: CannotChangeThreshold()] test_checkSafeState() (gas: 112477)
+[PASS] test_fuzz_checkModuleTransaction_callToNonSafeTarget(uint8) (runs: 256, μ: 40102, ~: 40103)
+[FAIL: the existing owners hash should be unchanged: 0x0000000000000000000000000000000000000000000000000000000000000000 != 0xdec22d665cd8a5d6a8e2fb5e36109e7c69a9fde85d7436b5081a9c4cc04c0d29; counterexample: calldata=0x9d37a228000000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000005000000000000000000000000000000000000000000000000000000000000000300000000000000000000000000000000000000000000000000000000000079e8 args=[8, 1, 5, 3, 31208 [3.12e4]]] test_fuzz_checkModuleTransaction_delegatecallToApprovedTarget(uint8,uint8,uint8,uint8,uint16) (runs: 0, μ: 0, ~: 0)
+Suite result: FAILED. 1 passed; 2 failed; 0 skipped; finished in 16.41s (14.91s CPU time)
+
+Ran 1 test for test/HatsSignerGate.t.sol:AddingSignerHats
+[PASS] test_fuzz_happy_addSignerHats(uint8) (runs: 256, μ: 616786, ~: 480218)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 30.96s (29.49s CPU time)
+
+Ran 1 test for test/HatsSignerGate.t.sol:DisablingDelegatecallTarget
+[PASS] test_fuzz_happy_disableDelegatecallTarget(uint256) (runs: 256, μ: 264260, ~: 264348)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 45.24s (43.95s CPU time)
+
+Ran 8 tests for test/HatsSignerGate.internals.t.sol:OwnerSettingsInternals
+[PASS] test_addSignerHats_duplicateHats() (gas: 62732)
+[PASS] test_addSignerHats_emptyArray() (gas: 35944)
+[PASS] test_fuzz_addSignerHats(uint8) (runs: 256, μ: 453318, ~: 330467)
+[PASS] test_fuzz_setClaimableFor(bool) (runs: 256, μ: 40112, ~: 41497)
+[PASS] test_fuzz_setDelegatecallTarget(uint256,bool) (runs: 256, μ: 90055, ~: 93244)
+[PASS] test_fuzz_setOwnerHat(uint256) (runs: 257, μ: 41211, ~: 41328)
+[PASS] test_fuzz_setThresholdConfig_valid(uint8,uint120,uint120) (runs: 256, μ: 47369, ~: 47380)
+[PASS] test_lock() (gas: 39277)
+Suite result: ok. 8 passed; 0 failed; 0 skipped; finished in 60.59s (88.57s CPU time)
+
+Ran 2 tests for test/HatsSignerGate.moduleTxs.sol:ExecutingFromModuleReturnDataViaHSG
+[PASS] test_happy_executionFailure() (gas: 67690)
+[PASS] test_happy_executionSuccess() (gas: 104979)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 1.66s (119.46ms CPU time)
+
+Ran 2 tests for test/HatsSignerGate.internals.t.sol:RegisterSignerInternals
+[PASS] test_fuzz_happy_registerSigner_allowRegistration(uint256,uint8) (runs: 256, μ: 129332, ~: 129317)
+[PASS] test_fuzz_happy_registerSigner_disallowRegistration(uint256,uint8,uint256) (runs: 256, μ: 204740, ~: 204753)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 74.63s (72.86s CPU time)
+
+Ran 2 tests for test/HatsSignerGate.t.sol:DisablingModule
+[PASS] test_happy_disableModule(uint256) (runs: 257, μ: 274605, ~: 274731)
+[PASS] test_happy_disableModule_twoModules(uint256) (runs: 257, μ: 352851, ~: 352979)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 104.29s (102.72s CPU time)
+
+Ran 1 test for test/HatsSignerGate.t.sol:EnablingDelegatecallTarget
+[PASS] test_fuzz_happy_enableDelegatecallTarget(uint256) (runs: 257, μ: 216595, ~: 216682)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 30.73s (29.27s CPU time)
+
+Ran 3 tests for test/HatsSignerGate.t.sol:ClaimingSignerFor
+[PASS] test_alreadyOwner_notRegistered(uint256) (runs: 256, μ: 339864, ~: 339866)
+[PASS] test_alreadyRegistered_notWearingRegisteredHat(uint256) (runs: 257, μ: 516046, ~: 516050)
+[PASS] test_happy_claimSignerFor(uint256) (runs: 257, μ: 313371, ~: 313373)
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 192.40s (190.99s CPU time)
+
+Ran 1 test for test/HatsSignerGate.t.sol:EnablingModule
+[PASS] test_happy_enableModule(uint256) (runs: 257, μ: 221590, ~: 221661)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 30.89s (29.40s CPU time)
+
+Ran 8 tests for test/SafeManagerLib.t.sol:SafeManagerLib_EncodingActions
+[PASS] test_fuzz_encodeAddOwnerWithThresholdAction(address,uint256) (runs: 257, μ: 4043, ~: 4043)
+[PASS] test_fuzz_encodeChangeThresholdAction(uint256) (runs: 257, μ: 3874, ~: 3874)
+[PASS] test_fuzz_encodeDisableModuleAction(address,address) (runs: 257, μ: 4161, ~: 4161)
+[PASS] test_fuzz_encodeEnableModuleAction(address) (runs: 257, μ: 3958, ~: 3958)
+[PASS] test_fuzz_encodeRemoveHSGAsGuardAction() (gas: 3810)
+[PASS] test_fuzz_encodeRemoveOwnerAction(address,address,uint256) (runs: 257, μ: 4245, ~: 4245)
+[PASS] test_fuzz_encodeSetGuardAction(address) (runs: 257, μ: 4002, ~: 4002)
+[PASS] test_fuzz_encodeSwapOwnerAction(address,address,address) (runs: 257, μ: 4245, ~: 4245)
+Suite result: ok. 8 passed; 0 failed; 0 skipped; finished in 20.45ms (20.37ms CPU time)
+
+Ran 1 test for test/HatsSignerGate.t.sol:HSGGuarding
+[PASS] test_executed() (gas: 433155)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 1.86s (57.34ms CPU time)
+
+Ran 3 tests for test/HatsSignerGate.t.sol:ImplementationDeployment
+[PASS] test_constructorArgs() (gas: 21832)
+[PASS] test_ownerHat() (gas: 10491)
+[PASS] test_version() (gas: 9360)
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 1.22s (169.08µs CPU time)
+
+Ran 1 test for test/HatsSignerGate.t.sol:RemovingSigner
+[PASS] test_happy_removeSigner(uint256) (runs: 257, μ: 374906, ~: 374908)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 60.49s (59.04s CPU time)
+
+Ran 2 tests for test/HatsSignerGate.internals.t.sol:RemovingSignerInternals
+[PASS] test_fuzz_removeSigner(uint8) (runs: 257, μ: 1832737, ~: 1302599)
+[PASS] test_fuzz_removeSigner_lastSigner(uint8) (runs: 257, μ: 181697, ~: 181698)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 195.77s (223.84s CPU time)
+
+Ran 4 tests for test/HatsSignerGate.internals.t.sol:AddingSignerInternals
+[PASS] test_fuzz_addSigner_alreadySigner(uint8) (runs: 256, μ: 141828, ~: 141830)
+[PASS] test_fuzz_addSigner_firstSigner(uint8) (runs: 256, μ: 99003, ~: 99004)
+[PASS] test_fuzz_addSigner_happy(uint8,uint8) (runs: 256, μ: 1408363, ~: 808540)
+[PASS] test_fuzz_addSigner_secondSigner_notSigner(uint8,uint8) (runs: 256, μ: 203119, ~: 203121)
+Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 241.29s (228.01s CPU time)
+
+Ran 1 test for test/SafeManagerLib.t.sol:SafeManagerLib_DeployingSafeAndAttachingHSG
+[PASS] test_deploySafeAndAttachHSG() (gas: 6646719)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 1.34s (119.20ms CPU time)
+
+Ran 1 test for test/HatsSignerGate.t.sol:Locking
+[PASS] test_happy_lock() (gas: 193172)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 1.59s (114.55ms CPU time)
+
+Ran 6 tests for test/SafeManagerLib.t.sol:SafeManagerLib_Views
+[PASS] test_canAttachHSG_false() (gas: 19652)
+[PASS] test_canAttachHSG_true() (gas: 275125)
+[PASS] test_findPrevOwner() (gas: 5505190)
+[PASS] test_getModulesWith1() (gas: 23225)
+[PASS] test_getSafeFallbackHandler() (gas: 1983153)
+[PASS] test_getSafeGuard() (gas: 18976)
+Suite result: ok. 6 passed; 0 failed; 0 skipped; finished in 6.32s (4.78s CPU time)
+
+Ran 1 test for test/HatsSignerGate.t.sol:SettingClaimableFor
+[PASS] test_fuzz_happy_setClaimableFor(bool) (runs: 257, μ: 192806, ~: 194185)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 30.92s (29.45s CPU time)
+
+Ran 1 test for test/HatsSignerGate.t.sol:SettingGuard
+[PASS] test_happy_setGuard(uint256) (runs: 257, μ: 269446, ~: 269446)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 45.35s (43.89s CPU time)
+
+Ran 5 tests for test/HatsSignerGate.t.sol:ClaimingSigner
+[PASS] test_fuzz_claimSigner_alreadyRegistered_differentHats(uint256) (runs: 256, μ: 412549, ~: 412551)
+[PASS] test_fuzz_claimSigner_alreadyRegistered_sameHat(uint256) (runs: 257, μ: 316165, ~: 316166)
+[PASS] test_fuzz_claimSigner_notRegistered_onSafe(uint256) (runs: 257, μ: 280189, ~: 280191)
+[PASS] test_fuzz_happy_claimSigner(uint256) (runs: 201, μ: 253702, ~: 253703)
+[PASS] test_fuzz_multipleSigners_multipleHats(uint256,uint256) (runs: 257, μ: 1344961, ~: 1322429)
+Suite result: ok. 5 passed; 0 failed; 0 skipped; finished in 301.57s (330.81s CPU time)
+
+Ran 1 test for test/HatsSignerGate.t.sol:SettingOwnerHat
+[PASS] test_fuzz_happy_setOwnerHat(uint256) (runs: 257, μ: 193841, ~: 193956)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 30.47s (28.98s CPU time)
+
+Ran 1 test for test/HatsSignerGate.t.sol:SettingThresholdConfig
+[PASS] test_fuzz_happy_setThresholdConfig(uint8,uint8,uint16) (runs: 257, μ: 235554, ~: 235551)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 27.25s (25.79s CPU time)
+
+Ran 2 tests for test/HatsSignerGate.t.sol:InstanceDeployment
+[PASS] test_initialParams_existingSafe(bool,bool) (runs: 257, μ: 3249682, ~: 3249191)
+[PASS] test_initialParams_newSafe(bool,bool) (runs: 257, μ: 3326320, ~: 3331405)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 101.87s (131.89s CPU time)
+
+Ran 8 tests for test/HatsSignerGate.internals.t.sol:ViewInternals
+[PASS] test_fuzz_countValidSigners(uint8) (runs: 257, μ: 1659436, ~: 1265024)
+[PASS] test_fuzz_getNewThreshold(uint8,uint8,uint16,uint16) (runs: 257, μ: 52657, ~: 52703)
+[PASS] test_fuzz_getNewThreshold_exceedsOwnerCount(uint8,uint8,uint16) (runs: 257, μ: 51144, ~: 51139)
+[PASS] test_fuzz_getRequiredValidSignatures_absolute(uint8,uint16,uint16) (runs: 257, μ: 49366, ~: 49313)
+[PASS] test_fuzz_getRequiredValidSignatures_absolute_ownerCountIsMin(uint8,uint16) (runs: 257, μ: 49262, ~: 49131)
+[PASS] test_fuzz_getRequiredValidSignatures_absolute_targetOwnerCount(uint8,uint16) (runs: 257, μ: 49328, ~: 49197)
+[PASS] test_fuzz_getRequiredValidSignatures_ownerCountLtMin(uint8,uint8,uint16) (runs: 257, μ: 51126, ~: 51121)
+[PASS] test_fuzz_getRequiredValidSignatures_proportional(uint8,uint16,uint16) (runs: 257, μ: 51158, ~: 50999)
+Suite result: ok. 8 passed; 0 failed; 0 skipped; finished in 316.08s (417.47s CPU time)
+
+Ran 3 tests for test/HatsSignerGate.t.sol:Views
+[PASS] test_false_canAttachToSafe(uint256) (runs: 257, μ: 813627, ~: 813628)
+[PASS] test_fuzz_canAttachToSafe() (gas: 751870)
+[PASS] test_fuzz_validSignerCount(uint256) (runs: 257, μ: 2528957, ~: 2676120)
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 217.03s (215.50s CPU time)
+
+Ran 2 tests for test/HatsSignerGate.t.sol:MigratingToNewHSG
+[PASS] test_happy_noSignersToMigrate() (gas: 280867)
+[PASS] test_happy_signersToMigrate(uint256) (runs: 257, μ: 3313913, ~: 3217606)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 185.09s (183.39s CPU time)
 
 Ran 3 tests for test/HatsSignerGate.t.sol:ClaimingSignersFor
-[PASS] test_alreadyOwnerNotRegistered_happy(uint256) (runs: 256, μ: 1161284, ~: 972352)
-[PASS] test_startingEmpty_happy(uint256) (runs: 256, μ: 982548, ~: 828275)
-[PASS] test_startingWith1Signer_happy(uint256) (runs: 256, μ: 1056861, ~: 905259)
-Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 133.68s (335.05s CPU time)
+[PASS] test_alreadyOwnerNotRegistered_happy(uint256) (runs: 257, μ: 2081673, ~: 1980770)
+[PASS] test_startingEmpty_happy(uint256) (runs: 257, μ: 1752542, ~: 1670221)
+[PASS] test_startingWith1Signer_happy(uint256) (runs: 257, μ: 1826677, ~: 1746526)
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 327.07s (521.47s CPU time)
+
+Ran 6 tests for test/SafeManagerLib.t.sol:SafeManagerLib_ExecutingActions
+[PASS] test_execAttachNewHSG() (gas: 108422)
+[PASS] test_execDisableHSGAsOnlyModule() (gas: 58646)
+[PASS] test_execRemoveHSGAsGuard() (gas: 51239)
+[PASS] test_fuzz_execChangeThreshold(uint256) (runs: 257, μ: 1860772, ~: 2116033)
+[PASS] test_fuzz_execDisableHSGAsModule(uint256) (runs: 257, μ: 1493220, ~: 1412971)
+[PASS] test_fuzz_fail_execChangeThreshold_tooHigh(uint256) (runs: 257, μ: 1583090, ~: 1582366)
+Suite result: ok. 6 passed; 0 failed; 0 skipped; finished in 238.53s (528.72s CPU time)
+
+Ran 4 tests for test/HatsSignerGate.internals.t.sol:CountingValidSignaturesInternals
+[PASS] test_fuzz_countValidSignatures_approvedHash(uint256) (runs: 256, μ: 1090712, ~: 1067058)
+[PASS] test_fuzz_countValidSignatures_contractSignature(uint256) (runs: 257, μ: 1091265, ~: 1066879)
+[PASS] test_fuzz_countValidSignatures_default(bytes32,uint256) (runs: 256, μ: 1289598, ~: 1394821)
+[PASS] test_fuzz_countValidSignatures_ethSign(bytes32,uint256) (runs: 257, μ: 1294101, ~: 1400360)
+Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 452.18s (899.04s CPU time)
 | script/HatsSignerGate.s.sol:DeployImplementation contract |                 |         |         |         |         |
 |-----------------------------------------------------------|-----------------|---------|---------|---------|---------|
 | Deployment Cost                                           | Deployment Size |         |         |         |         |
-| 6345032                                                   | 29195           |         |         |         |         |
+| 6495455                                                   | 29898           |         |         |         |         |
 | Function Name                                             | min             | avg     | median  | max     | # calls |
-| hats                                                      | 400             | 400     | 400     | 400     | 66      |
-| prepare                                                   | 26507           | 26507   | 26507   | 26507   | 66      |
-| run                                                       | 5056124         | 5056124 | 5056124 | 5056124 | 66      |
-| safeFallbackLibrary                                       | 346             | 346     | 346     | 346     | 66      |
-| safeMultisendLibrary                                      | 345             | 345     | 345     | 345     | 66      |
-| safeProxyFactory                                          | 347             | 347     | 347     | 347     | 66      |
-| safeSingleton                                             | 368             | 368     | 368     | 368     | 66      |
-| zodiacModuleFactory                                       | 346             | 346     | 346     | 346     | 66      |
+| hats                                                      | 400             | 400     | 400     | 400     | 111     |
+| prepare                                                   | 26507           | 26507   | 26507   | 26507   | 111     |
+| run                                                       | 5175332         | 5175332 | 5175332 | 5175332 | 111     |
+| safeFallbackLibrary                                       | 346             | 346     | 346     | 346     | 111     |
+| safeMultisendLibrary                                      | 345             | 345     | 345     | 345     | 111     |
+| safeProxyFactory                                          | 347             | 347     | 347     | 347     | 111     |
+| safeSingleton                                             | 368             | 368     | 368     | 368     | 111     |
+| zodiacModuleFactory                                       | 346             | 346     | 346     | 346     | 111     |
 
-| script/HatsSignerGate.s.sol:DeployInstance contract |                 |        |        |        |         |
-|-----------------------------------------------------|-----------------|--------|--------|--------|---------|
-| Deployment Cost                                     | Deployment Size |        |        |        |         |
-| 1617977                                             | 7222            |        |        |        |         |
-| Function Name                                       | min             | avg    | median | max    | # calls |
-| prepare1                                            | 233128          | 344292 | 361235 | 361475 | 578     |
-| prepare2                                            | 46041           | 48819  | 48829  | 48829  | 578     |
-| run                                                 | 472813          | 730723 | 768134 | 875298 | 578     |
+
+| script/HatsSignerGate.s.sol:DeployInstance contract |                 |        |        |         |         |
+|-----------------------------------------------------|-----------------|--------|--------|---------|---------|
+| Deployment Cost                                     | Deployment Size |        |        |         |         |
+| 1617977                                             | 7222            |        |        |         |         |
+| Function Name                                       | min             | avg    | median | max     | # calls |
+| prepare1                                            | 345088          | 456479 | 473195 | 473435  | 577     |
+| prepare2                                            | 46041           | 48819  | 48829  | 48829   | 577     |
+| run                                                 | 598310          | 856149 | 893615 | 1000778 | 577     |
+
 
 | src/HatsSignerGate.sol:HatsSignerGate contract |                 |        |        |         |         |
 |------------------------------------------------|-----------------|--------|--------|---------|---------|
 | Deployment Cost                                | Deployment Size |        |        |         |         |
 | 0                                              | 0               |        |        |         |         |
 | Function Name                                  | min             | avg    | median | max     | # calls |
-| HATS                                           | 293             | 293    | 293    | 293     | 512     |
-| addSignerHats                                  | 23902           | 319909 | 70868  | 2270425 | 259     |
-| checkAfterExecution                            | 1116            | 7978   | 8369   | 15932   | 15      |
-| checkTransaction                               | 3987            | 59223  | 64043  | 77305   | 22      |
-| claimSigner                                    | 37891           | 115153 | 114545 | 131021  | 4233    |
-| claimSignerFor                                 | 58040           | 82865  | 82865  | 107690  | 2       |
-| claimSignersFor                                | 24653           | 282005 | 257809 | 728010  | 1024    |
-| claimableFor                                   | 421             | 421    | 421    | 421     | 768     |
-| claimedSignerHats                              | 587             | 587    | 587    | 587     | 2       |
-| detachHSG                                      | 66450           | 66450  | 66450  | 66450   | 1       |
-| disableDelegatecallTarget                      | 30177           | 30177  | 30177  | 30177   | 1       |
-| disableModule                                  | 35507           | 35507  | 35507  | 35507   | 1       |
-| enableDelegatecallTarget                       | 47301           | 47301  | 47301  | 47301   | 2       |
-| enableModule                                   | 52438           | 52438  | 52438  | 52438   | 6       |
-| enabledDelegatecallTargets                     | 590             | 590    | 590    | 590     | 1538    |
-| execTransactionFromModule                      | 24934           | 40665  | 40665  | 56396   | 2       |
-| execTransactionFromModuleReturnData            | 25929           | 41660  | 41660  | 57391   | 2       |
-| getGuard                                       | 372             | 372    | 372    | 372     | 515     |
-| getModulesPaginated                            | 2910            | 2910   | 2910   | 2910    | 512     |
+| HATS                                           | 315             | 315    | 315    | 315     | 513     |
+| addSignerHats                                  | 48193           | 393814 | 274944 | 1159290 | 256     |
+| canAttachToSafe                                | 2890            | 3570   | 3573   | 3573    | 257     |
+| checkAfterExecution                            | 716             | 8819   | 8367   | 18164   | 15      |
+| checkTransaction                               | 3944            | 66392  | 71633  | 80561   | 22      |
+| claimSigner                                    | 37812           | 112873 | 115277 | 156982  | 8714    |
+| claimSignerFor                                 | 52485           | 86401  | 89436  | 114248  | 1024    |
+| claimSignersFor                                | 24653           | 545538 | 511105 | 1438687 | 1024    |
+| claimableFor                                   | 421             | 1421   | 1421   | 2421    | 1536    |
+| detachHSG                                      | 66410           | 66410  | 66410  | 66410   | 1       |
+| disableDelegatecallTarget                      | 30199           | 30199  | 30199  | 30199   | 256     |
+| disableModule                                  | 35507           | 35507  | 35507  | 35507   | 512     |
+| enableDelegatecallTarget                       | 47279           | 47279  | 47279  | 47279   | 512     |
+| enableModule                                   | 52438           | 52438  | 52438  | 52438   | 1028    |
+| enabledDelegatecallTargets                     | 590             | 590    | 590    | 590     | 2048    |
+| execTransactionFromModule                      | 25501           | 41232  | 41232  | 56963   | 2       |
+| execTransactionFromModuleReturnData            | 26496           | 42227  | 42227  | 57958   | 2       |
+| getGuard                                       | 395             | 395    | 395    | 395     | 1026    |
+| getModulesPaginated                            | 2888            | 2888   | 2888   | 2888    | 512     |
+| getSafeDeployParamAddresses                    | 343             | 343    | 343    | 343     | 1       |
 | implementation                                 | 380             | 380    | 380    | 380     | 512     |
-| isModuleEnabled                                | 660             | 660    | 660    | 660     | 3       |
-| isValidSigner                                  | 4135            | 4135   | 4135   | 4135    | 1224    |
-| isValidSignerHat                               | 502             | 502    | 502    | 502     | 2560    |
-| locked                                         | 420             | 420    | 420    | 420     | 512     |
-| migrateToNewHSG                                | 112872          | 305646 | 278334 | 493850  | 257     |
-| ownerHat                                       | 384             | 384    | 384    | 384     | 513     |
-| removeSigner                                   | 21686           | 65310  | 80325  | 85461   | 7       |
-| safe                                           | 425             | 425    | 425    | 425     | 832     |
-| setClaimableFor                                | 25052           | 27576  | 27852  | 27852   | 1282    |
-| setGuard                                       | 27102           | 42546  | 50268  | 50268   | 3       |
-| setOwnerHat                                    | 27644           | 27644  | 27644  | 27644   | 1       |
-| setThresholdConfig                             | 24275           | 74655  | 75130  | 88162   | 517     |
-| supportsInterface                              | 441             | 441    | 441    | 441     | 577     |
-| thresholdConfig                                | 899             | 901    | 899    | 2899    | 1796    |
-| validSignerCount                               | 7070            | 22383  | 20531  | 54469   | 1297    |
+| isModuleEnabled                                | 660             | 660    | 660    | 660     | 768     |
+| isValidSigner                                  | 4179            | 4201   | 4179   | 4718    | 6044    |
+| isValidSignerHat                               | 502             | 502    | 502    | 502     | 9278    |
+| lock                                           | 27419           | 27419  | 27419  | 27419   | 1       |
+| locked                                         | 398             | 398    | 398    | 398     | 513     |
+| migrateToNewHSG                                | 112816          | 523179 | 519136 | 899182  | 257     |
+| ownerHat                                       | 384             | 386    | 384    | 2384    | 769     |
+| registeredSignerHats                           | 565             | 565    | 565    | 565     | 3446    |
+| removeSigner                                   | 80200           | 85316  | 85336  | 85336   | 257     |
+| safe                                           | 425             | 425    | 425    | 425     | 831     |
+| setClaimableFor                                | 25052           | 27681  | 27852  | 27852   | 2048    |
+| setGuard                                       | 29902           | 40124  | 50268  | 50268   | 514     |
+| setOwnerHat                                    | 27644           | 27644  | 27644  | 27644   | 256     |
+| setThresholdConfig                             | 24312           | 61662  | 61656  | 74895   | 261     |
+| supportsInterface                              | 441             | 441    | 441    | 441     | 576     |
+| thresholdConfig                                | 899             | 906    | 899    | 2899    | 516     |
+| validSignerCount                               | 7064            | 40894  | 38497  | 97404   | 1540    |
+| version                                        | 495             | 495    | 495    | 495     | 1       |
+
+
+| test/harnesses/HatsSignerGateHarness.sol:HatsSignerGateHarness contract |                 |        |        |         |         |
+|-------------------------------------------------------------------------|-----------------|--------|--------|---------|---------|
+| Deployment Cost                                                         | Deployment Size |        |        |         |         |
+| 6245470                                                                 | 29331           |        |        |         |         |
+| Function Name                                                           | min             | avg    | median | max     | # calls |
+| checkAfterExecution                                                     | 740             | 740    | 740    | 740     | 2       |
+| checkTransaction                                                        | 63980           | 63980  | 63980  | 63980   | 2       |
+| claimSigner                                                             | 107315          | 110867 | 110867 | 114419  | 4       |
+| claimableFor                                                            | 422             | 422    | 422    | 422     | 256     |
+| deploySafeAndAttachHSG                                                  | 318547          | 318547 | 318547 | 318547  | 1       |
+| enableDelegatecallTarget                                                | 27422           | 27422  | 27422  | 27422   | 1       |
+| enabledDelegatecallTargets                                              | 588             | 588    | 588    | 588     | 1       |
+| entrancyCounter                                                         | 428             | 428    | 428    | 428     | 257     |
+| execAttachNewHSG                                                        | 64387           | 64387  | 64387  | 64387   | 1       |
+| execChangeThreshold                                                     | 19785           | 22765  | 21431  | 25877   | 512     |
+| execDisableHSGAsModule                                                  | 28112           | 28112  | 28112  | 28112   | 256     |
+| execDisableHSGAsOnlyModule                                              | 28061           | 28061  | 28061  | 28061   | 1       |
+| execRemoveHSGAsGuard                                                    | 23749           | 23749  | 23749  | 23749   | 1       |
+| existingFallbackHandler                                                 | 446             | 446    | 446    | 446     | 257     |
+| existingOwnersHash                                                      | 385             | 385    | 385    | 385     | 257     |
+| existingThreshold                                                       | 429             | 429    | 429    | 429     | 257     |
+| exposed_addSigner                                                       | 12933           | 80195  | 75711  | 143490  | 7456    |
+| exposed_addSignerHats                                                   | 2281            | 143235 | 47759  | 1139253 | 770     |
+| exposed_checkAfterExecution                                             | 2729            | 2729   | 2729   | 2729    | 256     |
+| exposed_checkModuleTransaction                                          | 659             | 760    | 659    | 26788   | 257     |
+| exposed_checkOwner                                                      | 21426           | 21426  | 21426  | 21426   | 1       |
+| exposed_checkSafeState                                                  | 6013            | 6013   | 6013   | 6013    | 1       |
+| exposed_checkTransaction                                                | 104030          | 104291 | 104030 | 171204  | 257     |
+| exposed_checkUnlocked                                                   | 2396            | 2396   | 2396   | 2396    | 1       |
+| exposed_countValidSignatures                                            | 4954            | 62346  | 55820  | 157787  | 1024    |
+| exposed_countValidSigners                                               | 4924            | 68908  | 47670  | 208334  | 256     |
+| exposed_existingOwnersHash                                              | 380             | 380    | 380    | 380     | 1       |
+| exposed_getNewThreshold                                                 | 1015            | 1200   | 1051   | 3015    | 6896    |
+| exposed_getRequiredValidSignatures                                      | 985             | 1073   | 1012   | 1220    | 1536    |
+| exposed_lock                                                            | 6046            | 6046   | 6046   | 6046    | 1       |
+| exposed_registerSigner                                                  | 12652           | 49556  | 52019  | 52019   | 8136    |
+| exposed_removeSigner                                                    | 53455           | 72810  | 63382  | 132838  | 512     |
+| exposed_setClaimableFor                                                 | 3768            | 5189   | 6568   | 6568    | 256     |
+| exposed_setDelegatecallTarget                                           | 4190            | 14814  | 24090  | 24090   | 513     |
+| exposed_setOwnerHat                                                     | 6442            | 6442   | 6442   | 6442    | 256     |
+| exposed_setThresholdConfig                                              | 5200            | 7986   | 8000   | 8000    | 2049    |
+| initialNonce                                                            | 384             | 384    | 384    | 384     | 257     |
+| isValidSignerHat                                                        | 547             | 868    | 547    | 2547    | 4773    |
+| locked                                                                  | 421             | 421    | 421    | 421     | 1       |
+| operation                                                               | 502             | 502    | 502    | 502     | 257     |
+| ownerHat                                                                | 386             | 386    | 386    | 386     | 256     |
+| reentrancyGuard                                                         | 407             | 407    | 407    | 407     | 257     |
+| registeredSignerHats                                                    | 588             | 588    | 588    | 588     | 512     |
+| safe                                                                    | 425             | 425    | 425    | 425     | 42      |
+| setExistingFallbackHandler                                              | 672             | 672    | 672    | 672     | 1       |
+| setExistingOwnersHash                                                   | 443             | 443    | 443    | 443     | 1       |
+| setExistingThreshold                                                    | 422             | 422    | 422    | 422     | 1       |
+| supportsInterface                                                       | 464             | 464    | 464    | 464     | 43      |
+| thresholdConfig                                                         | 966             | 966    | 966    | 966     | 256     |
+
+
+| test/mocks/TestGuard.sol:TestGuard contract |                 |     |        |     |         |
+|---------------------------------------------|-----------------|-----|--------|-----|---------|
+| Deployment Cost                             | Deployment Size |     |        |     |         |
+| 499117                                      | 2727            |     |        |     |         |
+| Function Name                               | min             | avg | median | max | # calls |
+| supportsInterface                           | 350             | 350 | 350    | 350 | 771     |
 
 
 
 
-Ran 24 test suites in 138.51s (822.70s CPU time): 66 tests passed, 0 failed, 0 skipped (66 total tests)
+Ran 40 test suites in 452.71s (3426.38s CPU time): 117 tests passed, 2 failed, 0 skipped (119 total tests)
+
+Failing tests:
+Encountered 2 failing tests in test/HatsSignerGate.internals.t.sol:TransactionValidationInternals
+[FAIL: CannotChangeThreshold()] test_checkSafeState() (gas: 112477)
+[FAIL: the existing owners hash should be unchanged: 0x0000000000000000000000000000000000000000000000000000000000000000 != 0xdec22d665cd8a5d6a8e2fb5e36109e7c69a9fde85d7436b5081a9c4cc04c0d29; counterexample: calldata=0x9d37a228000000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000005000000000000000000000000000000000000000000000000000000000000000300000000000000000000000000000000000000000000000000000000000079e8 args=[8, 1, 5, 3, 31208 [3.12e4]]] test_fuzz_checkModuleTransaction_delegatecallToApprovedTarget(uint8,uint8,uint8,uint8,uint16) (runs: 0, μ: 0, ~: 0)
+
+Encountered a total of 2 failing tests, 117 tests succeeded
