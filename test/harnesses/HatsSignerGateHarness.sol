@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: LGPL-3.0
 pragma solidity >=0.8.13;
 
 // import { Test, console2 } from "../../lib/forge-std/src/Test.sol"; // comment out after testing
