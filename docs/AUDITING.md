@@ -112,7 +112,7 @@ But we’re not satisfied with this scenario. Part of our mission is to enable o
 
 Here’s what we’re changing in v2 to address the limitations described above.
 
-###  1) Simpler, more legible threshold logic
+### 1) Simpler, more legible threshold logic
 
 HSG v2 will set the Safe's threshold to the lower of the following:
 
@@ -123,7 +123,7 @@ Since (b) is a function of (a), this means that the threshold value set in Safe 
 
 One tradeoff is that the threshold according to the Safe is not necessarily the same as the number of valid signatures that will be enforced by HSG. If, for example, one or more of the Safe owners has lost their Hat, its possible that the actual number of required valid signatures is lower than the threshold set in Safe storage.
 
-###  2) Proportional threshold option
+### 2) Proportional threshold option
 
 In addition to the absolute approach to calculating the number of required valid signatures that v1 used, v2 introduces an option to calculate the number of valid signatures proportionally. 
 
@@ -133,7 +133,7 @@ The proportional approach is a good fit for when the number of signers is expect
 
 Both approaches can be configured with a minimum value to ensure the desired level of safety during signer transitions.
 
-###  3) HSG as a Zodiac modifier
+### 3) HSG as a Zodiac modifier
 
 This addresses limitation A. Any Safe modules and guards can now be used on a Safe in conjunction HSG. HSG still needs to be the sole module and guard enabled directly on the Safe, but the HSG owner can enable additional modules and guards on HSG. In other words, HSG now serves as a Zodiac modifier.
 
@@ -171,7 +171,7 @@ Since (i) is called as part of a multi-call flow originating from Safe.execTrans
 
 Note that there is a relationship between (i) and (ii). We also need to ensure that (i) is not entered from within a call to (ii), and vice versa.
 
-###  8) Only 1 implementation: all HSGs support multiple signer hats
+### 8) Only 1 implementation: all HSGs support multiple signer hats
 
 To simplify the implementation, HSG v2 supports multiple signer hats. This means that all signers must register the hat with which they are claiming their signer permission.
 

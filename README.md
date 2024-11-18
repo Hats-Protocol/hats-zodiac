@@ -49,6 +49,7 @@ Hats Signer Gate provides several ways to manage Safe signers based on their hat
 #### Claiming for Others
 
 When enabled by the owner (`claimableFor = true`):
+
 - Anyone can claim signing rights on behalf of valid hat wearers via `claimSignerFor()` or `claimSignersFor()`
 - Useful for batch onboarding of signers
 - Prevents re-registration if signer is still wearing their currently registered hat
