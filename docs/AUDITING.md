@@ -46,15 +46,16 @@ From a security perspective, the ideal way to build such a product would be to f
 However, the Safe ecosystem has such strong network effects that it is worth the extra effort. The organizations that use Hats Protocol specifically want delegated Safes, not some other type of account. And they want to use the Safe-compatible apps they are already familiar with, like Safe’s own UI or others like Den.
 
 Therefore, the primary objective HatsSignerGate seeks to accomplish is to lock down a Safe so that its signers can use the Safe to manage its assets but not change any of its properties. Of utmost importance is that the signers not be able to jailbreak those constraints. Specifically, the signers should not be able to:
+
 - Add or remove signers
 - Change the threshold
 - Disable HSG as a module on the Safe
 - Remove HSG as a guard on the Safe
 - Do anything else that would allow them to do 1-4. This includes:
-- Enabling other modules on the Safe
-- Executing delegatecalls to contracts that directly update the Safe’s state in such a way that cannot be detected by HSG’s guard functionality
-- Changing the Safe singleton that provides the logic to the Safe’s proxy
-- Changing the fallback handler
+  - Enabling other modules on the Safe
+  - Executing delegatecalls to contracts that directly update the Safe's state in such a way that cannot be detected by HSG's guard functionality
+  - Changing the Safe singleton that provides the logic to the Safe's proxy
+  - Changing the fallback handler
 
 > **Warning**
 > These limitations must not be violated.
@@ -113,8 +114,9 @@ Here’s what we’re changing in v2 to address the limitations described above.
 
 ###  1) Simpler, more legible threshold logic
 
-HSG v2 will set the Safe’s threshold to the lower of the following:
-- The number of current owners on the Safe (the number of “static signers”)
+HSG v2 will set the Safe's threshold to the lower of the following:
+
+- The number of current owners on the Safe (the number of "static signers")
 - The required number of valid signatures to execute a transaction
 
 Since (b) is a function of (a), this means that the threshold value set in Safe storage is independent of whether the Safe owners are wearing one of the signer Hats. As a result, unlike in v1, there will never be a discrepancy between what the Safe threshold is and what it should be.
@@ -188,6 +190,7 @@ The owner can also choose to migrate the Safe from one HSG version to another. T
 In HSG v2, the owner can “lock” the HSG, disabling any further changes by the owner. This is useful for scenarios where removing all trust from the system or eliminating uncertainty is valuable.
 
 ### 12) Claiming For
+
 In HSG v2, the owner can optionally allow signer permissions to be claimed on behalf of accounts wearing a signer hat. This option removes the often-desired requirement for signers to opt in to the responsibility being a signer on a multisig, but adds the ability to integrate signer permissions claiming with external actions.
 
 ### 13) No dedicated factory

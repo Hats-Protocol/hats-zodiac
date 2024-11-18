@@ -25,7 +25,7 @@ A) **Only valid signers can execute transactions**, i.e. only signatures made by
 B) **Signers cannot execute transactions that remove the constraint in (A)**. Specifically, this contract guards against signers...
 
 1. Removing the contract as a guard on the multisig
-2. Removing the contract as a module on the multisig — or removing/changing/adding any other modules,
+2. Removing the contract as a module on the multisig — or removing/changing/adding any other modules
 3. Changing the multisig threshold
 4. Changing the multisig owners
 5. Making delegatecalls to any target not approved by the owner
@@ -41,17 +41,20 @@ B) **Signers cannot execute transactions that remove the constraint in (A)**. Sp
 Hats Signer Gate provides several ways to manage Safe signers based on their hat-wearing status:
 
 #### Claiming Signer Rights
+
 - Individual hat wearers can claim their own signing rights via `claimSigner()`
 - Must be wearing a valid signer hat at time of claim
 - Each signer's hat ID is registered and tracked for future validation
 
 #### Claiming for Others
+
 When enabled by the owner (`claimableFor = true`):
 - Anyone can claim signing rights on behalf of valid hat wearers via `claimSignerFor()` or `claimSignersFor()`
 - Useful for batch onboarding of signers
 - Prevents re-registration if signer is still wearing their currently registered hat
 
 #### Signer Removal
+
 - Signers who no longer wear their registered hat can be removed via `removeSigner()`
 - Threshold automatically adjusts according to the threshold configuration
 - If the removed signer was the last valid signer, the contract itself becomes the sole owner
@@ -61,23 +64,28 @@ When enabled by the owner (`claimableFor = true`):
 The threshold (number of required signatures) is managed dynamically based on the `ThresholdConfig`:
 
 #### Threshold Types
+
 1. **ABSOLUTE**
+
    - Sets a fixed target number of required signatures
    - Example: Always require exactly 3 signatures
    - Bounded by min threshold and number of valid signers
 
 2. **PROPORTIONAL**
+
    - Sets a percentage of total signers required (in basis points)
    - Example: Require 51% of signers (5100 basis points)
    - Actual number of required signatures rounds up
    - Still bounded by min threshold
 
 #### Configuration Parameters
+
 - `min`: Minimum number of required signatures (must be > 0)
 - `target`: Either fixed number (ABSOLUTE) or percentage in basis points (PROPORTIONAL)
 - `thresholdType`: ABSOLUTE (0) or PROPORTIONAL (1)
 
 The Safe's threshold is automatically adjusted when:
+
 - New signers are added
 - Existing signers are removed
 - Threshold configuration is changed
@@ -87,6 +95,7 @@ The Safe's threshold is automatically adjusted when:
 HSG restricts delegatecalls to protect the Safe from unauthorized modifications. Only approved targets can receive delegatecalls.
 
 #### Default Enabled Targets
+
 The following MultiSend libraries are enabled by default:
 
 | Address | Version | Type |
@@ -98,6 +107,7 @@ The following MultiSend libraries are enabled by default:
 See [safe-deployments](https://github.com/safe-global/safe-deployments/tree/main/src/assets) for more information.
 
 #### Security Considerations
+
 - Delegatecalls can modify Safe state if not properly restricted
 - HSG validates that approved delegatecalls don't modify critical Safe parameters
 - Direct calls to the Safe are always prohibited
