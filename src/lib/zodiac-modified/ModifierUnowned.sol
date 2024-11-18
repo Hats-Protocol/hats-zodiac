@@ -8,6 +8,11 @@ import { IAvatar } from "../../../lib/zodiac/contracts/interfaces/IAvatar.sol";
 /// @author Gnosis Guild
 /// @dev Modified from Zodiac's Modifier to enable inheriting contracts to use their preferred owner logic
 /// and to simplify the moduleOnly modifier.
+/// https://github.com/gnosisguild/zodiac/blob/5165ce2f377c291d4bfe71d21948d9df0fdf6224/contracts/core/Modifier.sol
+/// Modifications:
+/// - Removed Module, SignatureChecker, and ExecutionTracker inheritance
+/// - Removed owner logic
+/// - Simplified moduleOnly modifier
 abstract contract ModifierUnowned is IAvatar {
   address internal constant SENTINEL_MODULES = address(0x1);
   /// Mapping of modules.

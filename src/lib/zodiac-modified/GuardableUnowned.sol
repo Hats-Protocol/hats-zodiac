@@ -7,6 +7,9 @@ import { IGuard } from "../../../lib/zodiac/contracts/interfaces/IGuard.sol";
 /// @title Guardable - A contract that manages fallback calls made to this contract
 /// @author Gnosis Guild
 /// @dev Modified from Zodiac's Guardable to enable inheriting contracts to use their preferred owner logic.
+/// https://github.com/gnosisguild/zodiac/blob/5165ce2f377c291d4bfe71d21948d9df0fdf6224/contracts/guard/Guardable.sol
+/// Modifications:
+/// - Removed owner logic
 contract GuardableUnowned {
   address public guard;
 
