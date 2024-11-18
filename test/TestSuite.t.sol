@@ -182,6 +182,16 @@ abstract contract SafeTestHelpers is Test {
     );
   }
 
+  function _getSafeDelegatecallHash(address _to, bytes memory _data, ISafe _safe)
+    internal
+    view
+    returns (bytes32 txHash)
+  {
+    return _safe.getTransactionHash(
+      _to, 0, _data, Enum.Operation.DelegateCall, 0, 0, 0, address(0), payable(address(0)), _safe.nonce()
+    );
+  }
+
   // modified from Orca (https://github.com/orcaprotocol/contracts/blob/main/contracts/utils/SafeTxHelper.sol)
   function _executeSafeTxFrom(address _from, bytes memory _data, ISafe _safe) public {
     _safe.execTransaction(
@@ -259,14 +269,16 @@ contract TestSuite is SafeTestHelpers {
   ISafe public safe;
   address public safeFallbackLibrary;
   address public safeMultisendLibrary;
+  address public caller;
 
   // Contracts under test
-  HatsSignerGate public singletonHatsSignerGate;
-  HatsSignerGate public hatsSignerGate;
+  HatsSignerGate public implementationHSG;
+  HatsSignerGate public instance;
 
   // Test params
   IHatsSignerGate.ThresholdConfig public thresholdConfig;
   bool public locked;
+  TestGuard[] public tstGuards;
   TestGuard public tstGuard;
   address[] public tstModules;
   address public tstModule1 = makeAddr("tstModule1");
@@ -283,7 +295,7 @@ contract TestSuite is SafeTestHelpers {
     // Deploy the HSG implementation with a salt
     DeployImplementation implementationDeployer = new DeployImplementation();
     implementationDeployer.prepare(false);
-    singletonHatsSignerGate = implementationDeployer.run();
+    implementationHSG = implementationDeployer.run();
 
     // Cache the deploy params and factory address
     safeFallbackLibrary = implementationDeployer.safeFallbackLibrary();
@@ -294,13 +306,17 @@ contract TestSuite is SafeTestHelpers {
     hats = IHats(implementationDeployer.hats());
 
     // Create test signer addresses
-    (pks, signerAddresses) = _createAddressesFromPks(10);
+    (pks, signerAddresses) = _createAddressesFromPks(20);
 
     // generate fuzzing addresses
     fuzzingAddresses = _generateFuzzingAddresses(50);
 
-    // create the test guard
-    tstGuard = new TestGuard(address(hatsSignerGate));
+    // create several test guards
+    tstGuard = new TestGuard{ salt: bytes32(0) }(address(instance));
+    tstGuards = new TestGuard[](3);
+    tstGuards[0] = tstGuard;
+    tstGuards[1] = new TestGuard{ salt: keccak256(abi.encode(1)) }(address(instance));
+    tstGuards[2] = new TestGuard{ salt: keccak256(abi.encode(2)) }(address(instance));
 
     // set up the test modules array
     tstModules = new address[](3);
@@ -315,16 +331,16 @@ contract TestSuite is SafeTestHelpers {
     defaultDelegatecallTargets[2] = v1_4_1_callOnly_canonical;
 
     // Set up the test hats
-    uint256 signerHatCount = 5;
+    uint256 signerHatCount = 10;
     signerHats = new uint256[](signerHatCount);
 
     vm.startPrank(org);
     tophat = hats.mintTopHat(org, "tophat", "https://hats.com");
-    ownerHat = hats.createHat(tophat, "owner", 10, eligibility, toggle, true, "");
+    ownerHat = hats.createHat(tophat, "owner", 500, eligibility, toggle, true, "");
 
     for (uint256 i = 0; i < signerHatCount; ++i) {
       signerHats[i] =
-        hats.createHat(tophat, string.concat("signerHat", vm.toString(i)), 100, eligibility, toggle, true, "image");
+        hats.createHat(tophat, string.concat("signerHat", vm.toString(i)), 500, eligibility, toggle, true, "image");
     }
 
     hats.mintHat(ownerHat, owner);
@@ -377,7 +393,7 @@ contract TestSuite is SafeTestHelpers {
     // create the instance deployer
     DeployInstance instanceDeployer = new DeployInstance();
     instanceDeployer.prepare1(
-      address(singletonHatsSignerGate),
+      address(implementationHSG),
       _ownerHat,
       _signerHats,
       _thresholdConfig,
@@ -406,11 +422,11 @@ contract TestSuite is SafeTestHelpers {
     bool _claimableFor,
     address _hsgGuard,
     address[] memory _hsgModules
-  ) internal returns (HatsSignerGate _hatsSignerGate, ISafe _safe) {
+  ) internal returns (HatsSignerGate _instance, ISafe _safe) {
     // create the instance deployer
     DeployInstance instanceDeployer = new DeployInstance();
     instanceDeployer.prepare1(
-      address(singletonHatsSignerGate),
+      address(implementationHSG),
       _ownerHat,
       _signerHats,
       _thresholdConfig,
@@ -421,8 +437,8 @@ contract TestSuite is SafeTestHelpers {
       _hsgModules
     );
     instanceDeployer.prepare2(_verbose, TEST_SALT_NONCE);
-    _hatsSignerGate = instanceDeployer.run();
-    _safe = _hatsSignerGate.safe();
+    _instance = instanceDeployer.run();
+    _safe = _instance.safe();
   }
 
   function _getSafeGuard(address _safe) internal view returns (address) {
@@ -433,13 +449,13 @@ contract TestSuite is SafeTestHelpers {
                         SIGNER SETTING HELPERS
     //////////////////////////////////////////////////////////////*/
 
-  function _addSignersSameHat(uint256 _count, uint256 _hat) internal {
+  function _addSignersSameHat(uint256 _count, uint256 _hat) internal virtual {
     for (uint256 i = 0; i < _count; ++i) {
       _setSignerValidity(signerAddresses[i], _hat, true);
       vm.expectEmit();
       emit IHatsSignerGate.Registered(_hat, signerAddresses[i]);
       vm.prank(signerAddresses[i]);
-      hatsSignerGate.claimSigner(_hat);
+      instance.claimSigner(_hat);
     }
   }
 
@@ -447,7 +463,7 @@ contract TestSuite is SafeTestHelpers {
     for (uint256 i = 0; i < _count; ++i) {
       _setSignerValidity(signerAddresses[i], _hats[i], true);
       vm.prank(signerAddresses[i]);
-      hatsSignerGate.claimSigner(_hats[i]);
+      instance.claimSigner(_hats[i]);
     }
   }
 
@@ -499,12 +515,12 @@ contract TestSuite is SafeTestHelpers {
 
   function assertValidSignerHats(uint256[] memory _signerHats) public view {
     for (uint256 i = 0; i < _signerHats.length; ++i) {
-      assertTrue(hatsSignerGate.isValidSignerHat(_signerHats[i]));
+      assertTrue(instance.isValidSignerHat(_signerHats[i]));
     }
   }
 
   function assertCorrectModules(address[] memory _modules) public view {
-    (address[] memory pagedModules, address next) = hatsSignerGate.getModulesPaginated(SENTINELS, _modules.length);
+    (address[] memory pagedModules, address next) = instance.getModulesPaginated(SENTINELS, _modules.length);
     assertEq(pagedModules.length, _modules.length);
     for (uint256 i; i < _modules.length; ++i) {
       // getModulesPaginated returns the modules in the reverse order they were added
@@ -528,13 +544,254 @@ contract TestSuite is SafeTestHelpers {
     assertEq(modules[0], _module, "module should be the only module");
     assertEq(next, SENTINELS, "next should be SENTINELS");
   }
+
+  /*//////////////////////////////////////////////////////////////
+                  THRESHOLD CONFIG HELPER FUNCTIONS
+  //////////////////////////////////////////////////////////////*/
+
+  function _createValidThresholdConfig(
+    IHatsSignerGate.TargetThresholdType _thresholdType,
+    uint8 _min, // keep values at least somewhat realistic
+    uint16 _target // keep values at least somewhat realistic
+  ) internal pure returns (IHatsSignerGate.ThresholdConfig memory) {
+    // ensure the min is at least 1
+    uint120 min = uint120(bound(_min, 1, type(uint8).max));
+
+    uint120 target;
+    if (_thresholdType == IHatsSignerGate.TargetThresholdType.ABSOLUTE) {
+      // ensure the target is at least the min
+      target = uint120(bound(_target, min, type(uint16).max));
+    } else {
+      // ensure the target is no bigger than 100% (10000)
+      target = uint120(bound(_target, 1, 10_000));
+    }
+
+    console2.log("config.thresholdType", uint8(_thresholdType));
+    console2.log("config.min", min);
+    console2.log("config.target", target);
+
+    return IHatsSignerGate.ThresholdConfig({ thresholdType: _thresholdType, min: min, target: target });
+  }
+
+  function _calcProportionalTargetSignatures(uint256 _ownerCount, uint120 _target) internal pure returns (uint256) {
+    return ((_ownerCount * _target) + 9999) / 10_000;
+  }
+
+  /// @dev Assumes _min and _target are valid
+  function _calcProportionalRequiredValidSignatures(uint256 _ownerCount, uint120 _min, uint120 _target)
+    internal
+    pure
+    returns (uint256)
+  {
+    if (_ownerCount < _min) return _min;
+    uint256 required = _calcProportionalTargetSignatures(_ownerCount, _target);
+    if (required < _min) return _min;
+    return required;
+  }
+
+  function _calcAbsoluteRequiredValidSignatures(uint256 _ownerCount, uint120 _min, uint120 _target)
+    internal
+    pure
+    returns (uint256)
+  {
+    if (_ownerCount < _min) return _min;
+    if (_ownerCount > _target) return _target;
+    return _ownerCount;
+  }
+
+  function _calcRequiredValidSignatures(uint256 _ownerCount, IHatsSignerGate.ThresholdConfig memory _config)
+    internal
+    pure
+    returns (uint256)
+  {
+    if (_config.thresholdType == IHatsSignerGate.TargetThresholdType.ABSOLUTE) {
+      return _calcAbsoluteRequiredValidSignatures(_ownerCount, _config.min, _config.target);
+    }
+    return _calcProportionalRequiredValidSignatures(_ownerCount, _config.min, _config.target);
+  }
+
+  /// @dev Mocks the `isWearerOfHat` function for a given wearer and hat. Useful when testing with hat ids that are not
+  /// necessarily real hats.
+  function _mockHatWearer(address _wearer, uint256 _hatId, bool _isWearer) internal {
+    vm.mockCall(
+      address(hats), abi.encodeWithSelector(hats.isWearerOfHat.selector, _wearer, _hatId), abi.encode(_isWearer)
+    );
+  }
+
+  function _getRandomBool(uint256 _seed) internal pure returns (bool) {
+    return _seed % 2 == 0;
+  }
+
+  /// @dev Returns a `_count` of random signer hats, that are not necessarily real hat ids
+  function _getRandomSignerHats(uint256 _count) internal returns (uint256[] memory) {
+    // Bound number of hats to a semi-reasonable range
+    uint256 numHats = bound(_count, 1, 50);
+
+    // Create array of signer hats
+    uint256[] memory signerHats_ = new uint256[](numHats);
+    for (uint256 i; i < numHats; i++) {
+      signerHats_[i] = uint256(keccak256(abi.encode(vm.randomUint(), "hat", i)));
+    }
+    return signerHats_;
+  }
+
+  /// @dev Returns a `_count` of randomly selected valid signer hats, sampled without replacement
+  function _getRandomValidSignerHatsWithoutReplacement(uint256 _seed, uint256 _count)
+    internal
+    view
+    returns (uint256[] memory)
+  {
+    _count = bound(_count, 1, signerHats.length);
+    uint256[] memory selected = new uint256[](_count);
+    bool[] memory used = new bool[](signerHats.length);
+    uint256 selectedCount;
+
+    while (selectedCount < _count) {
+      uint256 index = _seed % signerHats.length;
+      if (!used[index]) {
+        selected[selectedCount] = signerHats[index];
+        used[index] = true;
+        selectedCount++;
+      }
+    }
+
+    return selected;
+  }
+
+  /// @dev Returns a `_count` of randomly selected valid signer hats, sampled with replacement
+  function _getRandomValidSignerHatsWithReplacement(uint256 _seed, uint256 _count)
+    internal
+    view
+    returns (uint256[] memory)
+  {
+    _count = bound(_count, 1, signerHats.length);
+    uint256[] memory signerHats_ = new uint256[](_count);
+    for (uint256 i; i < _count; i++) {
+      signerHats_[i] = _getRandomValidSignerHat(_seed + i);
+    }
+    return signerHats_;
+  }
+
+  function _getRandomValidSignerHat(uint256 _seed) internal view returns (uint256) {
+    uint256 index = _seed % signerHats.length;
+    return signerHats[index];
+  }
+
+  function _getRandomAddress() internal returns (address) {
+    return _getRandomAddress(vm.randomUint());
+  }
+
+  function _getRandomAddress(uint256 _seed) internal view returns (address) {
+    uint256 addressIndex = _seed % fuzzingAddresses.length;
+    return fuzzingAddresses[addressIndex];
+  }
+
+  function _getRandomSigners(uint256 _seed, uint256 _count) internal view returns (address[] memory) {
+    _count = bound(_count, 1, signerAddresses.length);
+    address[] memory signers = new address[](_count);
+    bool[] memory used = new bool[](signerAddresses.length);
+    uint256 selectedCount;
+
+    while (selectedCount < _count) {
+      uint256 index = uint256(keccak256(abi.encode(_seed, selectedCount))) % signerAddresses.length;
+      if (!used[index]) {
+        signers[selectedCount] = signerAddresses[index];
+        used[index] = true;
+        selectedCount++;
+      }
+    }
+
+    return signers;
+  }
+
+  function _getRandomAddresses(uint256 _seed, uint256 _count) internal view returns (address[] memory) {
+    require(_count <= fuzzingAddresses.length, "Count exceeds available addresses");
+    address[] memory addresses = new address[](_count);
+    bool[] memory used = new bool[](fuzzingAddresses.length);
+    uint256 selectedCount;
+
+    while (selectedCount < _count) {
+      uint256 index = uint256(keccak256(abi.encode(_seed, selectedCount))) % fuzzingAddresses.length;
+      if (!used[index]) {
+        addresses[selectedCount] = fuzzingAddresses[index];
+        used[index] = true;
+        selectedCount++;
+      }
+    }
+
+    return addresses;
+  }
+
+  function _getRandomGuard(uint256 _seed) internal view returns (address) {
+    uint256 guardIndex = _seed % tstGuards.length;
+    return address(tstGuards[guardIndex]);
+  }
+
+  function _getSignaturesForEmptyTx(uint256 _signerCount, address _to, Enum.Operation _operation)
+    internal
+    returns (bytes memory)
+  {
+    // execute a transaction from the safe to set the nonce
+    bytes32 txHash;
+    if (_operation == Enum.Operation.Call) {
+      txHash = _getSafeTxHash(_to, "", safe);
+    } else {
+      txHash = _getSafeDelegatecallHash(_to, "", safe);
+    }
+    return _createNSigsForTx(txHash, _signerCount);
+  }
+
+  function _executeEmptyCallFromSafe(uint256 _signerCount, address _to) internal {
+    // add the signers
+    _addSignersSameHat(_signerCount, signerHat);
+
+    // execute a transaction from the safe to set the nonce
+    bytes memory signatures = _getSignaturesForEmptyTx(_signerCount, _to, Enum.Operation.Call);
+    safe.execTransaction(_to, 0, "", Enum.Operation.Call, 0, 0, 0, address(0), payable(address(0)), signatures);
+  }
+
+  function _createContractSignature(address _contractSigner) internal pure returns (bytes memory signature) {
+    // r encodes the address of the contract that signed the message
+    bytes32 r = bytes32(uint256(uint160(_contractSigner)));
+    // s can be 0
+    bytes32 s = bytes32(0);
+    // v must be 0
+    bytes1 v = bytes1(0);
+    return abi.encodePacked(r, s, v);
+  }
+
+  function _createNContractSigs(uint256 _signerCount) internal view returns (bytes memory signatures) {
+    for (uint256 i; i < _signerCount; ++i) {
+      signatures = bytes.concat(signatures, _createContractSignature(signerAddresses[i]));
+    }
+    return signatures;
+  }
+
+  modifier callerIsOwner(bool _isOwner) {
+    // randomly select a caller
+    caller = _getRandomAddress();
+
+    // mint them the owner hat
+    _setSignerValidity(caller, ownerHat, _isOwner);
+
+    _;
+  }
+
+  modifier callerIsSafe(bool _isSafe) {
+    if (_isSafe) {
+      caller = address(safe);
+    } else {
+      caller = _getRandomAddress();
+    }
+    _;
+  }
 }
 
 contract WithHSGInstanceTest is TestSuite {
   function setUp() public virtual override {
     super.setUp();
 
-    (hatsSignerGate, safe) = _deployHSGAndSafe({
+    (instance, safe) = _deployHSGAndSafe({
       _ownerHat: ownerHat,
       _signerHats: signerHats,
       _thresholdConfig: thresholdConfig,
@@ -545,16 +802,35 @@ contract WithHSGInstanceTest is TestSuite {
       _verbose: false
     });
   }
+
+  modifier isLocked(bool _locked) {
+    if (_locked && !instance.locked()) {
+      vm.prank(owner);
+      instance.lock();
+    }
+    _;
+  }
+
+  modifier isClaimableFor(bool _claimableFor) {
+    if (_claimableFor && !instance.claimableFor()) {
+      vm.prank(owner);
+      instance.setClaimableFor(true);
+    }
+    _;
+  }
 }
 
 contract WithHSGHarnessInstanceTest is TestSuite {
+  HatsSignerGateHarness public harnessImplementation;
   HatsSignerGateHarness public harness;
+
+  IHatsSignerGate.SetupParams public harnessSetupParams;
 
   function setUp() public virtual override {
     super.setUp();
 
-    // deploy a new HatsSignerGateHarness
-    harness = new HatsSignerGateHarness(
+    // deploy the harness implementation
+    harnessImplementation = new HatsSignerGateHarness(
       address(hats),
       address(singletonSafe),
       address(safeFallbackLibrary),
@@ -562,20 +838,222 @@ contract WithHSGHarnessInstanceTest is TestSuite {
       address(safeFactory)
     );
 
-    // deploy a new Safe with no owners and threshold of 1
-    initSafeOwners[0] = address(this);
-    safe = _deploySafe(initSafeOwners, 1, TEST_SALT_NONCE);
+    // set up the harness setup params
+    harnessSetupParams = IHatsSignerGate.SetupParams({
+      ownerHat: ownerHat,
+      signerHats: signerHats,
+      safe: address(0),
+      thresholdConfig: thresholdConfig,
+      locked: false,
+      claimableFor: false,
+      implementation: address(harnessImplementation),
+      hsgGuard: address(0),
+      hsgModules: new address[](0)
+    });
 
-    // enable the harness as a module on the Safe
-    vm.prank(address(safe));
-    safe.enableModule(address(harness));
+    // deploy a harness instance
+    harness = HatsSignerGateHarness(
+      ModuleProxyFactory(zodiacModuleFactory).deployModule(
+        address(harnessImplementation),
+        abi.encodeWithSignature("setUp(bytes)", abi.encode(harnessSetupParams)),
+        TEST_SALT_NONCE
+      )
+    );
 
-    // set harness as the safe's guard
-    vm.prank(address(safe));
-    safe.setGuard(address(harness));
+    safe = harness.safe();
+  }
 
-    // set the fallback handler to the safeFallbackLibrary
-    vm.prank(address(safe));
-    safe.setFallbackHandler(address(safeFallbackLibrary));
+  function _addSignersSameHat(uint256 _count, uint256 _hat) internal override {
+    for (uint256 i = 0; i < _count; ++i) {
+      _setSignerValidity(signerAddresses[i], _hat, true);
+      vm.expectEmit();
+      emit IHatsSignerGate.Registered(_hat, signerAddresses[i]);
+      vm.prank(signerAddresses[i]);
+      harness.claimSigner(_hat);
+    }
+  }
+
+  /// @dev Adds a random number of non-duplicate signers to the safe, randomly selected from the fuzzing addresses
+  function _addRandomSigners(uint8 _numExistingSigners) internal {
+    // Ensure we have at least one existing signer
+    _numExistingSigners = uint8(bound(_numExistingSigners, 1, fuzzingAddresses.length - 1));
+
+    // Use the random seed to generate multiple indices
+    uint256[] memory usedIndices = new uint256[](_numExistingSigners);
+    for (uint256 i; i < _numExistingSigners; i++) {
+      // Generate a new index from the random seed
+      uint256 index = uint256(keccak256(abi.encode(vm.randomUint(), i))) % fuzzingAddresses.length;
+
+      // Ensure no duplicates
+      bool isDuplicate;
+      for (uint256 j; j < i; j++) {
+        if (usedIndices[j] == index) {
+          isDuplicate = true;
+          break;
+        }
+      }
+      if (!isDuplicate) {
+        usedIndices[i] = index;
+
+        // Add the signer
+        address signer = fuzzingAddresses[index];
+        harness.exposed_addSigner(signer);
+
+        assertTrue(safe.isOwner(signer), "signer should be added to the safe");
+        assertFalse(safe.isOwner(address(harness)), "the harness should no longer be an owner");
+
+        // Ensure the threshold is correct
+        uint256 correctThreshold = harness.exposed_getNewThreshold(safe.getOwners().length);
+        assertEq(safe.getThreshold(), correctThreshold, "the safe threshold should be correct");
+      }
+    }
+  }
+
+  /// @dev Helper function to generate unique signatures and track valid signers.
+  /// @param _dataHash The hash to sign
+  /// @param _sigCount The number of signatures to generate
+  /// @param _ethSign Whether to use eth_sign
+  /// @return signatures The concatenated signatures bytes
+  /// @return validCount The number of valid signers
+  function _generateUniqueECDSASignatures(
+    bytes32 _dataHash,
+    uint256 _sigCount,
+    bool _ethSign,
+    HatsSignerGateHarness _harness
+  ) internal returns (bytes memory signatures, uint256 validCount) {
+    signatures = new bytes(0);
+    address[] memory signers = new address[](_sigCount);
+    bool[] memory used = new bool[](signerAddresses.length);
+
+    for (uint256 i; i < _sigCount; i++) {
+      // Generate random index for selecting unused signer
+      uint256 signerIndex;
+      do {
+        signerIndex = uint256(keccak256(abi.encode(vm.randomUint(), i))) % signerAddresses.length;
+      } while (used[signerIndex]);
+
+      // Mark this signer as used
+      used[signerIndex] = true;
+
+      // if ethSign is true, use the eth_sign prefix
+      bytes32 dataHash =
+        _ethSign ? keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", _dataHash)) : _dataHash;
+
+      // create a signature for the data hash from the selected signer
+      (uint8 v, bytes32 r, bytes32 s) = vm.sign(pks[signerIndex], dataHash);
+
+      // if ethSign is true, adjust v for the eth_sign prefix
+      v = _ethSign ? v + 4 : v;
+
+      // concatenate the components into a single bytes array
+      bytes memory signature = abi.encodePacked(r, s, bytes1(v));
+      assertEq(signature.length, 65, "signature length should be 65");
+
+      // add the signature to the signatures array
+      signatures = bytes.concat(signatures, signature);
+      assertEq(signatures.length, (i + 1) * 65, "signatures length should 65 * number of sigs");
+
+      // add the signer to the signers array
+      signers[i] = signerAddresses[signerIndex];
+
+      // Set validity and track expected count
+      bool isValid = _getRandomBool(i);
+      _setSignerValidity(signers[i], signerHat, isValid);
+      if (isValid) {
+        _harness.exposed_registerSigner(signerHat, signers[i], false);
+        validCount++;
+      }
+    }
+  }
+
+  /// @dev Helper function to generate unique non-ECDSA signatures and track valid signers.
+  /// @param _sigCount The number of signatures to generate
+  /// @param _approvedHash Whether to use approved hash signatures (true) or contract signatures (false)
+  /// @return signatures The concatenated signatures bytes
+  /// @return validCount The number of valid signers
+  function _generateUniqueNonECDSASignatures(uint256 _sigCount, bool _approvedHash, HatsSignerGateHarness _harness)
+    internal
+    returns (bytes memory signatures, uint256 validCount)
+  {
+    signatures = new bytes(0);
+    address[] memory signers = new address[](_sigCount);
+    bool[] memory used = new bool[](signerAddresses.length);
+
+    for (uint256 i; i < _sigCount; i++) {
+      // Generate random index for selecting unused signer
+      uint256 signerIndex;
+      do {
+        signerIndex = uint256(keccak256(abi.encode(vm.randomUint(), i))) % signerAddresses.length;
+      } while (used[signerIndex]);
+
+      // Mark this signer as used
+      used[signerIndex] = true;
+
+      // encode the signer address into r
+      bytes32 r = bytes32(uint256(uint160(signerAddresses[signerIndex])));
+      bytes32 s = bytes32(0);
+
+      // set v based on whether we are using approved hash signatures (v=1) or contract signatures (v=0)
+      uint8 v = _approvedHash ? 1 : 0;
+
+      // concatenate the components into a single bytes array
+      bytes memory signature = abi.encodePacked(r, s, bytes1(v));
+      assertEq(signature.length, 65, "signature length should be 65");
+
+      // add the signature to the signatures array
+      signatures = bytes.concat(signatures, signature);
+      assertEq(signatures.length, (i + 1) * 65, "signatures length should 65 * number of sigs");
+
+      // add the signer to the signers array
+      signers[i] = signerAddresses[signerIndex];
+
+      // Set validity and track expected count
+      bool isValid = _getRandomBool(i);
+      _setSignerValidity(signers[i], signerHat, isValid);
+      if (isValid) {
+        _harness.exposed_registerSigner(signerHat, signers[i], false);
+        validCount++;
+      }
+    }
+  }
+
+  function _assertTransientStateVariables(
+    Enum.Operation _operation,
+    bytes32 _existingOwnersHash,
+    uint256 _existingThreshold,
+    address _existingFallbackHandler,
+    uint256 _reentrancyGuard,
+    uint256 _initialNonce,
+    uint256 _entrancyCounter
+  ) internal view {
+    assertEq(uint8(harness.operation()), uint8(_operation), "operation should be set");
+    assertEq(harness.reentrancyGuard(), _reentrancyGuard, "reentrancy guard should be set");
+    assertEq(harness.initialNonce(), _initialNonce, "initial nonce should be set");
+    assertEq(harness.entrancyCounter(), _entrancyCounter, "entrancy counter should be set");
+    if (_operation == Enum.Operation.DelegateCall) {
+      assertEq(harness.existingOwnersHash(), _existingOwnersHash, "existing owners hash should be set");
+      assertEq(harness.existingThreshold(), _existingThreshold, "existing threshold should be set");
+      assertEq(harness.existingFallbackHandler(), _existingFallbackHandler, "existing fallback handler should be set");
+    } else {
+      assertEq(harness.existingOwnersHash(), bytes32(0), "existing owners hash should be empty");
+      assertEq(harness.existingThreshold(), 0, "existing threshold should be empty");
+      assertEq(harness.existingFallbackHandler(), address(0), "existing fallback handler should be empty");
+    }
+  }
+
+  /// @dev Gets the existing state stored in transient storage by `_checkModuleTransaction` and asserts it matches
+  /// the provided values
+  function assertCorrectTransientState(
+    bytes32 _existingOwnersHash,
+    uint256 _existingThreshold,
+    address _existingFallbackHandler
+  ) internal view {
+    assertEq(harness.exposed_existingOwnersHash(), _existingOwnersHash, "the existing owners hash should be unchanged");
+    assertEq(harness.exposed_existingThreshold(), _existingThreshold, "the existing threshold should be unchanged");
+    assertEq(
+      harness.exposed_existingFallbackHandler(),
+      _existingFallbackHandler,
+      "the existing fallback handler should be unchanged"
+    );
   }
 }

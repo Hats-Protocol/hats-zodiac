@@ -80,7 +80,7 @@ contract HatsSignerGate is
   mapping(address => bool) public enabledDelegatecallTargets;
 
   /// @inheritdoc IHatsSignerGate
-  mapping(address => uint256) public claimedSignerHats;
+  mapping(address => uint256) public registeredSignerHats;
 
   /*//////////////////////////////////////////////////////////////
                         INTERNAL MUTABLE STATE
@@ -95,22 +95,28 @@ contract HatsSignerGate is
   /*//////////////////////////////////////////////////////////////
                           TRANSIENT STATE
   //////////////////////////////////////////////////////////////*/
-
+  
   /// @dev Temporary record of the existing owners on the `safe` when a transaction is submitted
   bytes32 transient _existingOwnersHash;
-
-  /// @dev A simple re-entrancy guard
-  uint256 transient _guardEntries;
-
+  
   /// @dev Temporary record of the existing threshold on the `safe` when a transaction is submitted
   uint256 transient _existingThreshold;
-
+  
   /// @dev Temporary record of the existing fallback handler on the `safe` when a transaction is submitted
   address transient _existingFallbackHandler;
-
+  
   /// @dev Temporary record of the operation type when a transaction is submitted
   Enum.Operation transient _operation;
-
+  
+  /// @dev A simple re-entrancy guard
+  uint256 transient _reentrancyGuard;
+  
+  /// @dev The safe's nonce at the beginning of a transaction
+  uint256 transient _initialNonce;
+  
+  /// @dev The number of times the checkTransaction function has been called in a transaction
+  uint256 transient _entrancyCounter;
+  
   /*//////////////////////////////////////////////////////////////
                       AUTHENTICATION FUNCTIONS
   //////////////////////////////////////////////////////////////*/
@@ -163,7 +169,6 @@ contract HatsSignerGate is
 
     // set the instance's owner hat
     _setOwnerHat(params.ownerHat);
-
     // lock the instance if configured as such
     if (params.locked) _lock();
 
@@ -200,7 +205,7 @@ contract HatsSignerGate is
   /// @inheritdoc IHatsSignerGate
   function claimSigner(uint256 _hatId) public {
     // register the signer
-    _registerSigner({ _hatId: _hatId, _signer: msg.sender, _allowReregistration: true });
+    _registerSigner({ _hatToRegister: _hatId, _signer: msg.sender, _allowReregistration: true });
 
     // add the signer
     _addSigner(msg.sender);
@@ -212,7 +217,7 @@ contract HatsSignerGate is
     if (!claimableFor) revert NotClaimableFor();
 
     // register the signer, reverting if invalid or already registered
-    _registerSigner({ _hatId: _hatId, _signer: _signer, _allowReregistration: false });
+    _registerSigner({ _hatToRegister: _hatId, _signer: _signer, _allowReregistration: false });
 
     // add the signer
     _addSigner(_signer);
@@ -245,7 +250,7 @@ contract HatsSignerGate is
       address signer = _signers[i];
 
       // register the signer, reverting if invalid or already registered
-      _registerSigner({ _hatId: hatId, _signer: signer, _allowReregistration: false });
+      _registerSigner({ _hatToRegister: hatId, _signer: signer, _allowReregistration: false });
 
       // if the signer is not an owner, add them
       if (!s.isOwner(signer)) {
@@ -277,6 +282,7 @@ contract HatsSignerGate is
   function removeSigner(address _signer) public {
     if (isValidSigner(_signer)) revert StillWearsSignerHat();
 
+    // remove the signer from the safe and unregister them
     _removeSigner(_signer);
   }
 
@@ -403,9 +409,32 @@ contract HatsSignerGate is
     address payable refundReceiver,
     bytes memory signatures,
     address // msgSender
-  ) external override {
+  ) public override {
     // ensure that the call is coming from the safe
     if (msg.sender != address(safe)) revert NotCalledFromSafe();
+
+    // if _reentrancyGuard equals 1 it means that there is an ongoing execution either from execTransactionFromModule or
+    // execTransactionFromModuleReturnData.
+    // this check prevents entering the checkTransaction in this case in order to avoid overriding the snapshot of the
+    // Safe state
+    if (_reentrancyGuard == 1) revert NoReentryAllowed();
+
+    // record the initial nonce of the safe at the beginning of the transaction
+    if (_entrancyCounter == 0) {
+      _initialNonce = safe.nonce() - 1;
+    }
+
+    // increment the entrancy count
+    _entrancyCounter++;
+
+    // Whenever this function is called from a source other than Safe.execTransaction, it`s possible that
+    // it is a malicious call attempting to manipulate the transient storage so that an attacker can
+    // make malicious changes to the Safe state without detection by this guard in
+    // IGuard.checkAfterExecution. To prevent this, we rely on the invariant that the Safe nonce
+    // increments every time Safe.execTransaction calls out to IGuard.checkTransaction, allowing us to
+    // ensure that this function is only called the same number of times in a single transaction as
+    // Safe.execTransaction calls, ie by how much the Safe's nonce increases.
+    if (safe.nonce() - _initialNonce != _entrancyCounter) revert NoReentryAllowed();
 
     // module guard preflight check
     if (guard != address(0)) {
@@ -455,7 +484,7 @@ contract HatsSignerGate is
     // the safe's threshold is always the minimum between the required amount of valid signatures and the number of
     // owners. if the threshold is lower than the required amount of valid signatures, it means that there are currently
     // not enough owners to approve the tx, so we can revert without further checks
-    if (threshold != _getRequiredValidSignatures(owners.length)) revert InsufficientValidSignatures();
+    if (threshold != _getRequiredValidSignatures(owners.length)) revert ThresholdTooLow();
 
     // get the tx hash
     bytes32 txHash = safe.getTransactionHash(
@@ -474,15 +503,6 @@ contract HatsSignerGate is
 
     // count the number of valid signatures and revert if there aren't enough
     if (_countValidSignatures(txHash, signatures, threshold) < threshold) revert InsufficientValidSignatures();
-
-    /// @dev This is a reentrancy guard designed to work with the `checkAfterExecution()` function. It allows reentrancy
-    /// into this contract so that the `checkAfterExecution()` function can be called by the `safe`, but it only allows
-    /// one call each of `checkTransaction()` and `checkAfterExecution()`.
-    unchecked {
-      ++_guardEntries;
-    }
-    // revert if re-entry into this function is detected prior to `checkAfterExecution()` is called
-    if (_guardEntries > 1) revert NoReentryAllowed();
   }
 
   /**
@@ -497,11 +517,7 @@ contract HatsSignerGate is
    * @dev Modified from
    * https://github.com/gnosis/zodiac-guard-mod/blob/988ebc7b71e352f121a0be5f6ae37e79e47a4541/contracts/ModGuard.sol#L86
    */
-  function checkAfterExecution(bytes32, bool) external override {
-    ISafe s = safe; // save SLOADs
-    if (msg.sender != address(s)) revert NotCalledFromSafe();
-    // prevent signers from disabling this guard
-
+  function checkAfterExecution(bytes32, bool) public override {
     // module guard postflight check
     if (guard != address(0)) {
       BaseGuard(guard).checkAfterExecution(bytes32(0), false);
@@ -511,12 +527,8 @@ contract HatsSignerGate is
     // we don't need to check the Safe state for regular calls since the Safe state cannot be altered except by calling
     // into the Safe, which is explicitly disallowed
     if (_operation == Enum.Operation.DelegateCall) {
-      _checkSafeState(s);
+      _checkSafeState(safe);
     }
-
-    // Leave checked to catch underflows triggered by calls to this function not originating from
-    // `Safe.execTransaction()`
-    --_guardEntries;
   }
 
   /*//////////////////////////////////////////////////////////////
@@ -530,8 +542,9 @@ contract HatsSignerGate is
 
   /// @inheritdoc IHatsSignerGate
   function isValidSigner(address _account) public view returns (bool valid) {
-    /// @dev existing `claimedSignerHats` are always valid, since `_validSignerHats` is append-only
-    valid = HATS.isWearerOfHat(_account, claimedSignerHats[_account]);
+    /// @dev existing `registeredSignerHats` are always valid, since `_validSignerHats` is append-only
+    /// We don't need a special case for `_account == address(0)` because the 0 hat id does not exist
+    valid = HATS.isWearerOfHat(_account, registeredSignerHats[_account]);
   }
 
   /// @inheritdoc IHatsSignerGate
@@ -545,8 +558,8 @@ contract HatsSignerGate is
   }
 
   /// @inheritdoc IHatsSignerGate
-  function canAttachToSafe() public view returns (bool) {
-    return safe.canAttachHSG();
+  function canAttachToSafe(ISafe _safe) public view returns (bool) {
+    return _safe.canAttachHSG();
   }
 
   /// @inheritdoc IHatsSignerGate
@@ -571,10 +584,11 @@ contract HatsSignerGate is
   /// @param _ownerHat The hat id to set as the owner hat
   function _setOwnerHat(uint256 _ownerHat) internal {
     ownerHat = _ownerHat;
-    emit OwnerHatUpdated(_ownerHat);
+    emit OwnerHatSet(_ownerHat);
   }
 
-  /// @dev Internal function to approve new signer hats
+  /// @dev Internal function to approve new signer hats. Empty arrays and duplicate hats cause no harm, so they are
+  /// allowed.
   /// @param _newSignerHats Array of hat ids to add as approved signer hats
   function _addSignerHats(uint256[] memory _newSignerHats) internal {
     for (uint256 i; i < _newSignerHats.length; ++i) {
@@ -587,17 +601,16 @@ contract HatsSignerGate is
   /// @dev Internal function to set the threshold config
   /// @param _config the new threshold config
   function _setThresholdConfig(ThresholdConfig memory _config) internal {
+    // min threshold cannot be 0
+    if (_config.min == 0) revert InvalidThresholdConfig();
+
     if (_config.thresholdType == TargetThresholdType.ABSOLUTE) {
       // absolute target threshold cannot be lower than min threshold
       if (_config.target < _config.min) revert InvalidThresholdConfig();
-    } else if (_config.thresholdType == TargetThresholdType.PROPORTIONAL) {
+    } else {
       // proportional threshold cannot be greater than 100%
       if (_config.target > 10_000) revert InvalidThresholdConfig();
-    } else {
-      // invalid threshold type
-      revert InvalidThresholdConfig();
     }
-
     // set the threshold config
     _thresholdConfig = _config;
 
@@ -605,7 +618,8 @@ contract HatsSignerGate is
     emit ThresholdConfigSet(_config);
   }
 
-  /// @dev Internal function to count the number of valid signers in an array of addresses
+  /// @dev Internal function to count the number of valid signers in an array of addresses. Does not check for
+  /// duplicates.
   /// @param owners The addresses to check for validity
   /// @return signerCount The number of valid signers in `owners`
   function _countValidSigners(address[] memory owners) internal view returns (uint256 signerCount) {
@@ -677,32 +691,27 @@ contract HatsSignerGate is
   }
 
   /// @dev Internal function to register a signer's hat if they are wearing a valid signer hat.
-  /// @param _hatId The hat id to register
+  /// @param _hatToRegister The id of the hat to register
   /// @param _signer The address to register
   /// @param _allowReregistration Whether to allow registration of a different hat for an existing signer
-  function _registerSigner(uint256 _hatId, address _signer, bool _allowReregistration) internal {
+  function _registerSigner(uint256 _hatToRegister, address _signer, bool _allowReregistration) internal {
     // check that the hat is valid
-    if (!isValidSignerHat(_hatId)) revert InvalidSignerHat(_hatId);
+    if (!isValidSignerHat(_hatToRegister)) revert InvalidSignerHat(_hatToRegister);
 
     // check that the signer is wearing the hat
-    if (!HATS.isWearerOfHat(_signer, _hatId)) revert NotSignerHatWearer(_signer);
+    if (!HATS.isWearerOfHat(_signer, _hatToRegister)) revert NotSignerHatWearer(_signer);
 
-    // get the current registered hat
-    uint256 registeredHat = claimedSignerHats[_signer];
-
-    // disallow re-registering a different hat for an existing signer that is still wearing their currently-registered
-    // hat, if specified
+    // if specified, disallow re-registering a new hat for an existing signer that is still wearing their
+    // currently-registered hat
     if (!_allowReregistration) {
-      if (HATS.isWearerOfHat(_signer, registeredHat)) {
-        revert ReregistrationNotAllowed();
-      }
+      if (HATS.isWearerOfHat(_signer, registeredSignerHats[_signer])) revert ReregistrationNotAllowed();
     }
 
     // register the hat used to claim. This will be the hat checked in `checkTransaction()` for this signer
-    claimedSignerHats[_signer] = _hatId;
+    registeredSignerHats[_signer] = _hatToRegister;
 
     // log the registration
-    emit Registered(_hatId, _signer);
+    emit Registered(_hatToRegister, _signer);
   }
 
   /// @dev Internal function to add a `_signer` to the `safe` if they are not already an owner.
@@ -744,7 +753,7 @@ contract HatsSignerGate is
     bytes memory removeOwnerData;
     address[] memory owners = s.getOwners();
 
-    delete claimedSignerHats[_signer];
+    delete registeredSignerHats[_signer];
 
     if (owners.length == 1) {
       // make address(this) the only owner
@@ -838,24 +847,14 @@ contract HatsSignerGate is
     moduleOnly
     returns (bool success)
   {
-    ISafe s = safe;
-
-    // preflight checks
-    _checkModuleTransaction(to, operation, s);
+    // perform pre-flight checks
+    ISafe s = _beforeExecTransactionFromModule(to, operation);
 
     // forward the call to the safe
     success = s.execTransactionFromModule(to, value, data, operation);
 
-    // emit the appropriate execution status event
-    if (success) {
-      emit ExecutionFromModuleSuccess(msg.sender);
-    } else {
-      emit ExecutionFromModuleFailure(msg.sender);
-    }
-
-    // Ensure that the Safe state is not altered by delegatecalls. We don't need to check the Safe state for regular
-    // calls since the Safe state cannot be altered except by calling into the Safe, which is explicitly disallowed.
-    if (operation == Enum.Operation.DelegateCall) _checkSafeState(s);
+    // perform post-flight checks and emit event
+    _afterExecTransactionFromModule(success, operation, s);
   }
 
   /// @notice Allows a module to execute a call from the context of the Safe. Modules are not allowed to...
@@ -874,24 +873,14 @@ contract HatsSignerGate is
     moduleOnly
     returns (bool success, bytes memory returnData)
   {
-    ISafe s = safe;
-
-    // preflight checks
-    _checkModuleTransaction(to, operation, s);
+    // perform pre-flight checks
+    ISafe s = _beforeExecTransactionFromModule(to, operation);
 
     // forward the call to the safe
     (success, returnData) = s.execTransactionFromModuleReturnData(to, value, data, operation);
 
-    // emit the appropriate execution status event
-    if (success) {
-      emit ExecutionFromModuleSuccess(msg.sender);
-    } else {
-      emit ExecutionFromModuleFailure(msg.sender);
-    }
-
-    // Ensure that the Safe state is not altered by delegatecalls. We don't need to check the Safe state for regular
-    // calls since the Safe state cannot be altered except by calling into the Safe, which is explicitly disallowed.
-    if (operation == Enum.Operation.DelegateCall) _checkSafeState(s);
+    // perform post-flight checks and emit event
+    _afterExecTransactionFromModule(success, operation, s);
   }
 
   /// @inheritdoc ModifierUnowned
@@ -912,7 +901,7 @@ contract HatsSignerGate is
   }
 
   /*//////////////////////////////////////////////////////////////
-                      ZODIAC GUARD FUNCTIONS
+                      ZODIAC GUARD FUNCTION
   //////////////////////////////////////////////////////////////*/
 
   /// @notice Set a guard that checks transactions before execution.
@@ -923,6 +912,10 @@ contract HatsSignerGate is
     _checkOwner();
     _setGuard(_guard);
   }
+
+  /*//////////////////////////////////////////////////////////////
+                    INTERNAL ZODIAC HELPER FUNCTIONS
+  //////////////////////////////////////////////////////////////*/
 
   /// @dev Internal function to check that a module transaction is valid. Modules are not allowed to...
   /// - delegatecall to unapproved targets
@@ -980,5 +973,48 @@ contract HatsSignerGate is
     if (modulesWith1.length == 0 || next != SafeManagerLib.SENTINELS || modulesWith1[0] != address(this)) {
       revert CannotChangeModules();
     }
+  }
+
+  /// @dev Internal function to run the pre-flight checks for execTransactionFromModule and
+  /// execTransactionFromModuleReturnData
+  /// @param _to The address of the target of the module transaction
+  /// @param operation_ The operation type of the module transaction
+  /// @return _safe The safe that is executing the module transaction
+  function _beforeExecTransactionFromModule(address _to, Enum.Operation operation_) internal returns (ISafe _safe) {
+    // The _entrancyCounter transient variable counts the number of times that the checkTransaction function
+    // was called in the current transaction. Calling checkTransaction prior to this function is unsafe since it may
+    // override the safe state snapshot, so we revert.
+    // The _reentrancyGuard tracks entrance into either execTransactionFromModule or execTransactionFromModuleReturnData.
+    // Reentering either of those functions is unsafe since it may override the safe state snapshot, so we revert.
+    if (_entrancyCounter > 0 || _reentrancyGuard == 1) revert NoReentryAllowed();
+
+    // set the reentrancy guard
+    _reentrancyGuard = 1;
+
+    _safe = safe;
+
+    // preflight checks
+    _checkModuleTransaction(_to, operation_, _safe);
+  }
+
+  /// @dev Internal function to emit the appropriate execution status event and run the post-flight checks for
+  /// execTransactionFromModule and execTransactionFromModuleReturnData
+  /// @param _success The success status of the module transaction
+  /// @param operation_ The operation type of the module transaction
+  /// @param _safe The safe that is executing the module transaction
+  function _afterExecTransactionFromModule(bool _success, Enum.Operation operation_, ISafe _safe) internal {
+    // emit the appropriate execution status event
+    if (_success) {
+      emit ExecutionFromModuleSuccess(msg.sender);
+    } else {
+      emit ExecutionFromModuleFailure(msg.sender);
+    }
+
+    // Ensure that the Safe state is not altered by delegatecalls. We don't need to check the Safe state for regular
+    // calls since the Safe state cannot be altered except by calling into the Safe, which is explicitly disallowed.
+    if (operation_ == Enum.Operation.DelegateCall) _checkSafeState(_safe);
+
+    // reset the reentrancy guard to enable future legitimate calls within the same transaction
+    _reentrancyGuard = 0;
   }
 }

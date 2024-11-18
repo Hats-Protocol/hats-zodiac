@@ -65,6 +65,9 @@ interface IHatsSignerGate {
   /// @notice Only wearers of a valid signer hat can become signers
   error NotSignerHatWearer(address user);
 
+  /// @notice Thrown when the safe threshold is lower than the number of required valid signatures
+  error ThresholdTooLow();
+
   /// @notice Thrown when the number of signatures from valid signers is less than the correct threshold
   error InsufficientValidSignatures();
 
@@ -93,7 +96,7 @@ interface IHatsSignerGate {
   /// @notice Neither Safe signers nor modules enabled on HSG can make external calls to the `safe`
   /// @dev This ensures that signers and modules cannot change any of the `safe`'s settings
   error CannotCallSafe();
-  
+
   /// @notice Neither signers nor modules enabled on HSG can change the fallback handler
   error CannotChangeFallbackHandler();
 
@@ -131,7 +134,7 @@ interface IHatsSignerGate {
   event SignerHatsAdded(uint256[] newSignerHats);
 
   /// @notice Emitted when the owner hat is updated
-  event OwnerHatUpdated(uint256 ownerHat);
+  event OwnerHatSet(uint256 ownerHat);
 
   /// @notice Emitted when the contract is locked, preventing any further changes to settings
   event HSGLocked();
@@ -166,7 +169,7 @@ interface IHatsSignerGate {
   //////////////////////////////////////////////////////////////*/
 
   /// @notice Tracks the hat ids worn by users who have "claimed signer"
-  function claimedSignerHats(address) external view returns (uint256);
+  function registeredSignerHats(address) external view returns (uint256);
 
   /// @notice Tracks enabled delegatecall targets. Enabled targets can be delegatecalled by the `safe`
   function enabledDelegatecallTargets(address) external view returns (bool);
@@ -289,7 +292,9 @@ interface IHatsSignerGate {
   function validSignerCount() external view returns (uint256 signerCount);
 
   /// @notice Checks if a HatsSignerGate can be safely attached to a Safe, ie there must be no existing modules
-  function canAttachToSafe() external view returns (bool);
+  /// @param _safe The Safe to check
+  /// @return canAttach Whether the HSG can be attached to the Safe
+  function canAttachToSafe(ISafe _safe) external view returns (bool canAttach);
 
   /// @notice Returns the addresses of the Safe contracts used to deploy new Safes
   /// @return _safeSingleton The address of the Safe singleton used to deploy new Safes
