@@ -847,28 +847,14 @@ contract HatsSignerGate is
     moduleOnly
     returns (bool success)
   {
-    _preventReentrancy();
-
-    ISafe s = safe;
-
-    // preflight checks
-    _checkModuleTransaction(to, operation, s);
+    // perform pre-flight checks
+    ISafe s = _beforeExecTransactionFromModule(to, operation);
 
     // forward the call to the safe
     success = s.execTransactionFromModule(to, value, data, operation);
 
-    // emit the appropriate execution status event
-    if (success) {
-      emit ExecutionFromModuleSuccess(msg.sender);
-    } else {
-      emit ExecutionFromModuleFailure(msg.sender);
-    }
-
-    // Ensure that the Safe state is not altered by delegatecalls. We don't need to check the Safe state for regular
-    // calls since the Safe state cannot be altered except by calling into the Safe, which is explicitly disallowed.
-    if (operation == Enum.Operation.DelegateCall) _checkSafeState(s);
-
-    _reentrancyGuard = 0;
+    // perform post-flight checks and emit event
+    _afterExecTransactionFromModule(success, operation, s);
   }
 
   /// @notice Allows a module to execute a call from the context of the Safe. Modules are not allowed to...
@@ -887,28 +873,14 @@ contract HatsSignerGate is
     moduleOnly
     returns (bool success, bytes memory returnData)
   {
-    _preventReentrancy();
-
-    ISafe s = safe;
-
-    // preflight checks
-    _checkModuleTransaction(to, operation, s);
+    // perform pre-flight checks
+    ISafe s = _beforeExecTransactionFromModule(to, operation);
 
     // forward the call to the safe
     (success, returnData) = s.execTransactionFromModuleReturnData(to, value, data, operation);
 
-    // emit the appropriate execution status event
-    if (success) {
-      emit ExecutionFromModuleSuccess(msg.sender);
-    } else {
-      emit ExecutionFromModuleFailure(msg.sender);
-    }
-
-    // Ensure that the Safe state is not altered by delegatecalls. We don't need to check the Safe state for regular
-    // calls since the Safe state cannot be altered except by calling into the Safe, which is explicitly disallowed.
-    if (operation == Enum.Operation.DelegateCall) _checkSafeState(s);
-
-    _reentrancyGuard = 0;
+    // perform post-flight checks and emit event
+    _afterExecTransactionFromModule(success, operation, s);
   }
 
   /// @inheritdoc ModifierUnowned
@@ -975,8 +947,6 @@ contract HatsSignerGate is
     // Return and proceed to subsequent logic
   }
 
-  
-
   /// @dev Internal function to check that a delegatecall executed by the signers or a module do not change the
   /// `_safe`'s
   /// state.
@@ -1005,16 +975,46 @@ contract HatsSignerGate is
     }
   }
 
-  /// @dev Internal function to prevent re-entrancy attacks on the Zodiac module functions
-  function _preventReentrancy() internal {
-    // the _entrancyCounter transient variable is counting the number of times that the checkTransaction function
-    // was called in the current transaction. this check prevents entering this function while there is an ongoing
-    // execution via the safe's execTransaction function. this is necessary to prevent overriding the safe's
-    // snapshot that happens in the checkTransaction function.
-    if (_entrancyCounter > 0) revert NoReentryAllowed();
+  /// @dev Internal function to run the pre-flight checks for execTransactionFromModule and
+  /// execTransactionFromModuleReturnData
+  /// @param _to The address of the target of the module transaction
+  /// @param operation_ The operation type of the module transaction
+  /// @return _safe The safe that is executing the module transaction
+  function _beforeExecTransactionFromModule(address _to, Enum.Operation operation_) internal returns (ISafe _safe) {
+    // The _entrancyCounter transient variable counts the number of times that the checkTransaction function
+    // was called in the current transaction. Calling checkTransaction prior to this function is unsafe since it may
+    // override the safe state snapshot, so we revert.
+    // The _reentrancyGuard tracks entrance into either execTransactionFromModule or execTransactionFromModuleReturnData.
+    // Reentering either of those functions is unsafe since it may override the safe state snapshot, so we revert.
+    if (_entrancyCounter > 0 || _reentrancyGuard == 1) revert NoReentryAllowed();
 
-    // prevent re-entering this function while the safe is executing
-    if (_reentrancyGuard == 1) revert NoReentryAllowed();
+    // set the reentrancy guard
     _reentrancyGuard = 1;
+
+    _safe = safe;
+
+    // preflight checks
+    _checkModuleTransaction(_to, operation_, _safe);
+  }
+
+  /// @dev Internal function to emit the appropriate execution status event and run the post-flight checks for
+  /// execTransactionFromModule and execTransactionFromModuleReturnData
+  /// @param _success The success status of the module transaction
+  /// @param operation_ The operation type of the module transaction
+  /// @param _safe The safe that is executing the module transaction
+  function _afterExecTransactionFromModule(bool _success, Enum.Operation operation_, ISafe _safe) internal {
+    // emit the appropriate execution status event
+    if (_success) {
+      emit ExecutionFromModuleSuccess(msg.sender);
+    } else {
+      emit ExecutionFromModuleFailure(msg.sender);
+    }
+
+    // Ensure that the Safe state is not altered by delegatecalls. We don't need to check the Safe state for regular
+    // calls since the Safe state cannot be altered except by calling into the Safe, which is explicitly disallowed.
+    if (operation_ == Enum.Operation.DelegateCall) _checkSafeState(_safe);
+
+    // reset the reentrancy guard to enable future legitimate calls within the same transaction
+    _reentrancyGuard = 0;
   }
 }
