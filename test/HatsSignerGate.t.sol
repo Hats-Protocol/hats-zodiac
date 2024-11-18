@@ -346,6 +346,7 @@ contract ClaimingSignerFor is WithHSGInstanceTest {
 
   function test_revert_invalidSignerHat(uint256 _signerHat, uint256 _seed) public isClaimableFor(true) {
     vm.assume(_signerHat > 0); // the 0 hat id does not exist
+    vm.assume(!instance.isValidSignerHat(_signerHat)); // this test is for invalid signer hats
     address signer = _getRandomAddress(_seed);
     // make signer a valid signer for the signer hat; we need to use the mock because the signer hat is not real
     _mockHatWearer(signer, _signerHat, true);

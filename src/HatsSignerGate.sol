@@ -847,15 +847,7 @@ contract HatsSignerGate is
     moduleOnly
     returns (bool success)
   {
-    // the _entrancyCounter transient variable is counting the number of times that the checkTransaction function
-    // was called in the current transaction. this check prevents entering this function while there is an ongoing
-    // execution via the safe's execTransaction function. this is necessary to prevent overriding the safe's
-    // snapshot that happens in the checkTransaction function.
-    if (_entrancyCounter > 0) revert NoReentryAllowed();
-
-    // prevent re-entering this function while the safe is executing
-    if (_reentrancyGuard == 1) revert NoReentryAllowed();
-    _reentrancyGuard = 1;
+    _preventReentrancy();
 
     ISafe s = safe;
 
@@ -895,15 +887,7 @@ contract HatsSignerGate is
     moduleOnly
     returns (bool success, bytes memory returnData)
   {
-    // the _entrancyCounter transient variable is counting the number of times that the checkTransaction function
-    // was called in the current transaction. this check prevents entering this function while there is an ongoing
-    // execution via the safe's execTransaction function. this is necessary to prevent overriding the safe's
-    // snapshot that happens in the checkTransaction function.
-    if (_entrancyCounter > 0) revert NoReentryAllowed();
-
-    // prevent re-entering this function while the safe is executing
-    if (_reentrancyGuard == 1) revert NoReentryAllowed();
-    _reentrancyGuard = 1;
+    _preventReentrancy();
 
     ISafe s = safe;
 
@@ -945,7 +929,7 @@ contract HatsSignerGate is
   }
 
   /*//////////////////////////////////////////////////////////////
-                      ZODIAC GUARD FUNCTIONS
+                      ZODIAC GUARD FUNCTION
   //////////////////////////////////////////////////////////////*/
 
   /// @notice Set a guard that checks transactions before execution.
@@ -956,6 +940,10 @@ contract HatsSignerGate is
     _checkOwner();
     _setGuard(_guard);
   }
+
+  /*//////////////////////////////////////////////////////////////
+                    INTERNAL ZODIAC HELPER FUNCTIONS
+  //////////////////////////////////////////////////////////////*/
 
   /// @dev Internal function to check that a module transaction is valid. Modules are not allowed to...
   /// - delegatecall to unapproved targets
@@ -987,6 +975,8 @@ contract HatsSignerGate is
     // Return and proceed to subsequent logic
   }
 
+  
+
   /// @dev Internal function to check that a delegatecall executed by the signers or a module do not change the
   /// `_safe`'s
   /// state.
@@ -1013,5 +1003,18 @@ contract HatsSignerGate is
     if (modulesWith1.length == 0 || next != SafeManagerLib.SENTINELS || modulesWith1[0] != address(this)) {
       revert CannotChangeModules();
     }
+  }
+
+  /// @dev Internal function to prevent re-entrancy attacks on the Zodiac module functions
+  function _preventReentrancy() internal {
+    // the _entrancyCounter transient variable is counting the number of times that the checkTransaction function
+    // was called in the current transaction. this check prevents entering this function while there is an ongoing
+    // execution via the safe's execTransaction function. this is necessary to prevent overriding the safe's
+    // snapshot that happens in the checkTransaction function.
+    if (_entrancyCounter > 0) revert NoReentryAllowed();
+
+    // prevent re-entering this function while the safe is executing
+    if (_reentrancyGuard == 1) revert NoReentryAllowed();
+    _reentrancyGuard = 1;
   }
 }
