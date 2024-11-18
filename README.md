@@ -30,7 +30,6 @@ B) **Signers cannot execute transactions that remove the constraint in (A)**. Sp
 4. Changing the multisig owners
 5. Making delegatecalls to any target not approved by the owner
 
-
 > **Warning**
 > Protections against (3) and (4) above only hold if the Safe does not have any authority over the signer Hat(s). If it does — e.g. it wears an admin Hat of the signer Hat(s) or is an eligibility or toggle module on the signer Hat(s) — then in some cases the signers may be able to change the multisig threshold or owners.
 >
@@ -148,5 +147,3 @@ v2 — the present version — of this project will be audited soon.
 ### Recent Deployments
 
 See [Releases](https://github.com/Hats-Protocol/hats-zodiac/releases) for deployments. Specific deployment parameters are [stored here](./script/DeployParams.json).
-
-

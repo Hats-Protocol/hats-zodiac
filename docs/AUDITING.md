@@ -66,13 +66,13 @@ The contract that you are currently auditing is HSG v2. HSG v1 was developed and
 
 ### A) Incompatibility with other Safe modules and guards
 
-Perhaps the biggest thing we learned from our users is that they want to use HSG with additional modules and guards such as UMA’s oSnap module, Decent’s Fractal module, OZ’s timelock guard, Gnosis Guild’s Roles Mod, Connext’s Crosschain module, etc. 
+Perhaps the biggest thing we learned from our users is that they want to use HSG with additional modules and guards such as UMA’s oSnap module, Decent’s Fractal module, OZ’s timelock guard, Gnosis Guild’s Roles Mod, Connext’s Crosschain module, etc.
 
 But in v1 we explicitly disabled additional modules because modules have full control over the Safe. If the signers were allowed to add a module of their choosing, they would have unmediated control over the Safe. They could change anything, including detaching HSG, which is exactly what we want to protect against.
 
 ### B) Delegatecalls
 
-One of the most difficult elements of Safe to handle correctly is delegatecall. In practice, Safe makes heavy use of delegatecalls to enable common use cases like batching multiple actions and transactions, ie by delegatecalling their MultiSend library. That library does not present a security issue, but the need to allow delegatecalls does. 
+One of the most difficult elements of Safe to handle correctly is delegatecall. In practice, Safe makes heavy use of delegatecalls to enable common use cases like batching multiple actions and transactions, ie by delegatecalling their MultiSend library. That library does not present a security issue, but the need to allow delegatecalls does.
 
 If the signers were to execute a delegatecall to a contract with certain logic, they could directly update the Safe’s state, bypassing the typical Safe functions to do so. This is an issue because two of the critical types of Safe state changes we want to avoid — owners and modules — are mappings and therefore infeasible to explicitly check onchain. For example, a malicious delegatecalled contract could change the value for an address’s key in the owner mapping such that Safe’s logic would treat the address as a valid owner but not retrieve it as part of the owner linked list. The same issue exists for modules.
 
@@ -104,7 +104,7 @@ To give signers some form of credible expectations, we didn’t allow orgs to de
 
 For (A), we need to find a solution to this problem. Part of our ethos is a deep love for open source composability, and the HSG v1 does not meet that bar.
 
-Despite the vulnerabilities outlined above in (B), (C), and (D), we still consider HSG v1 sufficiently secure. They imply an assumption that the signers are semi-trusted, which today is generally the case anyways for a typical multisig within an organization. 
+Despite the vulnerabilities outlined above in (B), (C), and (D), we still consider HSG v1 sufficiently secure. They imply an assumption that the signers are semi-trusted, which today is generally the case anyways for a typical multisig within an organization.
 
 But we’re not satisfied with this scenario. Part of our mission is to enable organizations to delegate authorities and responsibilities to operators across the full trust spectrum. To do so for multisig signing permissions, therefore, we want to close down these vulnerabilities as best we can without harming legitimate delegated operations.
 
@@ -125,7 +125,7 @@ One tradeoff is that the threshold according to the Safe is not necessarily the 
 
 ### 2) Proportional threshold option
 
-In addition to the absolute approach to calculating the number of required valid signatures that v1 used, v2 introduces an option to calculate the number of valid signatures proportionally. 
+In addition to the absolute approach to calculating the number of required valid signatures that v1 used, v2 introduces an option to calculate the number of valid signatures proportionally.
 
 The absolute approach is a good fit for when the number of signers is expected to be constant over time.
 
