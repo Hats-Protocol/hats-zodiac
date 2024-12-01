@@ -418,6 +418,8 @@ contract HatsSignerGate is
     // ensure that the call is coming from the safe
     if (msg.sender != address(safe)) revert NotCalledFromSafe();
 
+    ISafe s = safe; // save SLOADs
+
     // Disallow entering this function from a) inside a Safe.execTransaction call or b) inside an
     // execTransactionFromModule call
     if (_inSafeExecTransaction || _inModuleExecTransaction) revert NoReentryAllowed();
@@ -427,11 +429,11 @@ contract HatsSignerGate is
     /// that the Safe nonce increments exactly once per Safe.execTransaction call, we require that nonce diff matches
     /// the number of times this function has been called.
     // Record the initial nonce of the Safe at the beginning of the transaction
-    if (_checkTransactionCounter == 0) _initialNonce = safe.nonce() - 1;
+    if (_checkTransactionCounter == 0) _initialNonce = s.nonce() - 1;
     // Increment the entrancy counter
     _checkTransactionCounter++;
     // Ensure that this function is called exactly once per Safe.execTransaction call
-    if (safe.nonce() - _initialNonce != _checkTransactionCounter) revert NoReentryAllowed();
+    if (s.nonce() - _initialNonce != _checkTransactionCounter) revert NoReentryAllowed();
 
     // module guard preflight check
     if (guard != address(0)) {
@@ -447,13 +449,13 @@ contract HatsSignerGate is
         address(0),
         payable(0),
         "",
-        msg.sender // the safe is always the sender
+        address(s)
       );
     }
 
     // get the existing owners and threshold
-    address[] memory owners = safe.getOwners();
-    uint256 threshold = safe.getThreshold();
+    address[] memory owners = s.getOwners();
+    uint256 threshold = s.getThreshold();
 
     // We record the operation type to guide the post-flight checks
     _operation = operation;
@@ -467,8 +469,8 @@ contract HatsSignerGate is
       // been altered
       _existingOwnersHash = keccak256(abi.encode(owners));
       _existingThreshold = threshold;
-      _existingFallbackHandler = safe.getSafeFallbackHandler();
-    } else if (to == address(safe)) {
+      _existingFallbackHandler = s.getSafeFallbackHandler();
+    } else if (to == address(s)) {
       // case: CALL to the safe
       // We disallow external calls to the safe itself. Together with the above check, this ensures there are no
       // unauthorized calls into the Safe itself
@@ -484,7 +486,7 @@ contract HatsSignerGate is
     if (threshold != _getRequiredValidSignatures(owners.length)) revert ThresholdTooLow();
 
     // get the tx hash
-    bytes32 txHash = safe.getTransactionHash(
+    bytes32 txHash = s.getTransactionHash(
       to,
       value,
       data,
@@ -495,7 +497,7 @@ contract HatsSignerGate is
       gasToken,
       refundReceiver,
       // We subtract 1 since nonce was just incremented in the parent function call
-      safe.nonce() - 1
+      s.nonce() - 1
     );
 
     // count the number of valid signatures and revert if there aren't enough
