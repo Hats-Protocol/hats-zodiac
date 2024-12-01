@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: LGPL-3.0
-pragma solidity >=0.8.13;
+pragma solidity >=0.8.28;
 
 // import { Test, console2 } from "../lib/forge-std/src/Test.sol"; // comment out after testing
 import { IHats } from "../lib/hats-protocol/src/Interfaces/IHats.sol";
