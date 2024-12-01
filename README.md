@@ -108,8 +108,10 @@ See [safe-deployments](https://github.com/safe-global/safe-deployments/tree/main
 
 #### Security Considerations
 
-- Delegatecalls can modify Safe state if not properly restricted
-- HSG validates that approved delegatecalls don't modify critical Safe parameters
+- Delegatecalls can modify Safe state if not properly restricted. Owners should NOT approve delegatecall targets that enable the following:
+  - Directly modifying any of the Safe's state, including the Safe's nonce.
+  - Additional delegatecalls. For example, the MultiSend library that is *not* MultiSendCallOnly should not be approved.
+- HSG validates that approved delegatecalls don't modify critical Safe parameters, but relies on the Safe' nonce to do so.
 - Direct calls to the Safe are always prohibited
 
 ### Contract Ownership

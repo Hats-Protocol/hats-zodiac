@@ -152,7 +152,7 @@ contract InstanceDeployment is TestSuite {
       hsgModules: tstModules
     });
     bytes memory initializeParams = abi.encode(setupParams);
-    console2.logBytes(initializeParams);
+    // console2.logBytes(initializeParams);
     vm.expectRevert(InvalidInitialization.selector);
     instance.setUp(initializeParams);
   }
@@ -1240,17 +1240,27 @@ contract SettingGuard is WithHSGInstanceTest {
 /// tests call harness.exposed_checkTransaction, which wraps instance.checkTransaction and stores the transient state in
 /// persistent storage for access in tests.
 contract CheckTransaction is WithHSGHarnessInstanceTest {
+  uint256 public simulatedInitialNonce;
+
   function setUp() public override {
     super.setUp();
 
-    // execute an empty transaction from the safe to set the nonce to 1 to avoid underflows when we check the nonce in
-    // checkTransaction. This also adds two signers.
+    // Execute an empty transaction from the safe to set the nonce to force the safe's nonce to increment. This is
+    // necessary to simulate the conditions under which HSG.checkTransaction is called in practice, ie just after the
+    // nonce has incremented. This also adds two signers.
     _executeEmptyCallFromSafe(2, address(org));
 
-    assertEq(safe.nonce(), 1, "safe nonce should be 1");
+    assertGt(safe.nonce(), 0, "safe nonce should gt 0");
+
+    simulatedInitialNonce = safe.nonce() - 1;
   }
 
-  function test_happy_checkTransaction_callToNonSafe(uint256 _seed) public callerIsSafe(true) {
+  function test_happy_checkTransaction_callToNonSafe(uint256 _seed)
+    public
+    callerIsSafe(true)
+    inSafeExecTransaction(false)
+    inModuleExecTransaction(false)
+  {
     address target = _getRandomAddress(_seed);
     vm.assume(target != address(safe));
 
@@ -1264,20 +1274,49 @@ contract CheckTransaction is WithHSGHarnessInstanceTest {
       target, 0, new bytes(0), Enum.Operation.Call, 0, 0, 0, address(0), payable(0), signatures, address(0)
     );
 
-    _assertTransientStateVariables(Enum.Operation.Call, bytes32(0), 0, address(0), 0, safe.nonce() - 1, 1);
+    _assertTransientStateVariables({
+      _operation: Enum.Operation.Call, // this is a call
+      _existingOwnersHash: bytes32(0), // empty because call
+      _existingThreshold: 0, // empty because call
+      _existingFallbackHandler: address(0), // empty because call
+      _inSafeExecTransaction: true,
+      _inModuleExecTransaction: false, // not a module tx
+      _initialNonce: simulatedInitialNonce,
+      _checkTransactionCounter: 1
+    });
   }
 
-  function test_revert_notCalledFromSafe() public callerIsSafe(false) {
+  function test_revert_notCalledFromSafe()
+    public
+    callerIsSafe(false)
+    inSafeExecTransaction(false)
+    inModuleExecTransaction(false)
+  {
     vm.expectRevert(IHatsSignerGate.NotCalledFromSafe.selector);
     vm.prank(caller);
     harness.exposed_checkTransaction(
       address(0), 0, new bytes(0), Enum.Operation.Call, 0, 0, 0, address(0), payable(0), new bytes(0), address(0)
     );
 
-    _assertTransientStateVariables(Enum.Operation(uint8(0)), bytes32(0), 0, address(0), 0, 0, 0);
+    // transient state should be cleared after revert
+    _assertTransientStateVariables({
+      _operation: Enum.Operation(uint8(0)),
+      _existingOwnersHash: bytes32(0),
+      _existingThreshold: 0,
+      _existingFallbackHandler: address(0),
+      _inSafeExecTransaction: false,
+      _inModuleExecTransaction: false,
+      _initialNonce: 0,
+      _checkTransactionCounter: 0
+    });
   }
 
-  function test_revert_guardReverts() public callerIsSafe(true) {
+  function test_revert_guardReverts()
+    public
+    callerIsSafe(true)
+    inSafeExecTransaction(false)
+    inModuleExecTransaction(false)
+  {
     // add a test guard
     vm.prank(owner);
     harness.setGuard(address(tstGuard));
@@ -1292,10 +1331,25 @@ contract CheckTransaction is WithHSGHarnessInstanceTest {
       address(0), 0, new bytes(0), Enum.Operation.Call, 0, 0, 0, address(0), payable(0), new bytes(0), address(0)
     );
 
-    _assertTransientStateVariables(Enum.Operation(uint8(0)), bytes32(0), 0, address(0), 0, 0, 0);
+    // transient state should be cleared after revert
+    _assertTransientStateVariables({
+      _operation: Enum.Operation(uint8(0)),
+      _existingOwnersHash: bytes32(0),
+      _existingThreshold: 0,
+      _existingFallbackHandler: address(0),
+      _inSafeExecTransaction: false,
+      _inModuleExecTransaction: false,
+      _initialNonce: 0,
+      _checkTransactionCounter: 0
+    });
   }
 
-  function test_delegatecallTargetEnabled() public callerIsSafe(true) {
+  function test_delegatecallTargetEnabled()
+    public
+    callerIsSafe(true)
+    inSafeExecTransaction(false)
+    inModuleExecTransaction(false)
+  {
     // enable a delegatecall target
     address target = defaultDelegatecallTargets[0];
     vm.prank(owner);
@@ -1315,18 +1369,25 @@ contract CheckTransaction is WithHSGHarnessInstanceTest {
       target, 0, new bytes(0), Enum.Operation.DelegateCall, 0, 0, 0, address(0), payable(0), signatures, address(0)
     );
 
-    _assertTransientStateVariables(
-      Enum.Operation.DelegateCall,
-      expectedOwnersHash,
-      expectedThreshold,
-      expectedFallbackHandler,
-      0,
-      safe.nonce() - 1,
-      1
-    );
+    // transient state should be populated
+    _assertTransientStateVariables({
+      _operation: Enum.Operation.DelegateCall, // delegatecall
+      _existingOwnersHash: expectedOwnersHash, // populated since delegatecall
+      _existingThreshold: expectedThreshold, // populated since delegatecall
+      _existingFallbackHandler: expectedFallbackHandler, // populated since delegatecall
+      _inSafeExecTransaction: true,
+      _inModuleExecTransaction: false, // not a module tx
+      _initialNonce: simulatedInitialNonce,
+      _checkTransactionCounter: 1
+    });
   }
 
-  function test_revert_delegatecallTargetNotEnabled() public callerIsSafe(true) {
+  function test_revert_delegatecallTargetNotEnabled()
+    public
+    callerIsSafe(true)
+    inSafeExecTransaction(false)
+    inModuleExecTransaction(false)
+  {
     // expect the checkTransaction to revert
     vm.expectRevert(IHatsSignerGate.DelegatecallTargetNotEnabled.selector);
     vm.prank(caller);
@@ -1344,20 +1405,50 @@ contract CheckTransaction is WithHSGHarnessInstanceTest {
       address(0)
     );
 
-    _assertTransientStateVariables(Enum.Operation(uint8(0)), bytes32(0), 0, address(0), 0, 0, 0);
+    // transient state should be cleared after revert
+    _assertTransientStateVariables({
+      _operation: Enum.Operation(uint8(0)),
+      _existingOwnersHash: bytes32(0),
+      _existingThreshold: 0,
+      _existingFallbackHandler: address(0),
+      _inSafeExecTransaction: false,
+      _inModuleExecTransaction: false,
+      _initialNonce: 0,
+      _checkTransactionCounter: 0
+    });
   }
 
-  function test_revert_cannotCallSafe() public callerIsSafe(true) {
+  function test_revert_cannotCallSafe()
+    public
+    callerIsSafe(true)
+    inSafeExecTransaction(false)
+    inModuleExecTransaction(false)
+  {
     vm.expectRevert(IHatsSignerGate.CannotCallSafe.selector);
     vm.prank(caller);
     harness.exposed_checkTransaction(
       address(safe), 0, new bytes(0), Enum.Operation.Call, 0, 0, 0, address(0), payable(0), new bytes(0), address(0)
     );
 
-    _assertTransientStateVariables(Enum.Operation(uint8(0)), bytes32(0), 0, address(0), 0, 0, 0);
+    // transient state should be cleared after revert
+    _assertTransientStateVariables({
+      _operation: Enum.Operation(uint8(0)),
+      _existingOwnersHash: bytes32(0),
+      _existingThreshold: 0,
+      _existingFallbackHandler: address(0),
+      _inSafeExecTransaction: false,
+      _inModuleExecTransaction: false,
+      _initialNonce: 0,
+      _checkTransactionCounter: 0
+    });
   }
 
-  function test_revert_thresholdTooLow(uint8 _operation) public callerIsSafe(true) {
+  function test_revert_thresholdTooLow(uint8 _operation)
+    public
+    callerIsSafe(true)
+    inSafeExecTransaction(false)
+    inModuleExecTransaction(false)
+  {
     // bound the arg
     Enum.Operation operation = Enum.Operation(bound(_operation, 0, 1));
 
@@ -1384,10 +1475,25 @@ contract CheckTransaction is WithHSGHarnessInstanceTest {
       target, 0, new bytes(0), operation, 0, 0, 0, address(0), payable(0), new bytes(0), address(0)
     );
 
-    _assertTransientStateVariables(Enum.Operation(uint8(0)), bytes32(0), 0, address(0), 0, 0, 0);
+    // transient state should be cleared
+    _assertTransientStateVariables({
+      _operation: Enum.Operation(uint8(0)),
+      _existingOwnersHash: bytes32(0),
+      _existingThreshold: 0,
+      _existingFallbackHandler: address(0),
+      _inSafeExecTransaction: false,
+      _inModuleExecTransaction: false,
+      _initialNonce: 0,
+      _checkTransactionCounter: 0
+    });
   }
 
-  function test_revert_insufficientValidSignatures(uint8 _operation) public callerIsSafe(true) {
+  function test_revert_insufficientValidSignatures(uint8 _operation)
+    public
+    callerIsSafe(true)
+    inSafeExecTransaction(false)
+    inModuleExecTransaction(false)
+  {
     // bound the arg
     Enum.Operation operation = Enum.Operation(bound(_operation, 0, 1));
 
@@ -1415,10 +1521,75 @@ contract CheckTransaction is WithHSGHarnessInstanceTest {
       target, 0, new bytes(0), operation, 0, 0, 0, address(0), payable(0), signatures, address(0)
     );
 
-    _assertTransientStateVariables(Enum.Operation(uint8(0)), bytes32(0), 0, address(0), 0, 0, 0);
+    // transient state should be cleared after revert
+    _assertTransientStateVariables({
+      _operation: Enum.Operation(uint8(0)),
+      _existingOwnersHash: bytes32(0),
+      _existingThreshold: 0,
+      _existingFallbackHandler: address(0),
+      _inSafeExecTransaction: false,
+      _inModuleExecTransaction: false,
+      _initialNonce: 0,
+      _checkTransactionCounter: 0
+    });
   }
 
-  function test_revert_noReentryAllowed() public callerIsSafe(true) {
+  function test_revert_inSafeExecTransaction(bool _inModuleExecTransaction)
+    public
+    callerIsSafe(true)
+    inSafeExecTransaction(true)
+    inModuleExecTransaction(_inModuleExecTransaction)
+  {
+    vm.expectRevert(IHatsSignerGate.NoReentryAllowed.selector);
+    vm.prank(caller);
+    harness.exposed_checkTransaction(
+      address(safe), 0, new bytes(0), Enum.Operation.Call, 0, 0, 0, address(0), payable(0), new bytes(0), address(0)
+    );
+
+    // transient state should be cleared after revert
+    _assertTransientStateVariables({
+      _operation: Enum.Operation(uint8(0)),
+      _existingOwnersHash: bytes32(0),
+      _existingThreshold: 0,
+      _existingFallbackHandler: address(0),
+      _inSafeExecTransaction: false,
+      _inModuleExecTransaction: false,
+      _initialNonce: 0,
+      _checkTransactionCounter: 0
+    });
+  }
+
+  function test_revert_inModuleExecTransaction(bool _inSafeExecTransaction)
+    public
+    callerIsSafe(true)
+    inSafeExecTransaction(_inSafeExecTransaction)
+    inModuleExecTransaction(true)
+  {
+    vm.expectRevert(IHatsSignerGate.NoReentryAllowed.selector);
+    vm.prank(caller);
+    harness.exposed_checkTransaction(
+      address(safe), 0, new bytes(0), Enum.Operation.Call, 0, 0, 0, address(0), payable(0), new bytes(0), address(0)
+    );
+
+    // transient state should be cleared after revert
+    _assertTransientStateVariables({
+      _operation: Enum.Operation(uint8(0)),
+      _existingOwnersHash: bytes32(0),
+      _existingThreshold: 0,
+      _existingFallbackHandler: address(0),
+      _inSafeExecTransaction: false,
+      _inModuleExecTransaction: false,
+      _initialNonce: 0,
+      _checkTransactionCounter: 0
+    });
+  }
+
+  function test_revert_noReentryAllowed()
+    public
+    callerIsSafe(true)
+    inSafeExecTransaction(false)
+    inModuleExecTransaction(false)
+  {
     // first craft a dummy/empty tx to pass to checkTransaction
     bytes32 dummyTxHash = safe.getTransactionHash(
       address(this), // send 0 eth to this contract
@@ -1465,6 +1636,18 @@ contract CheckTransaction is WithHSGHarnessInstanceTest {
     safe.execTransaction(
       address(harness), 0, reentryCall, Enum.Operation.Call, 0, 0, 0, address(0), payable(0), signatures
     );
+
+    // transient state should be cleared after revert
+    _assertTransientStateVariables({
+      _operation: Enum.Operation(uint8(0)),
+      _existingOwnersHash: bytes32(0),
+      _existingThreshold: 0,
+      _existingFallbackHandler: address(0),
+      _inSafeExecTransaction: false,
+      _inModuleExecTransaction: false,
+      _initialNonce: 0,
+      _checkTransactionCounter: 0
+    });
   }
 }
 
@@ -1474,13 +1657,31 @@ contract CheckTransaction is WithHSGHarnessInstanceTest {
 /// Additonally, these tests do not cover the internal Safe state checks. See
 /// HatsSignerGate.internals.t.sol:TransactionValidationInternals for comprehensive tests of that logic.
 contract CheckAfterExecution is WithHSGHarnessInstanceTest {
-  function test_happy_checkAfterExecution(bytes32 _txHash, bool _success) public callerIsSafe(true) {
+  function test_happy_checkAfterExecution(bytes32 _txHash, bool _success)
+    public
+    inSafeExecTransaction(true)
+    inModuleExecTransaction(false)
+  {
     // call to checkAfterExecution should not revert
-    vm.prank(caller);
     harness.exposed_checkAfterExecution(_txHash, _success);
+
+    _assertTransientStateVariables({
+      _operation: Enum.Operation(uint8(0)),
+      _existingOwnersHash: bytes32(0),
+      _existingThreshold: 0,
+      _existingFallbackHandler: address(0),
+      _inSafeExecTransaction: false,
+      _inModuleExecTransaction: false,
+      _initialNonce: 0,
+      _checkTransactionCounter: 0
+    });
   }
 
-  function test_revert_guardReverts(bytes32 _txHash, bool _success) public callerIsSafe(true) {
+  function test_revert_guardReverts(bytes32 _txHash, bool _success)
+    public
+    inSafeExecTransaction(true)
+    inModuleExecTransaction(false)
+  {
     // add a test guard
     vm.prank(owner);
     harness.setGuard(address(tstGuard));
@@ -1490,8 +1691,63 @@ contract CheckAfterExecution is WithHSGHarnessInstanceTest {
 
     // call to checkAfterExecution should revert
     vm.expectRevert();
-    vm.prank(caller);
     harness.exposed_checkAfterExecution(_txHash, _success);
+
+    // transient state should be cleared after revert
+    _assertTransientStateVariables({
+      _operation: Enum.Operation(uint8(0)),
+      _existingOwnersHash: bytes32(0),
+      _existingThreshold: 0,
+      _existingFallbackHandler: address(0),
+      _inSafeExecTransaction: false,
+      _inModuleExecTransaction: false,
+      _initialNonce: 0,
+      _checkTransactionCounter: 0
+    });
+  }
+
+  function test_revert_notInSafeExecTransaction(bytes32 _txHash, bool _success)
+    public
+    inSafeExecTransaction(false)
+    inModuleExecTransaction(false)
+  {
+    // should revert because we are not inside a Safe execTransaction call
+    vm.expectRevert(IHatsSignerGate.NoReentryAllowed.selector);
+    harness.exposed_checkAfterExecution(_txHash, _success);
+
+    // transient state should be cleared after revert
+    _assertTransientStateVariables({
+      _operation: Enum.Operation(uint8(0)),
+      _existingOwnersHash: bytes32(0),
+      _existingThreshold: 0,
+      _existingFallbackHandler: address(0),
+      _inSafeExecTransaction: false,
+      _inModuleExecTransaction: false,
+      _initialNonce: 0,
+      _checkTransactionCounter: 0
+    });
+  }
+
+  function test_revert_inModuleExecTransaction(bytes32 _txHash, bool _success)
+    public
+    inSafeExecTransaction(true)
+    inModuleExecTransaction(true)
+  {
+    // should revert because we are not inside a Safe execTransaction call
+    vm.expectRevert(IHatsSignerGate.NoReentryAllowed.selector);
+    harness.exposed_checkAfterExecution(_txHash, _success);
+
+    // transient state should be cleared after revert
+    _assertTransientStateVariables({
+      _operation: Enum.Operation(uint8(0)),
+      _existingOwnersHash: bytes32(0),
+      _existingThreshold: 0,
+      _existingFallbackHandler: address(0),
+      _inSafeExecTransaction: false,
+      _inModuleExecTransaction: false,
+      _initialNonce: 0,
+      _checkTransactionCounter: 0
+    });
   }
 }
 
