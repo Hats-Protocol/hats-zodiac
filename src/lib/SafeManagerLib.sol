@@ -13,6 +13,13 @@ import { Enum, ISafe, IGuardManager, IModuleManager, IOwnerManager } from "../li
 /// @notice A library for managing Safe contract settings via a HatsSignerGate module
 library SafeManagerLib {
   /*//////////////////////////////////////////////////////////////
+                            CUSTOM ERRORS
+  //////////////////////////////////////////////////////////////*/
+
+  /// @notice Emitted when a call to the Safe's execTransactionFromModule fails
+  error SafeTransactionFailed();
+
+  /*//////////////////////////////////////////////////////////////
                               CONSTANTS
   //////////////////////////////////////////////////////////////*/
 
@@ -162,7 +169,10 @@ library SafeManagerLib {
 
   /// @dev Execute a transaction with `_data` from the context of a `_safe`
   function execSafeTransactionFromHSG(ISafe _safe, bytes memory _data) internal {
-    _safe.execTransactionFromModule({ to: address(_safe), value: 0, data: _data, operation: Enum.Operation.Call });
+    bool success =
+      _safe.execTransactionFromModule({ to: address(_safe), value: 0, data: _data, operation: Enum.Operation.Call });
+
+    if (!success) revert SafeTransactionFailed();
   }
 
   /// @dev Encode the action to disable HSG as a module when there are no other modules enabled on a `_safe`

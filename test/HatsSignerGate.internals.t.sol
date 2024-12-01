@@ -509,7 +509,8 @@ contract RemovingSignerInternals is WithHSGHarnessInstanceTest {
     vm.assume(uint256(_signerIndex) < fuzzingAddresses.length);
     address signer = fuzzingAddresses[_signerIndex];
 
-    // try to remove the signer, expecting tx success but nothing to change
+    // try to remove the signer, expecting a revert
+    vm.expectRevert(SafeManagerLib.SafeTransactionFailed.selector);
     harness.exposed_removeSigner(signer);
 
     assertEq(safe.getOwners().length, 1, "there should a single owner");
