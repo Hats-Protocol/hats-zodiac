@@ -7,6 +7,27 @@ import { IHatsSignerGate } from "../src/interfaces/IHatsSignerGate.sol";
 import { SafeManagerLib } from "../src/lib/SafeManagerLib.sol";
 
 contract AttacksScenarios is WithHSGInstanceTest {
+  address public maliciousFallbackHandler = makeAddr("maliciousFallbackHandler");
+  address public goodFallbackHandler;
+  bytes public setFallbackAction = abi.encodeWithSignature("setFallbackHandler(address)", maliciousFallbackHandler);
+  bytes public packedCalls;
+  bytes public multiSendData;
+  bytes32 public safeTxHash;
+  bytes public checkTransactionAction;
+  bytes public signatures;
+
+  bytes public checkAfterExecutionAction =
+    abi.encodeWithSignature("checkAfterExecution(bytes32,bool)", bytes32(0), false);
+
+  string public constant CHECK_TRANSACTION_SIGNATURE =
+    "checkTransaction(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,bytes,address)";
+
+  function setUp() public override {
+    super.setUp();
+
+    goodFallbackHandler = SafeManagerLib.getSafeFallbackHandler(safe);
+  }
+
   function testSignersCannotAddNewModules() public {
     _addSignersSameHat(2, signerHat);
 
@@ -14,7 +35,7 @@ contract AttacksScenarios is WithHSGInstanceTest {
 
     (bytes memory multisendCall, bytes32 txHash) = _constructSingleActionMultiSendTx(addModuleData);
 
-    bytes memory signatures = _createNSigsForTx(txHash, 2);
+    signatures = _createNSigsForTx(txHash, 2);
 
     // execute tx, expecting a revert
     vm.expectRevert(IHatsSignerGate.CannotChangeModules.selector);
@@ -68,7 +89,7 @@ contract AttacksScenarios is WithHSGInstanceTest {
     // create the tx
     bytes32 txHash = _getTxHash(destAddress, transferValue, Enum.Operation.Call, hex"00", safe);
     // have them sign it
-    bytes memory signatures = _createNSigsForTx(txHash, 2);
+    signatures = _createNSigsForTx(txHash, 2);
 
     vm.expectRevert();
     safe.execTransaction(
@@ -183,12 +204,12 @@ contract AttacksScenarios is WithHSGInstanceTest {
       address(0), // refundReceiver
       safe.nonce() // nonce
     );
-    bytes memory sigs = _createNSigsForTx(txHash, 3);
+    signatures = _createNSigsForTx(txHash, 3);
 
     // attacker adds a contract signature from the 4th signer from a previous tx
     // since HSG doesn't check that the correct data was signed, it would be considered a valid signature
     bytes memory contractSig = abi.encode(signerAddresses[3], bytes32(0), bytes1(0x01));
-    sigs = bytes.concat(sigs, contractSig);
+    signatures = bytes.concat(signatures, contractSig);
 
     // mock the maliciousTx so it would succeed if it were to be executed
     vm.mockCall(maliciousContract, maliciousTx, abi.encode(true));
@@ -207,7 +228,7 @@ contract AttacksScenarios is WithHSGInstanceTest {
       address(0),
       payable(address(0)),
       // (r,s,v) [r - from] [s - unused] [v - 1 flag for onchain approval]
-      sigs
+      signatures
     );
 
     assertEq(safe.getThreshold(), 3, "post threshold");
@@ -218,9 +239,7 @@ contract AttacksScenarios is WithHSGInstanceTest {
   function test_revert_reenterCheckTransaction() public {
     address newOwner = makeAddr("newOwner");
     bytes memory addOwnerAction;
-    bytes memory sigs;
     bytes memory checkTxAction;
-    bytes memory multisend;
     // start with 3 valid signers
     _addSignersSameHat(3, signerHat);
     // attacker is the first of these signers
@@ -261,7 +280,7 @@ contract AttacksScenarios is WithHSGInstanceTest {
       );
 
       // then have it signed by the attacker and a collaborator
-      sigs = _createNSigsForTx(dummyTxHash, 2);
+      // sigs =
 
       checkTxAction = abi.encodeWithSelector(
         instance.checkTransaction.selector,
@@ -275,12 +294,12 @@ contract AttacksScenarios is WithHSGInstanceTest {
         0,
         address(0),
         payable(address(0)),
-        sigs,
+        _createNSigsForTx(dummyTxHash, 2),
         attacker // msgSender
       );
 
       // now bundle the two actions into a multisend tx
-      bytes memory packedCalls = abi.encodePacked(
+      packedCalls = abi.encodePacked(
         // 1) add owner
         uint8(0), // 0 for call; 1 for delegatecall
         safe, // to
@@ -294,14 +313,14 @@ contract AttacksScenarios is WithHSGInstanceTest {
         uint256(checkTxAction.length), // data length
         bytes(checkTxAction) // data
       );
-      multisend = abi.encodeWithSignature("multiSend(bytes)", packedCalls);
+      multiSendData = abi.encodeWithSignature("multiSend(bytes)", packedCalls);
     }
 
     // now get the safe tx hash and have attacker sign it with a collaborator
-    bytes32 safeTxHash = safe.getTransactionHash(
+    safeTxHash = safe.getTransactionHash(
       defaultDelegatecallTargets[0], // to an approved delegatecall target
       0, // value
-      multisend, // data
+      multiSendData, // data
       Enum.Operation.DelegateCall, // operation
       0, // safeTxGas
       0, // baseGas
@@ -310,7 +329,7 @@ contract AttacksScenarios is WithHSGInstanceTest {
       address(0), // refundReceiver
       safe.nonce() // nonce
     );
-    sigs = _createNSigsForTx(safeTxHash, 2);
+    signatures = _createNSigsForTx(safeTxHash, 2);
 
     // now submit the tx to the safe
     vm.prank(attacker);
@@ -325,7 +344,7 @@ contract AttacksScenarios is WithHSGInstanceTest {
     safe.execTransaction(
       defaultDelegatecallTargets[0], // to an approved delegatecall target
       0,
-      multisend,
+      multiSendData,
       Enum.Operation.DelegateCall,
       // not using the refunder
       0,
@@ -333,7 +352,7 @@ contract AttacksScenarios is WithHSGInstanceTest {
       0,
       address(0),
       payable(address(0)),
-      sigs
+      signatures
     );
 
     // no new owners have been added, despite the attacker's best efforts
@@ -341,12 +360,6 @@ contract AttacksScenarios is WithHSGInstanceTest {
   }
 
   function test_revert_callCheckTransactionFromMultisend() public {
-    // the malicious contract that the signers will set as the fallback
-    // if they succeed, it would be an equivalent security risk as if they were able to enable another module on the
-    // safes
-    address maliciousFallbackHandler = makeAddr("maliciousFallbackHandler");
-    address goodFallbackHandler = SafeManagerLib.getSafeFallbackHandler(safe);
-
     // our scenario starts with HSG attached to a safe, with 3 valid signers and a threshold of 2
     _addSignersSameHat(3, signerHat);
 
@@ -356,7 +369,8 @@ contract AttacksScenarios is WithHSGInstanceTest {
     // guard functions to overwrite the snapshot so the outer call can pass the checks.
 
     // 1) set the maliciousFallbackHandler as the fallback
-    bytes memory setFallbackAction = abi.encodeWithSignature("setFallbackHandler(address)", maliciousFallbackHandler);
+    // bytes memory setFallbackAction = abi.encodeWithSignature("setFallbackHandler(address)",
+    // maliciousFallbackHandler);
 
     // 2) call Safe.execTransaction with valid signatures
     // get the hash of the empty action
@@ -373,7 +387,7 @@ contract AttacksScenarios is WithHSGInstanceTest {
       safe.nonce() + 1 // nonce increments after the outer call to execTransaction
     );
     // sufficient signers sign it
-    bytes memory emptySigs = _createNSigsForTx(emptyTransactionHash, 2);
+    // bytes memory emptySigs = _createNSigsForTx(emptyTransactionHash, 2);
 
     // get the calldata
     bytes memory emptyExecTransactionAction = abi.encodeWithSignature(
@@ -387,11 +401,11 @@ contract AttacksScenarios is WithHSGInstanceTest {
       0,
       address(0),
       address(0),
-      emptySigs
+      _createNSigsForTx(emptyTransactionHash, 2)
     );
 
     // bundle the two actions into a multisend
-    bytes memory packedCalls = abi.encodePacked(
+    packedCalls = abi.encodePacked(
       // 1) setFallback
       uint8(0), // 0 for call; 1 for delegatecall
       safe, // to
@@ -407,13 +421,13 @@ contract AttacksScenarios is WithHSGInstanceTest {
     );
 
     // OUTER action
-    bytes memory multisendData = abi.encodeWithSignature("multiSend(bytes)", packedCalls);
+    multiSendData = abi.encodeWithSignature("multiSend(bytes)", packedCalls);
 
     // get the safe tx hash and have the signers sign it
-    bytes32 safeTxHash = safe.getTransactionHash(
+    safeTxHash = safe.getTransactionHash(
       defaultDelegatecallTargets[0], // to an approved delegatecall target
       0,
-      multisendData,
+      multiSendData,
       Enum.Operation.DelegateCall,
       0,
       0,
@@ -423,7 +437,7 @@ contract AttacksScenarios is WithHSGInstanceTest {
       safe.nonce()
     );
 
-    bytes memory sigs = _createNSigsForTx(safeTxHash, 2);
+    signatures = _createNSigsForTx(safeTxHash, 2);
 
     // submit the tx to the safe, expecting a revert
     vm.prank(signerAddresses[0]);
@@ -438,7 +452,7 @@ contract AttacksScenarios is WithHSGInstanceTest {
     safe.execTransaction(
       defaultDelegatecallTargets[0],
       0,
-      multisendData,
+      multiSendData,
       Enum.Operation.DelegateCall,
       // not using the refunder
       0,
@@ -446,7 +460,7 @@ contract AttacksScenarios is WithHSGInstanceTest {
       0,
       address(0),
       payable(address(0)),
-      sigs
+      signatures
     );
 
     // the fallback should not be different
@@ -455,12 +469,6 @@ contract AttacksScenarios is WithHSGInstanceTest {
   }
 
   function test_revert_callCheckAfterExecutionInsideMultisend() public {
-    // the malicious contract that the signers will set as the fallback
-    // if they succeed, it would be an equivalent security risk as if they were able to enable another module on the
-    // safes
-    address maliciousFallbackHandler = makeAddr("maliciousFallbackHandler");
-    address goodFallbackHandler = SafeManagerLib.getSafeFallbackHandler(safe);
-
     // start with 3 valid signers
     _addSignersSameHat(3, signerHat);
 
@@ -470,79 +478,70 @@ contract AttacksScenarios is WithHSGInstanceTest {
     // 3) HSG.checkTransaction — this will set the _inExecTransaction flag to back to true and overwrite the snapshot
 
     // 1) set the maliciousFallbackHandler as the fallback
-    bytes memory setFallbackAction = abi.encodeWithSignature("setFallbackHandler(address)", maliciousFallbackHandler);
+    // bytes memory setFallbackAction = abi.encodeWithSignature("setFallbackHandler(address)",
+    // maliciousFallbackHandler);
 
     // 2) HSG.checkAfterExecution
-    bytes memory checkAfterExecutionAction =
-      abi.encodeWithSignature("checkAfterExecution(bytes32,bool)", bytes32(0), false);
-
-    // attackers spoof some signatures for the checkTransaction call
-    bytes memory spoofedSigs = _createNContractSigs(2);
+    // bytes memory checkAfterExecutionAction =
+    //   abi.encodeWithSignature("checkAfterExecution(bytes32,bool)", bytes32(0), false);
 
     // 3) HSG.checkTransaction
-    bytes memory checkTransactionAction = abi.encodeWithSignature(
-      "checkTransaction(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,bytes,address)",
-      address(0),
-      0,
-      hex"",
-      Enum.Operation.Call,
-      0,
-      0,
-      0,
-      address(0),
-      address(0),
-      spoofedSigs,
-      address(safe)
-    );
+    {
+      checkTransactionAction = abi.encodeWithSignature(
+        CHECK_TRANSACTION_SIGNATURE,
+        address(0),
+        0,
+        hex"",
+        Enum.Operation.Call,
+        0,
+        0,
+        0,
+        address(0),
+        address(0),
+        _createNContractSigs(2), // attacker's spoofed signatures
+        address(safe)
+      );
 
-    // bundle the three actions into a multisend
-    bytes memory packedCalls = abi.encodePacked(
-      // 1) setFallback
-      uint8(0), // 0 for call; 1 for delegatecall
-      safe, // to
-      uint256(0), // value
-      uint256(setFallbackAction.length), // data length
-      bytes(setFallbackAction), // data
-      // 2) checkAfterExecution
-      uint8(0), // 0 for call; 1 for delegatecall
-      instance, // to
-      uint256(0), // value
-      uint256(checkAfterExecutionAction.length), // data length
-      bytes(checkAfterExecutionAction), // data
-      // 3) checkTransaction
-      uint8(0), // 0 for call; 1 for delegatecall
-      instance, // to
-      uint256(0), // value
-      uint256(checkTransactionAction.length), // data length
-      bytes(checkTransactionAction) // data
-    );
+      // bundle the three actions into a multisend
+      packedCalls = abi.encodePacked(
+        // 1) setFallback
+        uint8(0), // 0 for call; 1 for delegatecall
+        address(safe), // to
+        uint256(0), // value
+        uint256(setFallbackAction.length), // data length
+        bytes(setFallbackAction), // data
+        // 2) checkAfterExecution
+        uint8(0), // 0 for call; 1 for delegatecall
+        address(instance), // to
+        uint256(0), // value
+        uint256(checkAfterExecutionAction.length), // data length
+        bytes(checkAfterExecutionAction) // data
+      );
 
-    bytes memory multisendData = abi.encodeWithSignature("multiSend(bytes)", packedCalls);
+      // workaround to avoid stack too deep error
+      packedCalls = abi.encodePacked(
+        packedCalls,
+        // 3) checkTransaction
+        uint8(0), // 0 for call; 1 for delegatecall
+        address(instance), // to
+        uint256(0), // value
+        uint256(checkTransactionAction.length), // data length
+        bytes(checkTransactionAction) // data
+      );
 
-    // get the safe tx hash and have the signers sign it
-    bytes32 safeTxHash = safe.getTransactionHash(
-      defaultDelegatecallTargets[0], // to an approved delegatecall target
-      0,
-      multisendData,
-      Enum.Operation.DelegateCall,
-      // not using the refunder
-      0,
-      0,
-      0,
-      address(0),
-      address(0),
-      safe.nonce()
-    );
+      multiSendData = abi.encodeWithSignature("multiSend(bytes)", packedCalls);
 
-    bytes memory sigs = _createNSigsForTx(safeTxHash, 2);
+      safeTxHash = _getSafeDelegatecallHash(defaultDelegatecallTargets[0], multiSendData, safe);
+
+      signatures = _createNSigsForTx(safeTxHash, 2);
+    }
 
     // submit the tx to the safe, expecting a revert
-    vm.prank(signerAddresses[0]);
     vm.expectRevert("GS013");
     safe.execTransaction(
       defaultDelegatecallTargets[0],
       0,
-      multisendData,
+      multiSendData,
       Enum.Operation.DelegateCall,
       // not using the refunder
       0,
@@ -550,7 +549,7 @@ contract AttacksScenarios is WithHSGInstanceTest {
       0,
       address(0),
       payable(address(0)),
-      sigs
+      signatures
     );
 
     // the fallback should not be different
@@ -560,26 +559,22 @@ contract AttacksScenarios is WithHSGInstanceTest {
   }
 
   function test_revert_callCheckAfterExecutionFromMultisend() public {
-    // the malicious contract that the signers will set as the fallback
-    // if they succeed, it would be an equivalent security risk as if they were able to enable another module on the
-    // safes
-    address maliciousFallbackHandler = makeAddr("maliciousFallbackHandler");
-    address goodFallbackHandler = SafeManagerLib.getSafeFallbackHandler(safe);
-
     // our scenario starts with HSG attached to a safe, with 3 valid signers and a threshold of 2
     _addSignersSameHat(3, signerHat);
 
     // the attacker crafts a multisend tx that contains two actions:
-    // 1) HSG.checkAfterExecution — this will reset the _inSafeExecTransaction flag to false after it was set to true in
+    // 1) HSG.checkAfterExecution — this will reset the _inSafeExecTransaction flag to false after it was set to
+    // true in checkTransaction
     // 2) set the maliciousFallbackHandler as the fallback
     // 3) Safe.execTransaction
 
     // 1) HSG.checkAfterExecution
-    bytes memory checkAfterExecutionAction =
-      abi.encodeWithSignature("checkAfterExecution(bytes32,bool)", bytes32(0), false);
+    // bytes memory checkAfterExecutionAction =
+    // abi.encodeWithSignature("checkAfterExecution(bytes32,bool)", bytes32(0), false);
 
     // 2) set the maliciousFallbackHandler as the fallback
-    bytes memory setFallbackAction = abi.encodeWithSignature("setFallbackHandler(address)", maliciousFallbackHandler);
+    // bytes memory setFallbackAction = abi.encodeWithSignature("setFallbackHandler(address)",
+    // maliciousFallbackHandler);
 
     // 3) call Safe.execTransaction with valid signatures
     // get the hash of the empty action
@@ -614,118 +609,8 @@ contract AttacksScenarios is WithHSGInstanceTest {
     );
 
     // bundle the three actions into a multisend
-    bytes memory packedCalls = abi.encodePacked(
+    packedCalls = abi.encodePacked(
       // checkTransaction
-      // 1) checkAfterExecution
-      uint8(0), // 0 for call; 1 for delegatecall
-      address(instance), // to
-      uint256(0), // value
-      uint256(checkAfterExecutionAction.length), // data length
-      bytes(checkAfterExecutionAction), // data
-      // 2) setFallback
-      uint8(0), // 0 for call; 1 for delegatecall
-      safe, // to
-      uint256(0), // value
-      uint256(setFallbackAction.length), // data length
-      bytes(setFallbackAction), // data
-      // 3) execTransaction
-      // checkTransaction
-      uint8(0), // 0 for call; 1 for delegatecall
-      safe, // to
-      uint256(0), // value
-      uint256(emptyExecTransactionAction.length), // data length
-      bytes(emptyExecTransactionAction) // data
-        // checkAfterExecution
-        // checkAfterExecution
-    );
-
-    bytes memory multisendData = abi.encodeWithSignature("multiSend(bytes)", packedCalls);
-
-    // get the safe tx hash and have the signers sign it
-    bytes32 safeTxHash = safe.getTransactionHash(
-      defaultDelegatecallTargets[0], // to an approved delegatecall target
-      0,
-      multisendData,
-      Enum.Operation.DelegateCall,
-      // not using the refunder
-      0,
-      0,
-      0,
-      address(0),
-      address(0),
-      safe.nonce()
-    );
-
-    bytes memory sigs = _createNSigsForTx(safeTxHash, 2);
-
-    // submit the tx to the safe, expecting a revert
-    vm.prank(signerAddresses[0]);
-    vm.expectRevert(IHatsSignerGate.NoReentryAllowed.selector);
-    safe.execTransaction(
-      defaultDelegatecallTargets[0],
-      0,
-      multisendData,
-      Enum.Operation.DelegateCall,
-      // not using the refunder
-      0,
-      0,
-      0,
-      address(0),
-      payable(address(0)),
-      sigs
-    );
-
-    // the fallback should be different
-    assertEq(
-      SafeManagerLib.getSafeFallbackHandler(safe), goodFallbackHandler, "fallbackHandler should be the same as before"
-    );
-  }
-
-  function test_revert_bypassHSGGuardByDisablingHSG() public {
-    // the malicious contract that the signers will set as the fallback
-    // if they succeed, it would be an equivalent security risk as if they were able to enable another module on the
-    // safes
-    address maliciousFallbackHandler = makeAddr("maliciousFallbackHandler");
-    address goodFallbackHandler = SafeManagerLib.getSafeFallbackHandler(safe);
-
-    // start with 3 valid signers
-    _addSignersSameHat(3, signerHat);
-
-    // the attacker crafts a multisend tx that contains three actions:
-    // 1) HSG.checkAfterExecution — this will reset the _inSafeExecTransaction flag to false after it was set to true in
-    // the outer call
-    // 2) Safe.setFallbackHandler to set the maliciousFallbackHandler as the fallback
-    // 3) HSG.checkTransaction — this will set the _inSafeExecTransaction flag to back to true and overwrite the
-    // snapshot
-
-    // 1) HSG.checkAfterExecution
-    bytes memory checkAfterExecutionAction =
-      abi.encodeWithSignature("checkAfterExecution(bytes32,bool)", bytes32(0), false);
-
-    // 2) Safe.setFallbackHandler to set the maliciousFallbackHandler as the fallback
-    bytes memory setFallbackAction = abi.encodeWithSignature("setFallbackHandler(address)", maliciousFallbackHandler);
-
-    // attackers spoof some signatures for the checkTransaction call
-    bytes memory spoofedSigs = _createNContractSigs(2);
-
-    // 3) HSG.checkTransaction
-    bytes memory checkTransactionAction = abi.encodeWithSignature(
-      "checkTransaction(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,bytes,address)",
-      address(0),
-      0,
-      hex"",
-      Enum.Operation.Call,
-      0,
-      0,
-      0,
-      address(0),
-      address(0),
-      spoofedSigs,
-      address(safe)
-    );
-
-    // bundle the three actions into a multisend
-    bytes memory packedCalls = abi.encodePacked(
       // 1) checkAfterExecution
       uint8(0), // 0 for call; 1 for delegatecall
       address(instance), // to
@@ -737,7 +622,119 @@ contract AttacksScenarios is WithHSGInstanceTest {
       address(safe), // to
       uint256(0), // value
       uint256(setFallbackAction.length), // data length
-      bytes(setFallbackAction), // data
+      bytes(setFallbackAction) // data
+    );
+
+    // workaround to avoid stack too deep error
+    packedCalls = abi.encodePacked(
+      packedCalls,
+      // 3) execTransaction
+      // checkTransaction
+      uint8(0), // 0 for call; 1 for delegatecall
+      address(safe), // to
+      uint256(0), // value
+      uint256(emptyExecTransactionAction.length), // data length
+      bytes(emptyExecTransactionAction) // data
+        // checkAfterExecution
+        // checkAfterExecution
+    );
+
+    multiSendData = abi.encodeWithSignature("multiSend(bytes)", packedCalls);
+
+    // get the safe tx hash and have the signers sign it
+    safeTxHash = safe.getTransactionHash(
+      defaultDelegatecallTargets[0], // to an approved delegatecall target
+      0,
+      multiSendData,
+      Enum.Operation.DelegateCall,
+      // not using the refunder
+      0,
+      0,
+      0,
+      address(0),
+      address(0),
+      safe.nonce()
+    );
+
+    signatures = _createNSigsForTx(safeTxHash, 2);
+
+    // submit the tx to the safe, expecting a revert
+    vm.prank(signerAddresses[0]);
+    vm.expectRevert(IHatsSignerGate.NoReentryAllowed.selector);
+    safe.execTransaction(
+      defaultDelegatecallTargets[0],
+      0,
+      multiSendData,
+      Enum.Operation.DelegateCall,
+      // not using the refunder
+      0,
+      0,
+      0,
+      address(0),
+      payable(address(0)),
+      signatures
+    );
+
+    // the fallback should be different
+    assertEq(
+      SafeManagerLib.getSafeFallbackHandler(safe), goodFallbackHandler, "fallbackHandler should be the same asbefore"
+    );
+  }
+
+  function test_revert_bypassHSGGuardByDisablingHSG() public {
+    // start with 3 valid signers
+    _addSignersSameHat(3, signerHat);
+
+    // the attacker crafts a multisend tx that contains three actions:
+    // 1) HSG.checkAfterExecution — this will reset the _inSafeExecTransaction flag to false after it was set to
+    // true in the outer call
+    // 2) Safe.setFallbackHandler to set the maliciousFallbackHandler as the fallback
+    // 3) HSG.checkTransaction — this will set the _inSafeExecTransaction flag to back to true and overwrite the
+    // snapshot
+
+    // 1) HSG.checkAfterExecution
+    // bytes memory checkAfterExecutionAction =
+    //   abi.encodeWithSignature("checkAfterExecution(bytes32,bool)", bytes32(0), false);
+
+    // 2) Safe.setFallbackHandler to set the maliciousFallbackHandler as the fallback
+    //   bytes memory setFallbackAction = abi.encodeWithSignature("setFallbackHandler(address)",
+    // maliciousFallbackHandler);
+
+    // 3) HSG.checkTransaction
+    checkTransactionAction = abi.encodeWithSignature(
+      CHECK_TRANSACTION_SIGNATURE,
+      address(0),
+      0,
+      hex"",
+      Enum.Operation.Call,
+      0,
+      0,
+      0,
+      address(0),
+      address(0),
+      _createNContractSigs(2), // attacker's spoofed signatures
+      address(safe)
+    );
+
+    // bundle the three actions into a multisend
+    packedCalls = abi.encodePacked(
+      // 1) checkAfterExecution
+      uint8(0), // 0 for call; 1 for delegatecall
+      address(instance), // to
+      uint256(0), // value
+      uint256(checkAfterExecutionAction.length), // data length
+      bytes(checkAfterExecutionAction), // data
+      // 2) setFallback
+      uint8(0), // 0 for call; 1 for delegatecall
+      address(safe), // to
+      uint256(0), // value
+      uint256(setFallbackAction.length), // data length
+      bytes(setFallbackAction) // data
+    );
+
+    // workaround to avoid stack too deep error
+    packedCalls = abi.encodePacked(
+      packedCalls,
       // 3) checkTransaction
       uint8(0), // 0 for call; 1 for delegatecall
       address(instance), // to
@@ -746,15 +743,15 @@ contract AttacksScenarios is WithHSGInstanceTest {
       bytes(checkTransactionAction) // data
     );
 
-    bytes memory multisendData = abi.encodeWithSignature("multiSend(bytes)", packedCalls);
+    multiSendData = abi.encodeWithSignature("multiSend(bytes)", packedCalls);
 
     // get the safe tx hash and have the signers sign it
-    bytes32 safeTxHash = safe.getTransactionHash(
+    safeTxHash = safe.getTransactionHash(
       defaultDelegatecallTargets[0], // to an approved delegatecall target
       0,
-      multisendData,
+      multiSendData,
       Enum.Operation.DelegateCall,
-      // not using the refunder
+      // not using the refunders
       0,
       0,
       0,
@@ -772,7 +769,7 @@ contract AttacksScenarios is WithHSGInstanceTest {
     safe.execTransaction(
       defaultDelegatecallTargets[0],
       0,
-      multisendData,
+      multiSendData,
       Enum.Operation.DelegateCall,
       // not using the refunder
       0,
