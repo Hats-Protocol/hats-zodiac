@@ -1010,4 +1010,98 @@ contract AttacksScenarios is WithHSGInstanceTest {
       SafeManagerLib.getSafeFallbackHandler(safe), goodFallbackHandler, "fallbackHandler should be the same as before"
     );
   }
+
+  function test_revert_changeFallbackHandlerViaExecTransactionFromModuleInsideMultisend() public {
+    // start with 3 valid signers
+    _addSignersSameHat(3, signerHat);
+
+    // the attacker crafts a multisend tx that contains two actions:
+    // 1) HSG.checkAfterExecution — this will reset the _inSafeExecTransaction flag to false after it was set to
+    // true in checkTransaction
+    // 2) HSG.execTransactionFromModule with a payload that changes the fallback handler inside of a multisend. This
+    // should revert because changing safe state is not allowed.
+
+    // simplest version of (2) requires that the safe has somehow been enabled as a module on HSG. Otherwise, it will
+    // revert with a NotAuthorized() error.
+    vm.prank(owner);
+    instance.enableModule(address(safe));
+
+    // (2) craft the execTransactionFromModule action
+    packedCalls = abi.encodePacked(
+      uint8(0), // 0 for call; 1 for delegatecall
+      address(safe), // to
+      uint256(0), // value
+      uint256(setFallbackAction.length), // data length
+      bytes(setFallbackAction) // data
+    );
+
+    multiSendData = abi.encodeWithSignature("multiSend(bytes)", packedCalls);
+
+    bytes memory execTransactionFromModuleAction = abi.encodeWithSignature(
+      "execTransactionFromModule(address,uint256,bytes,uint8)",
+      defaultDelegatecallTargets[0],
+      0,
+      multiSendData,
+      Enum.Operation.DelegateCall
+    );
+
+    // bundle the two actions into a multisend
+    packedCalls = abi.encodePacked(
+      // 1) checkAfterExecution
+      uint8(0), // 0 for call; 1 for delegatecall
+      address(instance), // to
+      uint256(0), // value
+      uint256(checkAfterExecutionAction.length), // data length
+      bytes(checkAfterExecutionAction), // data
+      // 2) execTransactionFromModule
+      uint8(0), // 0 for call; 1 for delegatecall
+      address(instance), // to
+      uint256(0), // value
+      uint256(execTransactionFromModuleAction.length), // data length
+      bytes(execTransactionFromModuleAction) // data
+    );
+
+    multiSendData = abi.encodeWithSignature("multiSend(bytes)", packedCalls);
+
+    // get the safe tx hash
+    safeTxHash = safe.getTransactionHash(
+      defaultDelegatecallTargets[0], // to an approved delegatecall target
+      0,
+      multiSendData,
+      Enum.Operation.DelegateCall,
+      // not using the refunders
+      0,
+      0,
+      0,
+      address(0),
+      address(0),
+      safe.nonce()
+    );
+
+    // signers sign the tx
+    signatures = _createNSigsForTx(safeTxHash, 2);
+
+    // submit the tx to the safe, expecting a revert
+    // We expect GS013 since Safe.execTransaction catches the CannotChangeFallbackHandler error thrown by
+    // HSG.execTransactionFromModule
+    vm.expectRevert("GS013");
+    safe.execTransaction(
+      defaultDelegatecallTargets[0],
+      0,
+      multiSendData,
+      Enum.Operation.DelegateCall,
+      // not using the refunders
+      0,
+      0,
+      0,
+      address(0),
+      payable(address(0)),
+      signatures
+    );
+
+    // the fallback should the same
+    assertEq(
+      SafeManagerLib.getSafeFallbackHandler(safe), goodFallbackHandler, "fallbackHandler should be the same as before"
+    );
+  }
 }
