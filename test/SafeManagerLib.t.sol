@@ -106,6 +106,7 @@ contract SafeManagerLib_EncodingActions is Test {
 contract SafeManagerLib_ExecutingActions is WithHSGHarnessInstanceTest {
   /// @dev Since execSafeTransactionFromHSG is called by all the other exec* functions, we rely on tests for those
   /// functions to verify that execSafeTransactionFromHSG is working correctly.
+  // TODO: add test for execSafeTransactionFromHSG
 
   function test_execDisableHSGAsOnlyModule() public {
     harness.execDisableHSGAsOnlyModule(safe);
@@ -186,7 +187,8 @@ contract SafeManagerLib_ExecutingActions is WithHSGHarnessInstanceTest {
     vm.stopPrank();
 
     // attempt to change the threshold to a value greater than the number of owners
-    // the transaction will not revert, but the threshold will not be updated
+    // the transaction should revert
+    vm.expectRevert(SafeManagerLib.SafeTransactionFailed.selector);
     harness.execChangeThreshold(safe, _newThreshold);
 
     assertEq(safe.getThreshold(), 1, "threshold should not be updated");
