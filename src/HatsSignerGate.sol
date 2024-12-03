@@ -508,6 +508,7 @@ contract HatsSignerGate is
    *         2. changing any modules
    *         3. changing the threshold
    *         4. changing the owners
+   *         5. changing the fallback handler
    *     CAUTION: If the safe has any authority over the signersHat(s) — i.e. wears their admin hat(s) or is an
    *     eligibility or toggle module — then in some cases protections (3) and (4) may not hold. Proceed with caution if
    *     considering granting such authority to the safe.
@@ -517,7 +518,7 @@ contract HatsSignerGate is
   function checkAfterExecution(bytes32, bool) public override {
     // Ensure that this is only called in accordance with the Safe execTransaction flow
     // And that it is not called from inside an execTransactionFromModule call
-    if (!_inSafeExecTransaction || _inModuleExecTransaction) revert NoReentryAllowed(); // TODO more specific error?
+    if (!_inSafeExecTransaction || _inModuleExecTransaction) revert NoReentryAllowed();
 
     // module guard postflight check
     if (guard != address(0)) {
