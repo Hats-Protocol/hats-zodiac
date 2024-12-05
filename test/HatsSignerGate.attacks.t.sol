@@ -677,7 +677,7 @@ contract AttacksScenarios is WithHSGInstanceTest {
 
     // the fallback should be different
     assertEq(
-      SafeManagerLib.getSafeFallbackHandler(safe), goodFallbackHandler, "fallbackHandler should be the same asbefore"
+      SafeManagerLib.getSafeFallbackHandler(safe), goodFallbackHandler, "fallbackHandler should be the same as before"
     );
   }
 
