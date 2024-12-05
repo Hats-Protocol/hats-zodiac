@@ -31,11 +31,12 @@ contract TestGuard is BaseGuard {
     executionDisallowed = true;
   }
 
+  /// @dev Modified to remove the operation restriction
   function checkTransaction(
     address to,
     uint256 value,
     bytes memory data,
-    Enum.Operation operation,
+    Enum.Operation, /* operation */
     uint256,
     uint256,
     uint256,
@@ -47,7 +48,7 @@ contract TestGuard is BaseGuard {
     require(to != address(0), "Cannot send to zero address");
     require(value != 1337, "Cannot send 1337");
     require(bytes3(data) != bytes3(0xbaddad), "Cannot call 0xbaddad");
-    require(operation != Enum.Operation(1), "No delegate calls");
+    // require(operation != Enum.Operation(1), "No delegate calls");
     emit PreChecked(sender);
   }
 

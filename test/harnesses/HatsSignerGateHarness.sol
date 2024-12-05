@@ -31,9 +31,10 @@ contract HatsSignerGateHarness is HatsSignerGate, SafeManagerLibHarness {
   uint256 public existingThreshold;
   address public existingFallbackHandler;
   Enum.Operation public operation;
-  uint256 public reentrancyGuard;
+  bool public inModuleExecTransaction;
+  bool public inSafeExecTransaction;
   uint256 public initialNonce;
-  uint256 public entrancyCounter;
+  uint256 public checkTransactionCounter;
 
   /*//////////////////////////////////////////////////////////////
                         TRANSIENT STATE SETTERS
@@ -49,6 +50,14 @@ contract HatsSignerGateHarness is HatsSignerGate, SafeManagerLibHarness {
 
   function setExistingFallbackHandler(address existingFallbackHandler_) public {
     _existingFallbackHandler = existingFallbackHandler_;
+  }
+
+  function setInModuleExecTransaction(bool inModuleExecTransaction_) public {
+    _inModuleExecTransaction = inModuleExecTransaction_;
+  }
+
+  function setInSafeExecTransaction(bool inSafeExecTransaction_) public {
+    _inSafeExecTransaction = inSafeExecTransaction_;
   }
 
   /*//////////////////////////////////////////////////////////////
@@ -151,16 +160,20 @@ contract HatsSignerGateHarness is HatsSignerGate, SafeManagerLibHarness {
     return _operation;
   }
 
-  function exposed_reentrancyGuard() public view returns (uint256) {
-    return _reentrancyGuard;
+  function exposed_inModuleExecTransaction() public view returns (bool) {
+    return _inModuleExecTransaction;
+  }
+
+  function exposed_inSafeExecTransaction() public view returns (bool) {
+    return _inSafeExecTransaction;
   }
 
   function exposed_initialNonce() public view returns (uint256) {
     return _initialNonce;
   }
 
-  function exposed_entrancyCounter() public view returns (uint256) {
-    return _entrancyCounter;
+  function exposed_checkTransactionCounter() public view returns (uint256) {
+    return _checkTransactionCounter;
   }
 
   /// @dev Exposes the transient state variables set within checkTransaction
@@ -184,9 +197,10 @@ contract HatsSignerGateHarness is HatsSignerGate, SafeManagerLibHarness {
     existingOwnersHash = _existingOwnersHash;
     existingThreshold = _existingThreshold;
     existingFallbackHandler = _existingFallbackHandler;
-    reentrancyGuard = _reentrancyGuard;
+    inModuleExecTransaction = _inModuleExecTransaction;
+    inSafeExecTransaction = _inSafeExecTransaction;
     initialNonce = _initialNonce;
-    entrancyCounter = _entrancyCounter;
+    checkTransactionCounter = _checkTransactionCounter;
   }
 
   /// @dev Allows tests to call checkAfterExecution by mocking the guardEntries transient state variable
