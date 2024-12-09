@@ -10,6 +10,9 @@ import { MultiSend } from "../lib/safe-smart-account/contracts/libraries/MultiSe
 contract ExecutingTransactions is WithHSGInstanceTest {
   event ExecutionSuccess(bytes32 indexed txHash, uint256 payment);
 
+  address payable recipient1 = payable(makeAddr("recipient1"));
+  address payable recipient2 = payable(makeAddr("recipient2"));
+
   function testExecTxByHatWearers() public {
     _addSignersSameHat(3, signerHat);
 
@@ -308,6 +311,152 @@ contract ExecutingTransactions is WithHSGInstanceTest {
         signatures
       );
     }
+  }
+
+  function test_happy_multiSend() public {
+    uint256 firstSendAmount = 0.1 ether;
+    uint256 secondSendAmount = 0.2 ether;
+
+    // add 3 signers
+    _addSignersSameHat(3, signerHat);
+
+    // deal the safe some ETH
+    deal(address(safe), 1 ether);
+
+    // craft a multisend action to send eth twice
+    bytes memory packedCalls = abi.encodePacked(
+      // 1) first send
+      uint8(0), // 0 for call; 1 for delegatecall
+      address(recipient1), // to
+      uint256(firstSendAmount), // value
+      uint256(0), // data length
+      hex"", // data
+      // 2) second send
+      uint8(0), // 0 for call; 1 for delegatecall
+      address(recipient2), // to
+      uint256(secondSendAmount), // value
+      uint256(0), // data length
+      hex"" // data
+    );
+
+    bytes memory multiSendData = abi.encodeWithSignature("multiSend(bytes)", packedCalls);
+
+    // get the tx hash
+    bytes32 safeTxHash = safe.getTransactionHash(
+      defaultDelegatecallTargets[0],
+      0, // value
+      multiSendData, // data
+      Enum.Operation.DelegateCall, // operation
+      0, // safeTxGas
+      0, // baseGas
+      0, // gasPrice
+      address(0), // gasToken
+      payable(address(0)), // refundReceiver
+      safe.nonce() // nonce
+    );
+
+    // sufficient signers sign it
+    bytes memory sigs = _createNSigsForTx(safeTxHash, 2);
+
+    // execute the tx
+    safe.execTransaction(
+      defaultDelegatecallTargets[0],
+      0,
+      multiSendData,
+      Enum.Operation.DelegateCall,
+      0,
+      0,
+      0,
+      address(0),
+      payable(address(0)),
+      sigs
+    );
+
+    // confirm correct balances
+    assertEq(recipient1.balance, firstSendAmount, "wrong recipient1 balance");
+    assertEq(recipient2.balance, secondSendAmount, "wrong recipient2 balance");
+  }
+
+  function test_happy_batchMultiSend(uint256 _batchSize) public {
+    // construct an N-action multisend that will call execTransaction a random number of times
+    uint256 batchSize = bound(_batchSize, 1, 50);
+    // ensure the safe has enough ETH to cover the batch
+    deal(address(safe), batchSize * 1 ether);
+
+    // add 3 signers
+    _addSignersSameHat(3, signerHat);
+
+    uint256 sendAmount = 0.1 ether;
+    bytes32[] memory txHashes = new bytes32[](batchSize);
+    bytes[] memory signatures = new bytes[](batchSize);
+    bytes[] memory actionData = new bytes[](batchSize);
+    bytes memory packedCalls;
+
+    uint256 startingNonce = safe.nonce();
+
+    for (uint256 i; i < batchSize; i++) {
+      // get the tx hash for each action
+      txHashes[i] = safe.getTransactionHash(
+        recipient1,
+        sendAmount, // value
+        hex"", // data
+        Enum.Operation.Call, // operation
+        0, // safeTxGas
+        0, // baseGas
+        0, // gasPrice
+        address(0), // gasToken
+        payable(address(0)), // refundReceiver
+        startingNonce + i // nonce needs to increment for each tx
+      );
+
+      // sufficient signers sign each action
+      signatures[i] = _createNSigsForTx(txHashes[i], 2);
+
+      // encode each Safe.execTransaction call
+      actionData[i] = abi.encodeWithSignature(
+        "execTransaction(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,bytes)",
+        recipient1,
+        sendAmount, // value
+        hex"",
+        Enum.Operation.Call,
+        0,
+        0,
+        0,
+        address(0),
+        payable(address(0)),
+        signatures[i]
+      );
+
+      // encode the action data for multiSend
+      bytes memory packedCall = abi.encodePacked(
+        uint8(0), // 0 for call; 1 for delegatecall
+        address(safe), // to
+        uint256(0), // value
+        uint256(actionData[i].length), // data length
+        actionData[i] // data
+      );
+
+      // append the action data into a multisend call
+      packedCalls = abi.encodePacked(packedCalls, packedCall);
+    }
+
+    // execute the multisend
+    MultiSend(defaultDelegatecallTargets[0]).multiSend(packedCalls);
+
+    // confirm correct balances
+    assertEq(recipient1.balance, sendAmount * batchSize, "wrong recipient1 balance");
+  }
+
+  function test_happy_multiSend2() public {
+    test_happy_batchMultiSend(2);
+  }
+
+  function test_happy_multiSend10() public {
+    test_happy_batchMultiSend(10);
+  }
+
+  function test_happy_multiSend50() public {
+    test_happy_batchMultiSend(50);
   }
 }
 
@@ -664,9 +813,10 @@ contract HSGGuarding is WithHSGInstanceTest {
     // have 3 signers sign it
     bytes memory signatures = _createNSigsForTx(txHash, signerCount);
 
-    // we expect the `sender` param to be address(0) because the sender param from hsg.checkTransaction is empty
+    // we expect the `sender` param to be the Safe address because the sender param from hsg.checkTransaction is the
+    // Safe address
     vm.expectEmit();
-    emit TestGuard.PreChecked(address(0));
+    emit TestGuard.PreChecked(address(safe));
     vm.expectEmit();
     emit TestGuard.PostChecked(true);
 

@@ -1022,22 +1022,26 @@ contract WithHSGHarnessInstanceTest is TestSuite {
     bytes32 _existingOwnersHash,
     uint256 _existingThreshold,
     address _existingFallbackHandler,
-    uint256 _reentrancyGuard,
+    bool _inSafeExecTransaction,
+    bool _inModuleExecTransaction,
     uint256 _initialNonce,
-    uint256 _entrancyCounter
+    uint256 _checkTransactionCounter
   ) internal view {
-    assertEq(uint8(harness.operation()), uint8(_operation), "operation should be set");
-    assertEq(harness.reentrancyGuard(), _reentrancyGuard, "reentrancy guard should be set");
-    assertEq(harness.initialNonce(), _initialNonce, "initial nonce should be set");
-    assertEq(harness.entrancyCounter(), _entrancyCounter, "entrancy counter should be set");
-    if (_operation == Enum.Operation.DelegateCall) {
-      assertEq(harness.existingOwnersHash(), _existingOwnersHash, "existing owners hash should be set");
-      assertEq(harness.existingThreshold(), _existingThreshold, "existing threshold should be set");
-      assertEq(harness.existingFallbackHandler(), _existingFallbackHandler, "existing fallback handler should be set");
-    } else {
-      assertEq(harness.existingOwnersHash(), bytes32(0), "existing owners hash should be empty");
-      assertEq(harness.existingThreshold(), 0, "existing threshold should be empty");
-      assertEq(harness.existingFallbackHandler(), address(0), "existing fallback handler should be empty");
+    {
+      assertEq(uint8(harness.operation()), uint8(_operation), "operation should be set");
+      assertEq(harness.inSafeExecTransaction(), _inSafeExecTransaction, "inSafeExecTransaction should be set");
+      assertEq(harness.inModuleExecTransaction(), _inModuleExecTransaction, "inModuleExecTransaction should be set");
+      assertEq(harness.initialNonce(), _initialNonce, "initial nonce should be set");
+      assertEq(harness.checkTransactionCounter(), _checkTransactionCounter, "checkTransactionCounter should be set");
+      if (_operation == Enum.Operation.DelegateCall) {
+        assertEq(harness.existingOwnersHash(), _existingOwnersHash, "existing owners hash should be set");
+        assertEq(harness.existingThreshold(), _existingThreshold, "existing threshold should be set");
+        assertEq(harness.existingFallbackHandler(), _existingFallbackHandler, "existing fallback handler should be set");
+      } else {
+        assertEq(harness.existingOwnersHash(), bytes32(0), "existing owners hash should be empty");
+        assertEq(harness.existingThreshold(), 0, "existing threshold should be empty");
+        assertEq(harness.existingFallbackHandler(), address(0), "existing fallback handler should be empty");
+      }
     }
   }
 
@@ -1055,5 +1059,17 @@ contract WithHSGHarnessInstanceTest is TestSuite {
       _existingFallbackHandler,
       "the existing fallback handler should be unchanged"
     );
+  }
+
+  /// @dev Forces the value of the `_inSafeExecTransaction` transient variable
+  modifier inSafeExecTransaction(bool _inSafeExecTransaction) {
+    harness.setInSafeExecTransaction(_inSafeExecTransaction);
+    _;
+  }
+
+  /// @dev Forces the value of the `_inModuleExecTransaction` transient variable
+  modifier inModuleExecTransaction(bool _inModuleExecTransaction) {
+    harness.setInModuleExecTransaction(_inModuleExecTransaction);
+    _;
   }
 }
