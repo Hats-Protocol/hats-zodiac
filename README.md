@@ -110,9 +110,10 @@ See [safe-deployments](https://github.com/safe-global/safe-deployments/tree/main
 
 - Delegatecalls can modify Safe state if not properly restricted. Owners should NOT approve delegatecall targets that enable the following:
   - Directly modifying any of the Safe's state, including the Safe's nonce.
-  - Additional delegatecalls. For example, the MultiSend library that is *not* MultiSendCallOnly should not be approved.
+  - Additional delegatecalls. For example, the [MultiSend.sol](https://github.com/safe-global/safe-smart-account/blob/v1.4.1-3/contracts/libraries/MultiSend.sol) library that is *not* "call only" should not be approved. The [MultiSendCallOnly.sol](https://github.com/safe-global/safe-smart-account/blob/v1.4.1-3/contracts/libraries/MultiSendCallOnly.sol) is approved by default.
 - HSG validates that approved delegatecalls don't modify critical Safe parameters, but relies on the Safe' nonce to do so.
 - Direct calls to the Safe are always prohibited
+- When detaching HSG from a Safe — i.e. when calling `detach()` — the owner must trust that admin(s) of the signer Hat(s) will not front-run the detachment to add arbitrary signers. Since admins in Hats Protocol are already trusted (and can be revoked, held accountable, etc.) this is not an additional risk, but HSG owners should nonetheless be aware of this risk.
 
 ### Contract Ownership
 
