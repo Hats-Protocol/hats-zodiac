@@ -137,7 +137,9 @@ Instances can be created for an existing Safe by passing the Safe address on ini
 
 ### Security Audits
 
-v1 of this project has received the following security audits. See the [audits directory](./audits/) for the detailed reports.
+#### v1
+
+v1 of this project has received the following security audits. See the [v1 audits directory](./docs/audit-v1/) for the detailed reports.
 
 | Auditor | Report Date | Commit Hash | Notes |
 | --- | --- | --- | --- |
