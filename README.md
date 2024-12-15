@@ -147,7 +147,13 @@ v1 of this project has received the following security audits. See the [v1 audit
 | Trust Security | Feb 23, 2023 | [b9b7fcf](https://github.com/Hats-Protocol/hats-zodiac/commit/b9b7fcf22fd5cbb98c7d93dead590e80bf9c780a) | Report also includes findings from [Hats Protocol](https://github.com/Hats-Protocol/hats-protocol) audit |
 | Sherlock | May 3, 2023 | [9455c0](https://github.com/Hats-Protocol/hats-zodiac/commit/9455cc0957762f5dbbd8e62063d970199109b977) | Report also includes findings from [Hats Protocol](https://github.com/Hats-Protocol/hats-protocol) audit |
 
-v2 — the present version — of this project will be audited soon.
+#### v2
+
+v2 — the present version — has received the following security audits. See the [v2 audits directory](./docs/audit-v2/) for the detailed reports.
+
+| Auditor | Report Date | Commit Hash | Notes |
+| --- | --- | --- | --- |
+| Sherlock | December 13, 2024 | [a9e3f4f](https://github.com/Hats-Protocol/hats-zodiac/commit/a9e3f4f0e968fb332800a468eddcb993fc6d5cd2) | 166 auditors participated |
 
 ### Recent Deployments
 
