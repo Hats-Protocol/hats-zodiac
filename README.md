@@ -110,9 +110,10 @@ See [safe-deployments](https://github.com/safe-global/safe-deployments/tree/main
 
 - Delegatecalls can modify Safe state if not properly restricted. Owners should NOT approve delegatecall targets that enable the following:
   - Directly modifying any of the Safe's state, including the Safe's nonce.
-  - Additional delegatecalls. For example, the MultiSend library that is *not* MultiSendCallOnly should not be approved.
+  - Additional delegatecalls. For example, the [MultiSend.sol](https://github.com/safe-global/safe-smart-account/blob/v1.4.1-3/contracts/libraries/MultiSend.sol) library that is *not* "call only" should not be approved. The [MultiSendCallOnly.sol](https://github.com/safe-global/safe-smart-account/blob/v1.4.1-3/contracts/libraries/MultiSendCallOnly.sol) is approved by default.
 - HSG validates that approved delegatecalls don't modify critical Safe parameters, but relies on the Safe' nonce to do so.
 - Direct calls to the Safe are always prohibited
+- When detaching HSG from a Safe — i.e. when calling `detach()` — the owner must trust that admin(s) of the signer Hat(s) will not front-run the detachment to add arbitrary signers. Since admins in Hats Protocol are already trusted (and can be revoked, held accountable, etc.) this is not an additional risk, but HSG owners should nonetheless be aware of this risk.
 
 ### Contract Ownership
 
@@ -137,14 +138,22 @@ Instances can be created for an existing Safe by passing the Safe address on ini
 
 ### Security Audits
 
-v1 of this project has received the following security audits. See the [audits directory](./audits/) for the detailed reports.
+#### v1
+
+v1 of this project has received the following security audits. See the [v1 audits directory](./docs/audit-v1/) for the detailed reports.
 
 | Auditor | Report Date | Commit Hash | Notes |
 | --- | --- | --- | --- |
 | Trust Security | Feb 23, 2023 | [b9b7fcf](https://github.com/Hats-Protocol/hats-zodiac/commit/b9b7fcf22fd5cbb98c7d93dead590e80bf9c780a) | Report also includes findings from [Hats Protocol](https://github.com/Hats-Protocol/hats-protocol) audit |
 | Sherlock | May 3, 2023 | [9455c0](https://github.com/Hats-Protocol/hats-zodiac/commit/9455cc0957762f5dbbd8e62063d970199109b977) | Report also includes findings from [Hats Protocol](https://github.com/Hats-Protocol/hats-protocol) audit |
 
-v2 — the present version — of this project will be audited soon.
+#### v2
+
+v2 — the present version — has received the following security audits. See the [v2 audits directory](./docs/audit-v2/) for the detailed reports.
+
+| Auditor | Report Date | Commit Hash | Notes |
+| --- | --- | --- | --- |
+| Sherlock | December 13, 2024 | [a9e3f4f](https://github.com/Hats-Protocol/hats-zodiac/commit/a9e3f4f0e968fb332800a468eddcb993fc6d5cd2) | 166 auditors participated |
 
 ### Recent Deployments
 
