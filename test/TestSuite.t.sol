@@ -513,14 +513,14 @@ contract TestSuite is SafeTestHelpers {
                         CUSTOM ASSERTIONS
   //////////////////////////////////////////////////////////////*/
 
-  function assertValidSignerHats(uint256[] memory _signerHats) public view {
+  function assertValidSignerHats(HatsSignerGate _instance, uint256[] memory _signerHats) public view {
     for (uint256 i = 0; i < _signerHats.length; ++i) {
-      assertTrue(instance.isValidSignerHat(_signerHats[i]));
+      assertTrue(_instance.isValidSignerHat(_signerHats[i]));
     }
   }
 
-  function assertCorrectModules(address[] memory _modules) public view {
-    (address[] memory pagedModules, address next) = instance.getModulesPaginated(SENTINELS, _modules.length);
+  function assertCorrectModules(HatsSignerGate _instance, address[] memory _modules) public view {
+    (address[] memory pagedModules, address next) = _instance.getModulesPaginated(SENTINELS, _modules.length);
     assertEq(pagedModules.length, _modules.length);
     for (uint256 i; i < _modules.length; ++i) {
       // getModulesPaginated returns the modules in the reverse order they were added
