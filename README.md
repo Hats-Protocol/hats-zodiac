@@ -155,6 +155,9 @@ v2 — the present version — has received the following security audits. See 
 | --- | --- | --- | --- |
 | Sherlock | December 13, 2024 | [a9e3f4f](https://github.com/Hats-Protocol/hats-zodiac/commit/a9e3f4f0e968fb332800a468eddcb993fc6d5cd2) | 166 auditors participated |
 
+> **Note**
+> Since this audit was completed, HSG code was updated to add a variable salt to the Safe proxy creation within the `SafeManagerLib.deploySafeAndAttachHSG` function. This ensures that the address of the Safe proxy is unique to the HSG instance.
+
 ### Recent Deployments
 
 See [Releases](https://github.com/Hats-Protocol/hats-zodiac/releases) for deployments. Specific deployment parameters are [stored here](./script/DeployParams.json).
