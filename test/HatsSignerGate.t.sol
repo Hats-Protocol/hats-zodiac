@@ -80,14 +80,14 @@ contract InstanceDeployment is TestSuite {
     });
 
     assertEq(instance.ownerHat(), ownerHat);
-    assertValidSignerHats(signerHats);
+    assertValidSignerHats(instance, signerHats);
     assertEq(instance.thresholdConfig(), thresholdConfig);
     assertEq(address(instance.safe()), address(testSafe));
     assertEq(address(instance.implementation()), address(implementationHSG));
     assertEq(instance.locked(), _locked);
     assertEq(instance.claimableFor(), _claimableFor);
     assertEq(address(instance.getGuard()), address(tstGuard));
-    assertCorrectModules(tstModules);
+    assertCorrectModules(instance, tstModules);
     assertEq(address(instance.HATS()), address(hats));
 
     // check that the default delegatecall targets are enabled
@@ -109,7 +109,7 @@ contract InstanceDeployment is TestSuite {
     });
 
     assertEq(instance.ownerHat(), ownerHat);
-    assertValidSignerHats(signerHats);
+    assertValidSignerHats(instance, signerHats);
     assertEq(instance.thresholdConfig(), thresholdConfig);
     assertEq(address(instance.HATS()), address(hats));
     assertEq(address(instance.safe()), address(safe));
@@ -120,11 +120,58 @@ contract InstanceDeployment is TestSuite {
     assertEq(instance.locked(), _locked);
     assertEq(instance.claimableFor(), _claimableFor);
     assertEq(address(instance.getGuard()), address(tstGuard));
-    assertCorrectModules(tstModules);
+    assertCorrectModules(instance, tstModules);
 
     // check that the default delegatecall targets are enabled
     for (uint256 i; i < defaultDelegatecallTargets.length; ++i) {
       assertTrue(instance.enabledDelegatecallTargets(defaultDelegatecallTargets[i]), "default target should be enabled");
+    }
+  }
+
+  function test_deployMultipleInstancesWithSameParams(uint256 _count) public {
+    _count = bound(_count, 1, 20);
+
+    // set up the instance deployer with the deploy params
+    DeployInstance instanceDeployer = new DeployInstance();
+    instanceDeployer.prepare1(
+      address(implementationHSG),
+      ownerHat,
+      signerHats,
+      thresholdConfig,
+      address(0),
+      true,
+      false,
+      address(tstGuard),
+      tstModules
+    );
+
+    HatsSignerGate inst;
+
+    // deploy the instances
+    for (uint256 i; i < _count; ++i) {
+      console2.log("deploying instance", i + 1);
+
+      // set the nonce for the instance deployer
+      instanceDeployer.prepare2(false, i);
+
+      // deploy the instance
+      inst = instanceDeployer.run();
+
+      ISafe s = inst.safe();
+
+      // check that the instance is deployed correctly
+      assertEq(inst.ownerHat(), ownerHat);
+      assertValidSignerHats(inst, signerHats);
+      assertEq(inst.thresholdConfig(), thresholdConfig);
+      assertEq(address(inst.HATS()), address(hats));
+      assertEq(address(inst.implementation()), address(implementationHSG));
+      assertEq(_getSafeGuard(address(s)), address(inst));
+      assertTrue(s.isModuleEnabled(address(inst)));
+      assertEq(s.getOwners()[0], address(inst));
+      assertEq(inst.locked(), true);
+      assertEq(inst.claimableFor(), false);
+      assertEq(address(inst.getGuard()), address(tstGuard));
+      assertCorrectModules(inst, tstModules);
     }
   }
 
@@ -728,7 +775,7 @@ contract AddingSignerHats is WithHSGInstanceTest {
     vm.prank(caller);
     instance.addSignerHats(signerHats);
 
-    assertValidSignerHats(signerHats);
+    assertValidSignerHats(instance, signerHats);
   }
 
   function test_fuzz_revert_locked(uint8 _numHats, bool _callerIsOwner)

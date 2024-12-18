@@ -48,7 +48,9 @@ library SafeManagerLib {
     address _safeFallbackLibrary,
     address _safeMultisendLibrary
   ) internal returns (address payable _safe) {
-    _safe = payable(SafeProxyFactory(_safeProxyFactory).createProxyWithNonce(_safeSingleton, hex"00", 0));
+    _safe = payable(
+      SafeProxyFactory(_safeProxyFactory).createProxyWithNonce(_safeSingleton, hex"00", uint256(uint160(address(this))))
+    );
 
     // Prepare calls to enable HSG as module and set it as guard
     bytes memory enableHSGModule = encodeEnableModuleAction(address(this));

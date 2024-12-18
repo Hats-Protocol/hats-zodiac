@@ -35,6 +35,13 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
         with:
           version: nightly
+      
+      # removed until transient keyword is supported
+      # - name: Check formatting
+      #   run: forge fmt --check
+
+      - name: Check contract sizes
+        run: forge build --sizes --skip script --via-ir
 
       - name: Run tests
         run: forge test -vvv
