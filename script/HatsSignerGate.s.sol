@@ -49,18 +49,8 @@ contract DeployImplementation is BaseScript {
     verbose = _verbose;
   }
 
-  function run() external returns (HatsSignerGate) {
-    setDeployParams();
-    uint256 privKey = vm.envUint("PRIVATE_KEY");
-    address deployer = vm.rememberKey(privKey);
-    vm.startBroadcast(deployer);
-
-    implementation =
-      new HatsSignerGate(hats, safeSingleton, safeFallbackLibrary, safeMultisendLibrary, safeProxyFactory);
-
-    vm.stopBroadcast();
-
-    if (verbose) {
+  function log(bool _verbose) public view {
+    if (_verbose) {
       console2.log("HSG implementation", address(implementation));
       console2.log("HSG runtime bytecode size:", address(implementation).code.length);
 
@@ -76,9 +66,75 @@ contract DeployImplementation is BaseScript {
       console2.log("Safe multisend library", safeMultisendLibrary);
       console2.log("Safe proxy factory", safeProxyFactory);
     }
+  }
+
+  function run() external virtual returns (HatsSignerGate) {
+    setDeployParams();
+    uint256 privKey = vm.envUint("PRIVATE_KEY");
+    address deployer = vm.rememberKey(privKey);
+    vm.startBroadcast(deployer);
+
+    implementation =
+      new HatsSignerGate{ salt: SALT }(hats, safeSingleton, safeFallbackLibrary, safeMultisendLibrary, safeProxyFactory);
+
+    vm.stopBroadcast();
+
+    log(verbose);
 
     return implementation;
   }
+
+  /*
+
+  forge script script/HatsSignerGate.s.sol:DeployImplementation --via-ir -f sepolia
+  forge script script/HatsSignerGate.s.sol:DeployImplementation --via-ir -f sepolia --broadcast --verify
+
+  forge verify-contract --chain-id <chainid> --num-of-optimizations 1000000 --watch --constructor-args 0000000000000000000000003bc1a0ad72417f2d411118085256fc53cbddd13700000000000000000000000029fcb43b46531bca003ddc8fcb67ffe91900c762000000000000000000000000fd0732dc9e303f09fcef3a7388ad10a83459ec990000000000000000000000009641d764fc13c8b624c04430c7356c1c7c8102e20000000000000000000000004e1dcf7ad4e460cfd30791ccc4f9c8a4f820ec67 --compiler-version v0.8.28 0x148057884AC910Bdd93693F230C5c35a8c47CA3b src/HatsSignerGate.sol:HatsSignerGate --etherscan-api-key $ETHERSCAN_KEY
+
+  */
+}
+
+contract MultiChainDeployImplementation is DeployImplementation {
+  using stdJson for string;
+
+  string[] public chains = ["arbitrum", "base", "celo", "gnosis", /*"mainnet",*/ "optimism", "polygon"/*, "sepolia"*/];
+
+  function run() external override returns (HatsSignerGate) {
+    uint256 privKey = vm.envUint("PRIVATE_KEY");
+    address deployer = vm.rememberKey(privKey);
+
+    for (uint256 i = 0; i < chains.length; i++) {
+      string memory chain = chains[i];
+      console2.log("\nDeploying to", chain);
+
+      // Use forge's built-in --fork-url flag to switch networks
+      vm.createSelectFork(vm.rpcUrl(chain));
+
+      // set the params for the current chain
+      setDeployParams();
+
+      // deploy the implementation with forge's built-in CREATE2 factory
+      vm.startBroadcast(deployer);
+      try new HatsSignerGate{ salt: SALT }(
+        hats, safeSingleton, safeFallbackLibrary, safeMultisendLibrary, safeProxyFactory
+      ) returns (HatsSignerGate hsg) {
+        implementation = hsg;
+        log(verbose);
+      } catch {
+        console2.log("Deployment failed on", chain);
+      }
+      vm.stopBroadcast();
+    }
+
+    return implementation;
+  }
+
+  /*
+
+  forge script script/HatsSignerGate.s.sol:MultiChainDeployImplementation --via-ir
+  forge script script/HatsSignerGate.s.sol:MultiChainDeployImplementation --via-ir --broadcast --verify
+
+  */
 }
 
 contract DeployInstance is BaseScript {
@@ -86,18 +142,19 @@ contract DeployInstance is BaseScript {
 
   address public zodiacModuleFactory;
   address public hats;
-  address public implementation;
+  address public implementation = 0x148057884AC910Bdd93693F230C5c35a8c47CA3b;
   address public instance;
   address public hsgGuard;
   address[] public hsgModules;
-  uint256 public saltNonce;
+  uint256 public saltNonce = 1;
 
-  uint256 public ownerHat;
-  uint256[] public signersHats;
-  IHatsSignerGate.ThresholdConfig public thresholdConfig;
-  address public safe;
-  bool public locked;
-  bool public claimableFor;
+  uint256 public ownerHat = 0x000002ae00000000000000000000000000000000000000000000000000000000;
+  uint256[] public signersHats = [0x000002ae00010002000000000000000000000000000000000000000000000000];
+  IHatsSignerGate.ThresholdConfig public thresholdConfig =
+    IHatsSignerGate.ThresholdConfig({ thresholdType: IHatsSignerGate.TargetThresholdType.ABSOLUTE, min: 1, target: 2 });
+  address public safe = address(0);
+  bool public locked = false;
+  bool public claimableFor = true;
 
   function prepare1(
     address _implementation,
@@ -174,4 +231,11 @@ contract DeployInstance is BaseScript {
 
     return HatsSignerGate(instance);
   }
+
+  /*
+
+  forge script script/HatsSignerGate.s.sol:DeployInstance --via-ir -f sepolia
+  forge script script/HatsSignerGate.s.sol:DeployInstance --via-ir -f sepolia --broadcast
+
+  */
 }
