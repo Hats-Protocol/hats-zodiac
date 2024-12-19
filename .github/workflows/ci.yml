@@ -6,6 +6,12 @@ on:
       - main
   pull_request:
 
+env:
+  FOUNDRY_PROFILE: ci
+  INFURA_KEY: ${{ secrets.INFURA_KEY }}
+  GC_RPC: ${{ secrets.GC_RPC }}
+  PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
+
 jobs:
   lint:
     name: "Markdown linting"
@@ -29,6 +35,13 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
         with:
           version: nightly
+      
+      # removed until transient keyword is supported
+      # - name: Check formatting
+      #   run: forge fmt --check
+
+      - name: Check contract sizes
+        run: forge build --sizes --skip script --skip test --via-ir
 
       - name: Run tests
         run: forge test -vvv

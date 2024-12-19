@@ -1,14 +1,10 @@
-# hats-zodiac
+# Hats Signer Gate
 
-This repo holds several [Hats Protocol](https://github.com/Hats-Protocol/hats-protocol)-enabled [Zodiac](https://github.com/gnosis/zodiac) contracts. Currently, this repo contains the following, referred to collectively as Hats Signer Gate (HSG):
+This repo holds a [Hats Protocol](https://github.com/Hats-Protocol/hats-protocol)-enabled [Zodiac](https://github.com/gnosis/zodiac) contract called Hats Signer Gate (HSG).
 
-- [Hats Signer Gate](#hats-signer-gate)
-- [Multi-Hats Signer Gate](#multi-hats-signer-gate)
-- [Hats Signer Gate Factory](#hats-signer-gate-factory)
+## Hats Signer Gate v2
 
-## Hats Signer Gate
-
-A contract that grants multisig signing rights to addresses wearing a given Hat, enabling on-chain organizations (such as DAOs) to revocably delegate constrained signing authority and responsibility to individuals.
+A contract that grants multisig signing rights to addresses wearing a given hats, enabling on-chain organizations (such as DAOs) to revocably delegate to individuals constrained authority and responsibility to operate an account (i.e. a Safe) owned by the organization.
 
 ### Overview
 
@@ -29,42 +25,138 @@ A) **Only valid signers can execute transactions**, i.e. only signatures made by
 B) **Signers cannot execute transactions that remove the constraint in (A)**. Specifically, this contract guards against signers...
 
 1. Removing the contract as a guard on the multisig
-2. Removing the contract as a module on the multisig — or removing/changing/adding any other modules,
+2. Removing the contract as a module on the multisig — or removing/changing/adding any other modules
 3. Changing the multisig threshold
 4. Changing the multisig owners
+5. Making delegatecalls to any target not approved by the owner
 
 > **Warning**
 > Protections against (3) and (4) above only hold if the Safe does not have any authority over the signer Hat(s). If it does — e.g. it wears an admin Hat of the signer Hat(s) or is an eligibility or toggle module on the signer Hat(s) — then in some cases the signers may be able to change the multisig threshold or owners.
 >
 > Proceed with caution if granting such authority to a Safe attached to HatsSignerGate.
 
-### Contract Ownership
+### Signer Management
 
-Hats Signer Gate uses the [HatsOwned](https://github.com/Hats-Protocol/hats-auth/) mix-in to manage ownership via a specified `ownerHat`.
+Hats Signer Gate provides several ways to manage Safe signers based on their hat-wearing status:
+
+#### Claiming Signer Rights
+
+- Individual hat wearers can claim their own signing rights via `claimSigner()`
+- Must be wearing a valid signer hat at time of claim
+- Each signer's hat ID is registered and tracked for future validation
+
+#### Claiming for Others
+
+When enabled by the owner (`claimableFor = true`):
+
+- Anyone can claim signing rights on behalf of valid hat wearers via `claimSignerFor()` or `claimSignersFor()`
+- Useful for batch onboarding of signers
+- Prevents re-registration if signer is still wearing their currently registered hat
+
+#### Signer Removal
+
+- Signers who no longer wear their registered hat can be removed via `removeSigner()`
+- Threshold automatically adjusts according to the threshold configuration
+- If the removed signer was the last valid signer, the contract itself becomes the sole owner
+
+### Threshold Configuration
+
+The threshold (number of required signatures) is managed dynamically based on the `ThresholdConfig`:
+
+#### Threshold Types
+
+1. **ABSOLUTE**
+
+   - Sets a fixed target number of required signatures
+   - Example: Always require exactly 3 signatures
+   - Bounded by min threshold and number of valid signers
+
+2. **PROPORTIONAL**
+
+   - Sets a percentage of total signers required (in basis points)
+   - Example: Require 51% of signers (5100 basis points)
+   - Actual number of required signatures rounds up
+   - Still bounded by min threshold
+
+#### Configuration Parameters
+
+- `min`: Minimum number of required signatures (must be > 0)
+- `target`: Either fixed number (ABSOLUTE) or percentage in basis points (PROPORTIONAL)
+- `thresholdType`: ABSOLUTE (0) or PROPORTIONAL (1)
+
+The Safe's threshold is automatically adjusted when:
+
+- New signers are added
+- Existing signers are removed
+- Threshold configuration is changed
+
+### Delegatecall Targets
+
+HSG restricts delegatecalls to protect the Safe from unauthorized modifications. Only approved targets can receive delegatecalls.
+
+#### Default Enabled Targets
+
+The following MultiSend libraries are enabled by default:
+
+| Address | Version | Type |
+| --- | --- | --- |
+| `0x40A2aCCbd92BCA938b02010E17A5b8929b49130D` | v1.3.0 | canonical |
+| `0xA1dabEF33b3B82c7814B6D82A79e50F4AC44102B` | v1.3.0 | eip155 |
+| `0x9641d764fc13c8B624c04430C7356C1C7C8102e2` | v1.4.1 | canonical |
+
+See [safe-deployments](https://github.com/safe-global/safe-deployments/tree/main/src/assets) for more information.
+
+#### Security Considerations
+
+- Delegatecalls can modify Safe state if not properly restricted. Owners should NOT approve delegatecall targets that enable the following:
+  - Directly modifying any of the Safe's state, including the Safe's nonce.
+  - Additional delegatecalls. For example, the [MultiSend.sol](https://github.com/safe-global/safe-smart-account/blob/v1.4.1-3/contracts/libraries/MultiSend.sol) library that is *not* "call only" should not be approved. The [MultiSendCallOnly.sol](https://github.com/safe-global/safe-smart-account/blob/v1.4.1-3/contracts/libraries/MultiSendCallOnly.sol) is approved by default.
+- HSG validates that approved delegatecalls don't modify critical Safe parameters, but relies on the Safe' nonce to do so.
+- Direct calls to the Safe are always prohibited
+- When detaching HSG from a Safe — i.e. when calling `detach()` — the owner must trust that admin(s) of the signer Hat(s) will not front-run the detachment to add arbitrary signers. Since admins in Hats Protocol are already trusted (and can be revoked, held accountable, etc.) this is not an additional risk, but HSG owners should nonetheless be aware of this risk.
+
+### Contract Ownership
 
 The wearer of the `ownerHat` can make the following changes to Hats Signer Gate:
 
 1. "Transfer" ownership to a new Hat by changing the `ownerHat`
-2. Set the acceptable multisig threshold range by changing `minThreshold` and `targetThreshold`
-3. Add other Zodiac modules to the multisig
-4. In [Multi-Hats Signer Gate](#multi-hats-signer-gate), add other Hats as valid signer Hats
+2. Change the threshold configuration
+3. Enable other Zodiac modules on HSG itself
+4. Enable another Zodiac guard on HSG itself
+5. Add other Hats as valid signer Hats
+6. Enable or disable the ability for others to claim signer rights on behalf of valid hat wearers (`claimableFor`)
+7. Detach HatsSignerGate from the Safe (removing it as both guard and module)
+8. Migrate to a new HatsSignerGate instance
+9. Enable or disable specific delegatecall targets
+10. Lock the contract permanently, preventing any further owner changes
 
-### Multi-Hats Signer Gate
+### Deploying New Instances
 
-[MultiHatsSignerGate.sol](./src/MultiHatsSignerGate.sol) is a modification of Hats Signer Gate that supports setting multiple Hats as valid signer Hats.
+Instances of HSG can be created via the [Zodiac module proxy factory](https://github.com/gnosisguild/zodiac/blob/18b7575bb342424537883f7ebe0a94cd7f3ec4f6/contracts/factory/ModuleProxyFactory.sol).
 
-### Hats Signer Gate Factory
-
-[HatsSignerGateFactory](./src/HatsSignerGateFactory.sol) is a factory contract that enables users to deploy proxy instances of HatsSignerGate and MultiHatsSignerGate, either for an existing Safe or wired up to a new Safe deployed at the same time. It uses the [Zodiac module proxy factory](https://github.com/gnosis/zodiac/blob/master/contracts/factory/ModuleProxyFactory.sol) so that the deployments are tracked in the Zodiac subgraph.
+Instances can be created for an existing Safe by passing the Safe address on initialization, or for a new Safe to be deployed from within HSG's initialization.
 
 ### Security Audits
 
-This project has received the following security audits. See the [audits directory](./audits/) for the detailed reports.
+#### v1
+
+v1 of this project has received the following security audits. See the [v1 audits directory](./docs/audit-v1/) for the detailed reports.
 
 | Auditor | Report Date | Commit Hash | Notes |
 | --- | --- | --- | --- |
 | Trust Security | Feb 23, 2023 | [b9b7fcf](https://github.com/Hats-Protocol/hats-zodiac/commit/b9b7fcf22fd5cbb98c7d93dead590e80bf9c780a) | Report also includes findings from [Hats Protocol](https://github.com/Hats-Protocol/hats-protocol) audit |
 | Sherlock | May 3, 2023 | [9455c0](https://github.com/Hats-Protocol/hats-zodiac/commit/9455cc0957762f5dbbd8e62063d970199109b977) | Report also includes findings from [Hats Protocol](https://github.com/Hats-Protocol/hats-protocol) audit |
+
+#### v2
+
+v2 — the present version — has received the following security audits. See the [v2 audits directory](./docs/audit-v2/) for the detailed reports.
+
+| Auditor | Report Date | Commit Hash | Notes |
+| --- | --- | --- | --- |
+| Sherlock | December 13, 2024 | [a9e3f4f](https://github.com/Hats-Protocol/hats-zodiac/commit/a9e3f4f0e968fb332800a468eddcb993fc6d5cd2) | 166 auditors participated |
+
+> **Note**
+> Since this audit was completed, HSG code was updated to add a variable salt to the Safe proxy creation within the `SafeManagerLib.deploySafeAndAttachHSG` function. This ensures that the address of the Safe proxy is unique to the HSG instance.
 
 ### Recent Deployments
 
