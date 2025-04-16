@@ -89,7 +89,10 @@ contract DeployImplementation is BaseScript {
   forge script script/HatsSignerGate.s.sol:DeployImplementation --via-ir -f sepolia
   forge script script/HatsSignerGate.s.sol:DeployImplementation --via-ir -f sepolia --broadcast --verify
 
-  forge verify-contract --chain-id <chainid> --num-of-optimizations 1000000 --watch --constructor-args 0000000000000000000000003bc1a0ad72417f2d411118085256fc53cbddd13700000000000000000000000029fcb43b46531bca003ddc8fcb67ffe91900c762000000000000000000000000fd0732dc9e303f09fcef3a7388ad10a83459ec990000000000000000000000009641d764fc13c8b624c04430c7356c1c7c8102e20000000000000000000000004e1dcf7ad4e460cfd30791ccc4f9c8a4f820ec67 --compiler-version v0.8.28 0x148057884AC910Bdd93693F230C5c35a8c47CA3b src/HatsSignerGate.sol:HatsSignerGate --etherscan-api-key $ETHERSCAN_KEY
+  forge verify-contract --chain-id 84532 --num-of-optimizations 1000000 --watch --constructor-args
+  0000000000000000000000003bc1a0ad72417f2d411118085256fc53cbddd13700000000000000000000000029fcb43b46531bca003ddc8fcb67ffe91900c762000000000000000000000000fd0732dc9e303f09fcef3a7388ad10a83459ec990000000000000000000000009641d764fc13c8b624c04430c7356c1c7c8102e20000000000000000000000004e1dcf7ad4e460cfd30791ccc4f9c8a4f820ec67
+  --compiler-version v0.8.28 0x148057884AC910Bdd93693F230C5c35a8c47CA3b src/HatsSignerGate.sol:HatsSignerGate
+  --etherscan-api-key $ETHERSCAN_KEY
 
   */
 }
@@ -97,7 +100,7 @@ contract DeployImplementation is BaseScript {
 contract MultiChainDeployImplementation is DeployImplementation {
   using stdJson for string;
 
-  string[] public chains = ["arbitrum", "base", "celo", "gnosis", /*"mainnet",*/ "optimism", "polygon"/*, "sepolia"*/];
+  string[] public chains = ["arbitrum", "base", "celo", "gnosis", /*"mainnet",*/ "optimism", "polygon" /*, "sepolia"*/ ];
 
   function run() external override returns (HatsSignerGate) {
     uint256 privKey = vm.envUint("PRIVATE_KEY");
@@ -146,42 +149,173 @@ contract DeployInstance is BaseScript {
   address public instance;
   address public hsgGuard;
   address[] public hsgModules;
-  uint256 public saltNonce = 1;
 
-  uint256 public ownerHat = 0x000002ae00000000000000000000000000000000000000000000000000000000;
-  uint256[] public signersHats = [0x000002ae00010002000000000000000000000000000000000000000000000000];
-  IHatsSignerGate.ThresholdConfig public thresholdConfig =
-    IHatsSignerGate.ThresholdConfig({ thresholdType: IHatsSignerGate.TargetThresholdType.ABSOLUTE, min: 1, target: 2 });
-  address public safe = address(0);
-  bool public locked = false;
-  bool public claimableFor = true;
-
-  function prepare1(
-    address _implementation,
-    uint256 _ownerHat,
-    uint256[] memory _signersHats,
-    IHatsSignerGate.ThresholdConfig memory _thresholdConfig,
-    address _safe,
-    bool _locked,
-    bool _claimableFor,
-    address _hsgGuard,
-    address[] memory _hsgModules
-  ) public {
-    implementation = _implementation;
-    ownerHat = _ownerHat;
-    signersHats = _signersHats;
-    thresholdConfig = _thresholdConfig;
-    safe = _safe;
-    locked = _locked;
-    claimableFor = _claimableFor;
-    hsgGuard = _hsgGuard;
-    hsgModules = _hsgModules;
+  struct HSGData {
+    uint256 ownerHat;
+    uint256[] signersHats;
+    IHatsSignerGate.ThresholdConfig thresholdConfig;
+    address safe;
+    bool locked;
+    bool claimableFor;
+    address hsgGuard;
+    address[] modules;
+    uint256 saltNonce;
   }
 
-  function prepare2(bool _verbose, uint256 _saltNonce) public {
-    verbose = _verbose;
-    saltNonce = _saltNonce;
+  uint120 public constant FIFTY_ONE_PERCENT = 5100;
+
+  // TODO: update tophat domain with mainnet deployments
+  uint256 public topHat = 0x0000044a00000000000000000000000000000000000000000000000000000000;
+  uint256 public councilMemberHat = 0x0000044a00010001000100000000000000000000000000000000000000000000;
+  uint256 public generalManagerHat = 0x0000044a00010002000100010000000000000000000000000000000000000000;
+  uint256 public grantsSignerHat = 0x0000044a00010002000100010002000100010000000000000000000000000000;
+  uint256 public treasuryAdvisoryHat = 0x0000044a00010002000100010001000100030000000000000000000000000000;
+  uint256 public foundationOperatorHat = 0x0000044a00010002000100010001000100010000000000000000000000000000;
+  uint256 public signingDirectorHat = 0x0000044a00010002000100000000000000000000000000000000000000000000;
+
+  function createSignersHatsArray(uint256 _signerHat1, uint256 _signerHat2, uint256 _signerHat3)
+    public
+    pure
+    returns (uint256[] memory)
+  {
+    // figure out how many are non-empty
+    uint256 signersCount = 0;
+    if (_signerHat1 != 0) signersCount++;
+    if (_signerHat2 != 0) signersCount++;
+    if (_signerHat3 != 0) signersCount++;
+
+    uint256[] memory signersHats = new uint256[](signersCount);
+    if (_signerHat1 != 0) signersHats[0] = _signerHat1;
+    if (_signerHat2 != 0) signersHats[1] = _signerHat2;
+    if (_signerHat3 != 0) signersHats[2] = _signerHat3;
+    return signersHats;
   }
+
+  HSGData public daoCouncil = HSGData({
+    ownerHat: topHat,
+    signersHats: createSignersHatsArray(councilMemberHat, 0, 0),
+    thresholdConfig: IHatsSignerGate.ThresholdConfig({
+      thresholdType: IHatsSignerGate.TargetThresholdType.PROPORTIONAL,
+      min: 3,
+      target: FIFTY_ONE_PERCENT
+    }),
+    safe: 0xa86973F9F3d220311c87B7d58177C70E929ad9A2,
+    locked: false,
+    claimableFor: true,
+    hsgGuard: address(0),
+    modules: new address[](0),
+    saltNonce: 1
+  });
+
+  HSGData public opExMultisig = HSGData({
+    ownerHat: topHat,
+    signersHats: createSignersHatsArray(foundationOperatorHat, generalManagerHat, signingDirectorHat),
+    thresholdConfig: IHatsSignerGate.ThresholdConfig({
+      thresholdType: IHatsSignerGate.TargetThresholdType.PROPORTIONAL,
+      min: 3,
+      target: FIFTY_ONE_PERCENT
+    }),
+    safe: address(0), // TODO: replace with the opEx multisig address
+    locked: false,
+    claimableFor: true,
+    hsgGuard: address(0),
+    modules: new address[](0),
+    saltNonce: 1
+  });
+
+  HSGData public foundationExpenses = HSGData({
+    ownerHat: topHat,
+    signersHats: createSignersHatsArray(foundationOperatorHat, generalManagerHat, signingDirectorHat),
+    thresholdConfig: IHatsSignerGate.ThresholdConfig({
+      thresholdType: IHatsSignerGate.TargetThresholdType.PROPORTIONAL,
+      min: 2,
+      target: FIFTY_ONE_PERCENT
+    }),
+    safe: address(0), // TODO: replace with the foundation expenses safe address
+    locked: false,
+    claimableFor: true,
+    hsgGuard: address(0),
+    modules: new address[](0),
+    saltNonce: 1
+  });
+
+  HSGData public networkEngagementFund = HSGData({
+    ownerHat: topHat,
+    signersHats: createSignersHatsArray(foundationOperatorHat, generalManagerHat, signingDirectorHat),
+    thresholdConfig: IHatsSignerGate.ThresholdConfig({
+      thresholdType: IHatsSignerGate.TargetThresholdType.PROPORTIONAL,
+      min: 2,
+      target: FIFTY_ONE_PERCENT
+    }),
+    safe: address(0), // TODO: replace with the network engagement fund safe address
+    locked: false,
+    claimableFor: true,
+    hsgGuard: address(0),
+    modules: new address[](0),
+    saltNonce: 2
+  });
+
+  HSGData public bviRareOperations = HSGData({
+    ownerHat: topHat,
+    signersHats: createSignersHatsArray(foundationOperatorHat, generalManagerHat, signingDirectorHat),
+    thresholdConfig: IHatsSignerGate.ThresholdConfig({
+      thresholdType: IHatsSignerGate.TargetThresholdType.PROPORTIONAL,
+      min: 2,
+      target: FIFTY_ONE_PERCENT
+    }),
+    safe: address(0), // TODO: replace with the bvi rare operations safe address
+    locked: false,
+    claimableFor: true,
+    hsgGuard: address(0),
+    modules: new address[](0),
+    saltNonce: 3
+  });
+
+  HSGData public grantsCommittee = HSGData({
+    ownerHat: topHat,
+    signersHats: createSignersHatsArray(grantsSignerHat, 0, 0),
+    thresholdConfig: IHatsSignerGate.ThresholdConfig({
+      thresholdType: IHatsSignerGate.TargetThresholdType.PROPORTIONAL,
+      min: 1,
+      target: FIFTY_ONE_PERCENT
+    }),
+    safe: address(0), // TODO: replace with the grants committee safe address
+    locked: false,
+    claimableFor: true,
+    hsgGuard: address(0),
+    modules: new address[](0),
+    saltNonce: 1
+  });
+
+  /// @dev Set this to the HSGData struct for the council to deploy
+  HSGData public councilToDeploy = foundationExpenses;
+
+  // function prepare1(
+  //   address _implementation,
+  //   uint256 _ownerHat,
+  //   uint256[] memory _signersHats,
+  //   IHatsSignerGate.ThresholdConfig memory _thresholdConfig,
+  //   address _safe,
+  //   bool _locked,
+  //   bool _claimableFor,
+  //   address _hsgGuard,
+  //   address[] memory _hsgModules
+  // ) public {
+  //   implementation = _implementation;
+  //   ownerHat = _ownerHat;
+  //   signersHats = _signersHats;
+  //   thresholdConfig = _thresholdConfig;
+  //   safe = _safe;
+  //   locked = _locked;
+  //   claimableFor = _claimableFor;
+  //   hsgGuard = _hsgGuard;
+  //   hsgModules = _hsgModules;
+  // }
+
+  // function prepare2(bool _verbose, uint256 _saltNonce) public {
+  //   verbose = _verbose;
+  //   saltNonce = _saltNonce;
+  // }
 
   function setModuleFactory() public {
     string memory root = vm.projectRoot();
@@ -197,15 +331,15 @@ contract DeployInstance is BaseScript {
 
   function setupParams() public view returns (IHatsSignerGate.SetupParams memory params) {
     params = IHatsSignerGate.SetupParams({
-      ownerHat: ownerHat,
-      signerHats: signersHats,
-      safe: safe,
-      thresholdConfig: thresholdConfig,
-      locked: locked,
-      claimableFor: claimableFor,
+      ownerHat: councilToDeploy.ownerHat,
+      signerHats: councilToDeploy.signersHats,
+      safe: councilToDeploy.safe,
+      thresholdConfig: councilToDeploy.thresholdConfig,
+      locked: councilToDeploy.locked,
+      claimableFor: councilToDeploy.claimableFor,
       implementation: implementation,
-      hsgGuard: hsgGuard,
-      hsgModules: hsgModules
+      hsgGuard: councilToDeploy.hsgGuard,
+      hsgModules: councilToDeploy.modules
     });
     return params;
   }
@@ -218,13 +352,15 @@ contract DeployInstance is BaseScript {
     vm.startBroadcast(deployer);
 
     instance = ModuleProxyFactory(zodiacModuleFactory).deployModule(
-      address(implementation), abi.encodeWithSignature("setUp(bytes)", abi.encode(setupParams())), saltNonce
+      address(implementation),
+      abi.encodeWithSignature("setUp(bytes)", abi.encode(setupParams())),
+      councilToDeploy.saltNonce
     );
 
     vm.stopBroadcast();
 
     if (verbose) {
-      if (safe == address(0)) {
+      if (councilToDeploy.safe == address(0)) {
         console2.log("new Safe deployed", address(HatsSignerGate(instance).safe()));
       }
     }
