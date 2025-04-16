@@ -197,7 +197,7 @@ contract DeployInstance is BaseScript {
       min: 3,
       target: FIFTY_ONE_PERCENT
     }),
-    safe: address(0), // TODO: replace with the opEx multisig address
+    safe: address(0),
     locked: false,
     claimableFor: true,
     hsgGuard: address(0),
@@ -213,7 +213,7 @@ contract DeployInstance is BaseScript {
       min: 2,
       target: FIFTY_ONE_PERCENT
     }),
-    safe: address(0), // TODO: replace with the foundation expenses safe address
+    safe: address(0),
     locked: false,
     claimableFor: true,
     hsgGuard: address(0),
@@ -229,7 +229,7 @@ contract DeployInstance is BaseScript {
       min: 2,
       target: FIFTY_ONE_PERCENT
     }),
-    safe: address(0), // TODO: replace with the network engagement fund safe address
+    safe: address(0),
     locked: false,
     claimableFor: true,
     hsgGuard: address(0),
@@ -245,7 +245,7 @@ contract DeployInstance is BaseScript {
       min: 2,
       target: FIFTY_ONE_PERCENT
     }),
-    safe: address(0), // TODO: replace with the bvi rare operations safe address
+    safe: address(0),
     locked: false,
     claimableFor: true,
     hsgGuard: address(0),
