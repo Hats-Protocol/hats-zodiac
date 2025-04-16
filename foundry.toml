@@ -38,6 +38,7 @@ wrap_comments = true
 [rpc_endpoints]
 arbitrum = "https://arbitrum-mainnet.infura.io/v3/${INFURA_KEY}"
 base = "https://base-mainnet.infura.io/v3/${INFURA_KEY}"
+base-sepolia = "https://base-sepolia.infura.io/v3/${INFURA_KEY}"
 celo = "https://celo-mainnet.infura.io/v3/${INFURA_KEY}"
 gnosis = "${GC_RPC}"
 local = "http://localhost:8545"
@@ -45,15 +46,17 @@ mainnet = "https://mainnet.infura.io/v3/${INFURA_KEY}"
 optimism = "https://optimism-mainnet.infura.io/v3/${INFURA_KEY}"
 polygon = "https://polygon-mainnet.infura.io/v3/${INFURA_KEY}"
 sepolia = "https://sepolia.infura.io/v3/${INFURA_KEY}"
+zksync-interpreter = "http://35.184.110.151:3050"
 
 [etherscan]
-arbitrum = {key = "${ETHERSCAN_KEY}", url = "https://api.etherscan.io/v2/api?chainid=42161"}
-base = {key = "${ETHERSCAN_KEY}", url = "https://api.etherscan.io/v2/api?chainid=8453"}
-celo = {key = "${ETHERSCAN_KEY}", url = "https://api.etherscan.io/v2/api?chainid=42220"}
-gnosis = {key = "${ETHERSCAN_KEY}", url = "https://api.etherscan.io/v2/api?chainid=100"}
-mainnet = {key = "${ETHERSCAN_KEY}", url = "https://api.etherscan.io/v2/api?chainid=1"}
-optimism = {key = "${ETHERSCAN_KEY}", url = "https://api.etherscan.io/v2/api?chainid=10"}
-polygon = {key = "${ETHERSCAN_KEY}", url = "https://api.etherscan.io/v2/api?chainid=137"}
-sepolia = {key = "${ETHERSCAN_KEY}", url = "https://api.etherscan.io/v2/api?chainid=11155111"}
+arbitrum = {key = "${ETHERSCAN_KEY}", url = "https://api.etherscan.io/v3/api?chainid=42161"}
+base = {key = "${ETHERSCAN_KEY}", url = "https://api.etherscan.io/v3/api?chainid=8453"}
+# base-sepolia = {key = "${ETHERSCAN_KEY}", url = "https://api.etherscan.io/v3/api?chainid=84532"}
+celo = {key = "${ETHERSCAN_KEY}", url = "https://api.etherscan.io/v3/api?chainid=42220"}
+gnosis = {key = "${ETHERSCAN_KEY}", url = "https://api.etherscan.io/v3/api?chainid=100"}
+mainnet = {key = "${ETHERSCAN_KEY}", url = "https://api.etherscan.io/v3/api?chainid=1"}
+optimism = {key = "${ETHERSCAN_KEY}", url = "https://api.etherscan.io/v3/api?chainid=10"}
+polygon = {key = "${ETHERSCAN_KEY}", url = "https://api.etherscan.io/v3/api?chainid=137"}
+sepolia = {key = "${ETHERSCAN_KEY}", url = "https://api.etherscan.io/v3/api?chainid=11155111"}
 
 # See more config options https://github.com/foundry-rs/foundry/tree/master/config
