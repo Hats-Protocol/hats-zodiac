@@ -173,24 +173,6 @@ contract DeployInstance is BaseScript {
   uint256 public foundationOperatorHat = 0x0000044a00010002000100010001000100010000000000000000000000000000;
   uint256 public signingDirectorHat = 0x0000044a00010002000100000000000000000000000000000000000000000000;
 
-  function createSignersHatsArray(uint256 _signerHat1, uint256 _signerHat2, uint256 _signerHat3)
-    public
-    pure
-    returns (uint256[] memory)
-  {
-    // figure out how many are non-empty
-    uint256 signersCount = 0;
-    if (_signerHat1 != 0) signersCount++;
-    if (_signerHat2 != 0) signersCount++;
-    if (_signerHat3 != 0) signersCount++;
-
-    uint256[] memory signersHats = new uint256[](signersCount);
-    if (_signerHat1 != 0) signersHats[0] = _signerHat1;
-    if (_signerHat2 != 0) signersHats[1] = _signerHat2;
-    if (_signerHat3 != 0) signersHats[2] = _signerHat3;
-    return signersHats;
-  }
-
   HSGData public daoCouncil = HSGData({
     ownerHat: topHat,
     signersHats: createSignersHatsArray(councilMemberHat, 0, 0),
@@ -288,7 +270,7 @@ contract DeployInstance is BaseScript {
   });
 
   /// @dev Set this to the HSGData struct for the council to deploy
-  HSGData public councilToDeploy = foundationExpenses;
+  HSGData public councilToDeploy = bviRareOperations;
 
   // function prepare1(
   //   address _implementation,
@@ -344,6 +326,27 @@ contract DeployInstance is BaseScript {
     return params;
   }
 
+  /// @dev Creates an array of signers hats, skipping empty hats
+  function createSignersHatsArray(uint256 _signersHat1, uint256 _signersHat2, uint256 _signersHat3)
+    public
+    pure
+    returns (uint256[] memory)
+  {
+    uint256[] memory validHats = new uint256[](3);
+    uint256 count;
+
+    if (_signersHat1 != 0) validHats[count++] = _signersHat1;
+    if (_signersHat2 != 0) validHats[count++] = _signersHat2;
+    if (_signersHat3 != 0) validHats[count++] = _signersHat3;
+
+    uint256[] memory signersHats = new uint256[](count);
+    for (uint256 i; i < count; i++) {
+      signersHats[i] = validHats[i];
+    }
+
+    return signersHats;
+  }
+
   function run() external returns (HatsSignerGate) {
     setModuleFactory();
 
@@ -362,6 +365,10 @@ contract DeployInstance is BaseScript {
     if (verbose) {
       if (councilToDeploy.safe == address(0)) {
         console2.log("new Safe deployed", address(HatsSignerGate(instance).safe()));
+      }
+      for (uint256 i; i < councilToDeploy.signersHats.length; i++) {
+        // log the signers hats as hex strings
+        console2.log("signersHat", i, vm.toString(abi.encode(councilToDeploy.signersHats[i])));
       }
     }
 
