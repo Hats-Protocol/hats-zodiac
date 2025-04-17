@@ -169,13 +169,13 @@ contract DeployInstance is BaseScript {
   uint256 public councilMemberHat = 0x0000044a00010001000100000000000000000000000000000000000000000000;
   uint256 public generalManagerHat = 0x0000044a00010002000100010000000000000000000000000000000000000000;
   uint256 public grantsSignerHat = 0x0000044a00010002000100010002000100010000000000000000000000000000;
-  uint256 public treasuryAdvisoryHat = 0x0000044a00010002000100010001000100030000000000000000000000000000;
+  uint256 public treasuryAdvisorHat = 0x0000044a00010002000100010001000100030000000000000000000000000000;
   uint256 public foundationOperatorHat = 0x0000044a00010002000100010001000100010000000000000000000000000000;
   uint256 public signingDirectorHat = 0x0000044a00010002000100000000000000000000000000000000000000000000;
 
   HSGData public daoCouncil = HSGData({
     ownerHat: topHat,
-    signersHats: createSignersHatsArray(councilMemberHat, 0, 0),
+    signersHats: createSignersHatsArray(councilMemberHat, 0, 0, 0),
     thresholdConfig: IHatsSignerGate.ThresholdConfig({
       thresholdType: IHatsSignerGate.TargetThresholdType.PROPORTIONAL,
       min: 3,
@@ -191,7 +191,7 @@ contract DeployInstance is BaseScript {
 
   HSGData public opExMultisig = HSGData({
     ownerHat: topHat,
-    signersHats: createSignersHatsArray(foundationOperatorHat, generalManagerHat, signingDirectorHat),
+    signersHats: createSignersHatsArray(foundationOperatorHat, generalManagerHat, signingDirectorHat, 0),
     thresholdConfig: IHatsSignerGate.ThresholdConfig({
       thresholdType: IHatsSignerGate.TargetThresholdType.PROPORTIONAL,
       min: 2,
@@ -207,7 +207,7 @@ contract DeployInstance is BaseScript {
 
   HSGData public networkEngagementFund = HSGData({
     ownerHat: topHat,
-    signersHats: createSignersHatsArray(foundationOperatorHat, generalManagerHat, signingDirectorHat),
+    signersHats: createSignersHatsArray(foundationOperatorHat, generalManagerHat, signingDirectorHat, 0),
     thresholdConfig: IHatsSignerGate.ThresholdConfig({
       thresholdType: IHatsSignerGate.TargetThresholdType.PROPORTIONAL,
       min: 2,
@@ -223,7 +223,7 @@ contract DeployInstance is BaseScript {
 
   HSGData public bviRareOperations = HSGData({
     ownerHat: topHat,
-    signersHats: createSignersHatsArray(foundationOperatorHat, generalManagerHat, signingDirectorHat),
+    signersHats: createSignersHatsArray(foundationOperatorHat, generalManagerHat, signingDirectorHat, 0),
     thresholdConfig: IHatsSignerGate.ThresholdConfig({
       thresholdType: IHatsSignerGate.TargetThresholdType.PROPORTIONAL,
       min: 2,
@@ -239,7 +239,7 @@ contract DeployInstance is BaseScript {
 
   HSGData public grantsCommittee = HSGData({
     ownerHat: topHat,
-    signersHats: createSignersHatsArray(grantsSignerHat, 0, 0),
+    signersHats: createSignersHatsArray(grantsSignerHat, 0, 0, 0),
     thresholdConfig: IHatsSignerGate.ThresholdConfig({
       thresholdType: IHatsSignerGate.TargetThresholdType.PROPORTIONAL,
       min: 2,
@@ -255,7 +255,7 @@ contract DeployInstance is BaseScript {
 
   HSGData public rareCollection = HSGData({
     ownerHat: topHat,
-    signersHats: createSignersHatsArray(foundationOperatorHat, generalManagerHat, signingDirectorHat),
+    signersHats: createSignersHatsArray(foundationOperatorHat, generalManagerHat, signingDirectorHat, 0),
     thresholdConfig: IHatsSignerGate.ThresholdConfig({
       thresholdType: IHatsSignerGate.TargetThresholdType.PROPORTIONAL,
       min: 2,
@@ -285,9 +285,8 @@ contract DeployInstance is BaseScript {
     saltNonce: 1
   });
 
-
   /// @dev Set this to the HSGData struct for the council to deploy
-  HSGData public councilToDeploy = bviRareOperations;
+  HSGData public councilToDeploy = foundationTreasury;
 
   // function prepare1(
   //   address _implementation,
@@ -344,18 +343,19 @@ contract DeployInstance is BaseScript {
   }
 
   /// @dev Creates an array of signers hats, skipping empty hats
-  function createSignersHatsArray(uint256 _signersHat1, uint256 _signersHat2, uint256 _signersHat3)
-    public
-    pure
-    returns (uint256[] memory)
-  {
-    uint256[] memory validHats = new uint256[](3);
+  function createSignersHatsArray(
+    uint256 _signersHat1,
+    uint256 _signersHat2,
+    uint256 _signersHat3,
+    uint256 _signersHat4
+  ) public pure returns (uint256[] memory) {
+    uint256[] memory validHats = new uint256[](4);
     uint256 count;
 
     if (_signersHat1 != 0) validHats[count++] = _signersHat1;
     if (_signersHat2 != 0) validHats[count++] = _signersHat2;
     if (_signersHat3 != 0) validHats[count++] = _signersHat3;
-
+    if (_signersHat4 != 0) validHats[count++] = _signersHat4;
     uint256[] memory signersHats = new uint256[](count);
     for (uint256 i; i < count; i++) {
       signersHats[i] = validHats[i];
