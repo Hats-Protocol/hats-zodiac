@@ -181,7 +181,7 @@ contract DeployInstance is BaseScript {
       min: 3,
       target: FIFTY_ONE_PERCENT
     }),
-    safe: 0xa86973F9F3d220311c87B7d58177C70E929ad9A2,
+    safe: 0x860a80d33E85e97888F1f0C75c6e5BBD60b48DA9,
     locked: false,
     claimableFor: true,
     hsgGuard: address(0),
@@ -194,26 +194,10 @@ contract DeployInstance is BaseScript {
     signersHats: createSignersHatsArray(foundationOperatorHat, generalManagerHat, signingDirectorHat),
     thresholdConfig: IHatsSignerGate.ThresholdConfig({
       thresholdType: IHatsSignerGate.TargetThresholdType.PROPORTIONAL,
-      min: 3,
-      target: FIFTY_ONE_PERCENT
-    }),
-    safe: address(0),
-    locked: false,
-    claimableFor: true,
-    hsgGuard: address(0),
-    modules: new address[](0),
-    saltNonce: 1
-  });
-
-  HSGData public foundationExpenses = HSGData({
-    ownerHat: topHat,
-    signersHats: createSignersHatsArray(foundationOperatorHat, generalManagerHat, signingDirectorHat),
-    thresholdConfig: IHatsSignerGate.ThresholdConfig({
-      thresholdType: IHatsSignerGate.TargetThresholdType.PROPORTIONAL,
       min: 2,
       target: FIFTY_ONE_PERCENT
     }),
-    safe: address(0),
+    safe: 0xec00C25234B89a0c9B8Bba81Dd18636b1d5ebCEb,
     locked: false,
     claimableFor: true,
     hsgGuard: address(0),
@@ -229,7 +213,7 @@ contract DeployInstance is BaseScript {
       min: 2,
       target: FIFTY_ONE_PERCENT
     }),
-    safe: address(0),
+    safe: 0xB6bE324BB8d75a8275f0f21fEf66C9b4ad2304AF,
     locked: false,
     claimableFor: true,
     hsgGuard: address(0),
@@ -245,7 +229,7 @@ contract DeployInstance is BaseScript {
       min: 2,
       target: FIFTY_ONE_PERCENT
     }),
-    safe: address(0),
+    safe: 0xc2F394a45e994bc81EfF678bDE9172e10f7c8ddc,
     locked: false,
     claimableFor: true,
     hsgGuard: address(0),
@@ -258,7 +242,7 @@ contract DeployInstance is BaseScript {
     signersHats: createSignersHatsArray(grantsSignerHat, 0, 0),
     thresholdConfig: IHatsSignerGate.ThresholdConfig({
       thresholdType: IHatsSignerGate.TargetThresholdType.PROPORTIONAL,
-      min: 1,
+      min: 2,
       target: FIFTY_ONE_PERCENT
     }),
     safe: address(0), // TODO: replace with the grants committee safe address
@@ -268,6 +252,39 @@ contract DeployInstance is BaseScript {
     modules: new address[](0),
     saltNonce: 1
   });
+
+  HSGData public rareCollection = HSGData({
+    ownerHat: topHat,
+    signersHats: createSignersHatsArray(foundationOperatorHat, generalManagerHat, signingDirectorHat),
+    thresholdConfig: IHatsSignerGate.ThresholdConfig({
+      thresholdType: IHatsSignerGate.TargetThresholdType.PROPORTIONAL,
+      min: 2,
+      target: FIFTY_ONE_PERCENT
+    }),
+    safe: 0x3B9FfE03ECE0938d4f8DdEa48Fd5a610F9df32fF,
+    locked: false,
+    claimableFor: true,
+    hsgGuard: address(0),
+    modules: new address[](0),
+    saltNonce: 1
+  });
+
+  HSGData public foundationTreasury = HSGData({
+    ownerHat: topHat,
+    signersHats: createSignersHatsArray(foundationOperatorHat, generalManagerHat, signingDirectorHat, treasuryAdvisorHat),
+    thresholdConfig: IHatsSignerGate.ThresholdConfig({
+      thresholdType: IHatsSignerGate.TargetThresholdType.PROPORTIONAL,
+      min: 2,
+      target: FIFTY_ONE_PERCENT
+    }),
+    safe: 0xe49FC32E4111578B12555B5D2855A037602ab74b,
+    locked: false,
+    claimableFor: true,
+    hsgGuard: address(0),
+    modules: new address[](0),
+    saltNonce: 1
+  });
+
 
   /// @dev Set this to the HSGData struct for the council to deploy
   HSGData public councilToDeploy = bviRareOperations;
